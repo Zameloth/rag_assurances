@@ -48,14 +48,14 @@ clean: ## Stop the dev Qdrant and delete its volume
 # --- pipeline ----------------------------------------------------------------
 
 ingest: ## Corpus -> chunks -> BGE-M3 -> Qdrant (SPEC §4-§7)
-	$(call todo,2,python -m rag.ingest --corpus data/corpus)
+	$(call todo,2,the ingest library over data/corpus — src/rag/ingest/)
 
 ladder: ## Run the six-rung retrieval ablation ladder (SPEC §12.8)
-	$(call todo,7,python -m rag.eval.ladder --out eval/runs)
+	$(call todo,7,the eval harness — eval/ — writing per-rung scores to eval/runs/)
 
 publish-index: ## Parquet points dump -> index_lock.json -> GitHub Release (SPEC §15.3)
-	$(call todo,12,python -m rag.publish_index && gh release create ...)
+	$(call todo,12,the points dump the ladder already scored -> index_lock.json -> gh release create)
 
 deploy: ## Pull, restore, up, verify (SPEC §15.7)
-	$(call todo,12,compose pull && compose run --rm rag-assurances python -m rag.restore \
-	&& compose up -d && curl -f https://rag.theo-eloy.fr/health)
+	$(call todo,12,compose pull -> compose run --rm rag-assurances python -m rag.restore \
+	-> compose up -d -> curl -f https://rag.theo-eloy.fr/health)

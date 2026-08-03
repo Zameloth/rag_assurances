@@ -1,13 +1,23 @@
-"""Fixtures shared across the suite."""
+"""Fixtures shared across the suite.
 
-import os
-from collections.abc import Iterator
+The Qdrant shapes live here rather than in either test module because both the in-memory
+and the server suite assert against the same collection and point layout — SPEC §6.3–§6.4
+— and two copies of it would be two things to keep in step with the spec.
+"""
+
+import uuid
+from collections.abc import Callable, Iterator
 
 import pytest
-from dotenv import load_dotenv
-from qdrant_client import QdrantClient
+from qdrant_client import QdrantClient, models
 
-from rag.config import DEFAULT_QDRANT_URL
+from rag.config import load_settings
+
+# Any fixed UUID does; the ingest ticket fixes the project's real namespace.
+NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
+CreateCollection = Callable[[QdrantClient, str], None]
+MakePoint = Callable[[str, int, list[float]], models.PointStruct]
 
 
 @pytest.fixture
@@ -34,9 +44,7 @@ def qdrant_server() -> Iterator[QdrantClient]:
     store, so anything that needs the Rust engine — the ranking and recall numbers local
     mode cannot speak to — opts in through this fixture and is simply absent otherwise.
     """
-    # `.env` rather than the default alone, so a dev who moved the store is followed.
-    load_dotenv()
-    url = os.environ.get("QDRANT_URL") or DEFAULT_QDRANT_URL
+    url = load_settings().qdrant_url
     client = QdrantClient(url, timeout=2)
     try:
         client.get_collections()
@@ -47,3 +55,56 @@ def qdrant_server() -> Iterator[QdrantClient]:
         yield client
     finally:
         client.close()
+
+
+@pytest.fixture
+def create_collection() -> Iterator[CreateCollection]:
+    """Create a collection in the SPEC §6.3–§6.4 shape, and drop it afterwards.
+
+    Dropping matters for the server fixture, whose store outlives the test run; the
+    in-memory client would have thrown it away regardless.
+    """
+    created: list[tuple[QdrantClient, str]] = []
+
+    def create(client: QdrantClient, name: str) -> None:
+        client.delete_collection(name)
+        client.create_collection(
+            collection_name=name,
+            vectors_config={"dense": models.VectorParams(size=4, distance=models.Distance.COSINE)},
+            sparse_vectors_config={"sparse": models.SparseVectorParams()},
+            # SPEC §6.3 — HNSW never builds, so every collection searches exactly
+            # regardless of how many points it holds.
+            optimizers_config=models.OptimizersConfigDiff(indexing_threshold=0),
+        )
+        created.append((client, name))
+
+    try:
+        yield create
+    finally:
+        for client, name in reversed(created):
+            client.delete_collection(name)
+
+
+@pytest.fixture
+def make_point() -> MakePoint:
+    """An `articles` point: UUIDv5 id, two named vectors, flat payload (SPEC §6.4, §7.2).
+
+    The payload carries no `register` — SPEC §7.5 makes it an annotation the retriever
+    attaches, and a stored copy can only ever disagree with the collection holding it.
+    """
+
+    def build(legiarti_cid: str, chunk_index: int, dense: list[float]) -> models.PointStruct:
+        return models.PointStruct(
+            id=str(uuid.uuid5(NAMESPACE, f"{legiarti_cid}#{chunk_index}")),
+            vector={
+                "dense": dense,
+                "sparse": models.SparseVector(indices=[1, 7], values=[0.9, 0.4]),
+            },
+            payload={
+                "legiarti_cid": legiarti_cid,
+                "chunk_index": chunk_index,
+                "citation_id": "L113-3",
+            },
+        )
+
+    return build

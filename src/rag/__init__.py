@@ -5,6 +5,6 @@ of this package rather than a script, so the ladder, the app and the deploy path
 the same code. See SPEC §16.1 for the layout and `rag.config` for how it is configured.
 """
 
-from rag.config import ConfigurationError, MissingSettingError, Settings, load_settings
+from rag.config import ConfigurationError, Settings, load_settings
 
-__all__ = ["ConfigurationError", "MissingSettingError", "Settings", "load_settings"]
+__all__ = ["ConfigurationError", "Settings", "load_settings"]

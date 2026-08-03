@@ -35,6 +35,19 @@ The suite is green without a live store: anything needing the real engine takes 
 fixture and skips when nothing answers at `QDRANT_URL`. Everything else uses `QdrantClient(":memory:")`,
 which is for plumbing assertions only — never for recall or ranking numbers ([SPEC §6.3](SPEC.md)).
 
+## Licence
+
+Two licences, because one root file would be a false statement — you can license your code,
+you cannot relicense the Code des assurances ([SPEC §16.2](SPEC.md)).
+
+- [`LICENSE`](LICENSE) — MIT, and it covers **the code only**.
+- The corpus under `data/corpus/` is public-sector information from DILA, redistributed under
+  **Licence Ouverte 2.0**. It is not committed yet; when it lands it carries its own
+  `data/corpus/LICENSE.md`, with `corpus_manifest.json` as the authoritative machine-readable
+  attribution record.
+
+## Notes
+
 Configuration is read from `.env` and nowhere else ([SPEC §16.3](SPEC.md)); `.env.example` is the
 committed template and documents every variable. `LANGFUSE_TRACING` is **off by default** — the free
 tier fails on interactive debugging long before it fails on the ladder ([SPEC §11.2](SPEC.md)).

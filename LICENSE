@@ -1,9 +1,10 @@
 MIT License — code only.
 
 This licence covers the source code in this repository. It does NOT cover the
-corpus under `data/corpus/`, which is public-sector information redistributed
-under Licence Ouverte 2.0. See `data/corpus/LICENSE.md` and the authoritative
-machine-readable record in `data/corpus/corpus_manifest.json`.
+corpus under `data/corpus/`, which is public-sector information from DILA
+redistributed under Licence Ouverte 2.0. Once the corpus is committed its terms
+live in `data/corpus/LICENSE.md`, with the authoritative machine-readable
+attribution record in `data/corpus/corpus_manifest.json`. See the README.
 
 Copyright (c) 2026 Théo ELOY
 

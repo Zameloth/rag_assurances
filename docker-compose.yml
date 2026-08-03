@@ -18,11 +18,10 @@ services:
       - "127.0.0.1:6334:6334" # gRPC
     volumes:
       - qdrant-dev-storage:/qdrant/storage
-    environment:
-      # Collections are created by the ingest code with indexing_threshold=0 (SPEC §6.3);
-      # this is the belt-and-braces default for anything created outside it.
-      QDRANT__STORAGE__OPTIMIZERS__INDEXING_THRESHOLD_KB: 0
-      QDRANT__SERVICE__ENABLE_TLS: false
+    # Deliberately no QDRANT__STORAGE__OPTIMIZERS__INDEXING_THRESHOLD_KB here. SPEC §6.3
+    # puts that override on *every collection*, and a server-wide default in dev would
+    # hide a collection created without it — passing locally, then building HNSW in prod.
+    # Dev has to be able to fail the way prod would.
     healthcheck:
       # The image ships neither curl nor wget, so the probe is bash's /dev/tcp. It must
       # be bash explicitly — the default shell is dash, which has no /dev/tcp and fails
