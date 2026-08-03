@@ -1,0 +1,38 @@
+[project]
+name = "rag-assurances"
+version = "0.1.0"
+description = "French-language RAG assistant over public French insurance law"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Théo ELOY" }]
+# Upper bound is torch/FlagEmbedding wheel availability, not a language feature —
+# BGE-M3 and the reranker land in the ingest and retrieval tickets.
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    # SPEC §16.3 — configuration is read from .env, never inline.
+    "python-dotenv>=1.0",
+    # SPEC §6.1 — the native client, not a LangChain VectorStore wrapper.
+    "qdrant-client>=1.12",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "mypy>=1.11",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rag"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+files = ["src", "tests"]
+python_version = "3.12"
+strict = true

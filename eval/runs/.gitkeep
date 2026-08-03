@@ -1,0 +1,1 @@
+# Per-item eval scores, committed on purpose: they must outlive Langfuse 30-day retention (SPEC §11.2).

@@ -1,0 +1,37 @@
+# Dev Qdrant, reachable at QDRANT_URL (SPEC §6.3 — server everywhere, not embedded).
+#
+# This is the development store only. The deploy topology of SPEC §14.1 is a different
+# file: two services on two networks, no published ports, Traefik and Sablier labels,
+# mem_limit on both. Nothing here should be copied there — the published port below is
+# exactly what prod must not have.
+
+services:
+  qdrant:
+    # Pinned, and kept within one minor of the qdrant-client pin in pyproject.toml —
+    # the client warns and stops guaranteeing wire compatibility past that.
+    image: qdrant/qdrant:v1.18.3
+    container_name: rag-assurances-qdrant-dev
+    restart: unless-stopped
+    ports:
+      # Published so the host can run the ingest and eval scripts against it.
+      - "127.0.0.1:6333:6333" # HTTP / REST
+      - "127.0.0.1:6334:6334" # gRPC
+    volumes:
+      - qdrant-dev-storage:/qdrant/storage
+    environment:
+      # Collections are created by the ingest code with indexing_threshold=0 (SPEC §6.3);
+      # this is the belt-and-braces default for anything created outside it.
+      QDRANT__STORAGE__OPTIMIZERS__INDEXING_THRESHOLD_KB: 0
+      QDRANT__SERVICE__ENABLE_TLS: false
+    healthcheck:
+      # The image ships neither curl nor wget, so the probe is bash's /dev/tcp. It must
+      # be bash explicitly — the default shell is dash, which has no /dev/tcp and fails
+      # the check while the service is perfectly healthy.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  qdrant-dev-storage:
