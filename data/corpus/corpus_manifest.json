@@ -1,0 +1,14 @@
+{
+  "articles": {
+    "producer": "DILA",
+    "licence": "Licence Ouverte 2.0",
+    "licence_url": "https://www.etalab.gouv.fr/wp-content/uploads/2017/04/ETALAB-Licence-Ouverte-v2.0.pdf",
+    "download_url": "https://huggingface.co/datasets/louisbrulenaudet/code-assurances/resolve/fb2b00061ba6f57658d0ae1ef40b848f6960cca4/data/train-00000-of-00001.parquet",
+    "filename": "train-00000-of-00001.parquet",
+    "file_date": "2025-09-21",
+    "retrieved_at": "2026-08-03T18:58:40Z",
+    "sha256": "82b9a6a9c70aba51ec96eb63ac4dd1ef649a524174c95a064c2993762a10fb24",
+    "document_count": 2375,
+    "mirror_of": "https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006073984/"
+  }
+}
