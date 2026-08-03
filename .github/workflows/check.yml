@@ -1,0 +1,35 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A superseded run tells you nothing; cancel it rather than pay for it.
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      # The repo's own compose file, not a hand-written service block: the dev store and
+      # the CI store must be the same thing, and this way the compose file is itself
+      # under test. `--wait` fails the step if it never reports healthy — which is what
+      # keeps the qdrant_server tests from skipping their way to a green run.
+      - name: Start the dev Qdrant
+        run: make up
+
+      - name: Typecheck and test
+        run: make check
+
+      - name: Qdrant logs
+        if: failure()
+        run: docker compose logs qdrant
