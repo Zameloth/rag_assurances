@@ -23,6 +23,12 @@ intersection and the write.
 Before writing anything, this runs ingest assertion 5 (SPEC §7.4) over the selected set — a
 fiche whose `<dc:source>` resolves to nothing in the article corpus would make expansion
 silently yield nothing for it, and a corpus that fails its own assertions is not written.
+Every run, not only the first — a refresh that would break the join fails loudly here.
+
+**Refresh (SPEC §3.3, #22)**: also before writing, this diffs the freshly-selected fiches
+against whatever is already committed under `data/corpus/fiches/` and reports three counts
+— added, removed, and changed-text-under-the-same-`fiche_id`, keyed by the verbatim XML
+bytes. This script is never scheduled — refresh is a manual, reviewed commit.
 
 Writes `data/corpus/fiches/F*.xml` (verbatim bytes, original filenames — clearing any files
 already there first, so a refresh's diff is the whole truth) and merges a `fiches` entry
@@ -44,6 +50,7 @@ import httpx
 
 from rag.ingest.assertions import CorpusAssertionError, run_fiche_assertions
 from rag.ingest.fiches import ParsedFiche, in_scope, parse_fiche
+from rag.ingest.refresh_diff import diff_corpus, load_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_RAW = REPO_ROOT / "data" / "raw"
@@ -66,7 +73,7 @@ def main() -> None:
     file_date = _to_date(last_modified)
     print(f"  -> {raw_path} ({raw_path.stat().st_size:,} bytes, sha256={sha256}, file_date={file_date})")
 
-    articles = _load_articles(DATA_CORPUS / "articles.jsonl")
+    articles = load_jsonl(DATA_CORPUS / "articles.jsonl")
     article_section_ids = {row["sectionParentId"] for row in articles if row.get("sectionParentId")}
     print(f"{len(article_section_ids)} distinct article sectionParentId value(s)")
 
@@ -91,6 +98,8 @@ def main() -> None:
     print(f"Ingest assertion 5 passed over {len(selected)} fiches")
 
     fiches_dir = DATA_CORPUS / "fiches"
+    _report_refresh_diff(fiches_dir, selected)
+
     fiches_dir.mkdir(parents=True, exist_ok=True)
     for existing in fiches_dir.glob("F*.xml"):
         existing.unlink()
@@ -135,9 +144,22 @@ def _to_date(http_date: str | None) -> str | None:
     return parsedate_to_datetime(http_date).date().isoformat()
 
 
-def _load_articles(path: Path) -> list[dict[str, Any]]:
-    lines = path.read_text(encoding="utf-8").splitlines()
-    return [json.loads(line) for line in lines]
+def _report_refresh_diff(fiches_dir: Path, selected: list[tuple[str, bytes, ParsedFiche]]) -> None:
+    """SPEC §3.3 — added / removed / changed-text-under-the-same-`fiche_id`, before writing anything.
+
+    Compares against whatever is already committed under `fiches_dir`; empty on a first
+    ingest, which correctly reports every fiche as added and nothing as changed.
+    """
+    old_by_fiche_id = (
+        {path.stem: path.read_bytes() for path in sorted(fiches_dir.glob("F*.xml"))} if fiches_dir.exists() else {}
+    )
+    new_by_fiche_id = {parsed.fiche_id: data for _, data, parsed in selected}
+    diff = diff_corpus(old_by_fiche_id, new_by_fiche_id)
+    print(f"Refresh diff: {diff.summary()}")
+    if diff.changed:
+        print(f"{len(diff.changed)} fiche(s) changed text under the same fiche_id — re-review gold labels touching these:")
+        for fiche_id in diff.changed:
+            print(f"  {fiche_id}")
 
 
 if __name__ == "__main__":

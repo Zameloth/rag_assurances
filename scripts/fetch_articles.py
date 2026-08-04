@@ -22,6 +22,15 @@ row (SPEC §3.2's hard requirement — the sole basis for splitting over-band ar
 chunking lands) and that ingest assertions 1–4 (SPEC §7.4) pass over the filtered rows. A
 corpus that fails its own assertions is not written.
 
+**Refresh (SPEC §3.3, #22)**: also before writing, this diffs the freshly-fetched rows
+against whatever `articles.jsonl` is already committed and reports three counts — added,
+removed, and changed-text-under-the-same-`cid`, the dangerous one since 52% of Code
+articles have been amended at least once. And it re-runs ingest assertion 5 against
+whatever fiches are already committed: an articles-only refresh can drop or move a
+`sectionParentId` a committed fiche's `<dc:source>` depends on, and that must fail loudly
+here rather than surface later as a silent expansion gap. This script is never scheduled —
+refresh is a manual, reviewed commit, run by hand and reviewed as a diff.
+
 Writes `articles.jsonl` and `corpus_manifest.json` only. `data/corpus/LICENSE.md` is a
 static file carrying no per-fetch data — it points at the manifest rather than duplicating
 it (SPEC §16.2) — so it is authored once, not regenerated here.
@@ -39,7 +48,9 @@ from typing import Any
 import httpx
 import pyarrow.parquet as pq
 
-from rag.ingest.assertions import CorpusAssertionError, run_article_assertions
+from rag.ingest.assertions import CorpusAssertionError, run_article_assertions, run_fiche_assertions
+from rag.ingest.fiches import parse_fiche
+from rag.ingest.refresh_diff import diff_corpus, load_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_RAW = REPO_ROOT / "data" / "raw"
@@ -124,6 +135,9 @@ def main() -> None:
         raise SystemExit(f"Refusing to write a corpus that fails its own assertions:\n{exc}") from exc
     print(f"Ingest assertions 1-4 passed over {len(articles)} articles")
 
+    _gate_committed_fiches_still_resolve(articles)
+    _report_refresh_diff(articles)
+
     DATA_CORPUS.mkdir(parents=True, exist_ok=True)
     _write_jsonl(DATA_CORPUS / "articles.jsonl", articles)
     print(f"Wrote {DATA_CORPUS / 'articles.jsonl'}")
@@ -193,6 +207,55 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
         for row in rows:
             f.write(json.dumps(row, ensure_ascii=False))
             f.write("\n")
+
+
+def _gate_committed_fiches_still_resolve(articles: list[dict[str, Any]]) -> None:
+    """SPEC §3.3 — assertion 5 gates the refresh, not only the first ingest.
+
+    An articles-only refresh can drop or move a `sectionParentId` that an already-committed
+    fiche's `<dc:source>` depends on. Re-running assertion 5 here, against whatever fiches
+    are already on disk, catches a broken fiche->section join at refresh time instead of
+    leaving it for `scripts/fetch_fiches.py` or the test suite to discover later. Empty or
+    missing fiches (the pre-#21 first ingest) is not a violation — there is nothing to check.
+    """
+    fiches_dir = DATA_CORPUS / "fiches"
+    fiche_paths = sorted(fiches_dir.glob("F*.xml")) if fiches_dir.exists() else []
+    if not fiche_paths:
+        return
+    parsed = [parse_fiche(path.read_bytes()) for path in fiche_paths]
+    try:
+        run_fiche_assertions(
+            ({"fiche_id": fiche.fiche_id, "section_ids": fiche.section_ids} for fiche in parsed),
+            articles,
+        )
+    except CorpusAssertionError as exc:
+        raise SystemExit(
+            "Refusing to write: this refresh would break the fiche->section join for "
+            f"already-committed fiches (run scripts/fetch_fiches.py after fixing this):\n{exc}"
+        ) from exc
+    print(f"Ingest assertion 5 passed over {len(parsed)} already-committed fiche(s) against the refreshed articles")
+
+
+def _report_refresh_diff(articles: list[dict[str, Any]]) -> None:
+    """SPEC §3.3 — added / removed / changed-text-under-the-same-`cid`, before writing anything.
+
+    Compares against whatever `articles.jsonl` is already committed; empty on a first ingest,
+    which correctly reports every row as added and nothing as changed.
+    """
+    existing_path = DATA_CORPUS / "articles.jsonl"
+    old_rows = load_jsonl(existing_path) if existing_path.exists() else []
+    old_by_cid = {row["cid"]: row["texte"] for row in old_rows}
+    new_by_cid = {row["cid"]: row["texte"] for row in articles}
+    diff = diff_corpus(old_by_cid, new_by_cid)
+    print(f"Refresh diff: {diff.summary()}")
+    if diff.changed:
+        citation_by_cid = {row["cid"]: row["citation_id"] for row in articles}
+        print(
+            f"{len(diff.changed)} article(s) changed text under the same cid — "
+            "re-review gold labels touching these:"
+        )
+        for cid in diff.changed:
+            print(f"  {cid}  {citation_by_cid.get(cid, '?')}")
 
 
 if __name__ == "__main__":

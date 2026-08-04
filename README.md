@@ -67,8 +67,11 @@ contract documents are in here, or ever will be; that was a deliberate scoping c
 ([SPEC §1.6](SPEC.md)), not an oversight.
 
 **Refresh** re-runs the fetch scripts by hand — dev tools, never part of the build path — and
-commits the result as a **reviewed diff**, never a scheduled job. Fiches must refresh *after*
-articles, since the scope rule reads whatever `articles.jsonl` is on disk:
+commits the result as a **reviewed diff**, never a scheduled job. Each run reports three counts
+before writing anything — added / removed / **changed-text-under-the-same-`cid`** (or `fiche_id`
+for fiches) — and exits loudly rather than write if it would break the fiche→section join
+([SPEC §3.3](SPEC.md)). Fiches must refresh *after* articles, since the scope rule reads whatever
+`articles.jsonl` is on disk:
 
 ```sh
 uv run --group fetch python scripts/fetch_articles.py
