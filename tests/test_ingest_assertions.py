@@ -8,11 +8,19 @@ from typing import Any
 
 import pytest
 
-from rag.ingest.assertions import CorpusAssertionError, run_article_assertions
+from rag.ingest.assertions import CorpusAssertionError, run_article_assertions, run_fiche_assertions
 
 
 def article(cid: str, citation_id: str | None = "L113-3", etat: str = "VIGUEUR") -> Mapping[str, Any]:
     return {"cid": cid, "citation_id": citation_id, "etat": etat}
+
+
+def article_with_section(cid: str, section_parent_id: str | None) -> Mapping[str, Any]:
+    return {"cid": cid, "sectionParentId": section_parent_id}
+
+
+def fiche(fiche_id: str, section_ids: list[str]) -> Mapping[str, Any]:
+    return {"fiche_id": fiche_id, "section_ids": section_ids}
 
 
 def test_passes_on_a_clean_corpus() -> None:
@@ -62,6 +70,35 @@ class TestAssertion4CitationIdsPresent:
     def test_rejects_an_empty_citation_id(self) -> None:
         with pytest.raises(CorpusAssertionError, match="assertion 4"):
             run_article_assertions([article("cid-1", "")])
+
+
+class TestAssertion5FicheSectionsResolve:
+    def test_passes_when_at_least_one_section_id_resolves(self) -> None:
+        run_fiche_assertions(
+            [fiche("F1", ["LEGISCTA000006157200", "LEGISCTA000099999999"])],
+            [article_with_section("cid-1", "LEGISCTA000006157200")],
+        )
+
+    def test_rejects_a_fiche_where_no_section_id_resolves(self) -> None:
+        with pytest.raises(CorpusAssertionError, match="assertion 5"):
+            run_fiche_assertions(
+                [fiche("F1", ["LEGISCTA000099999999"])],
+                [article_with_section("cid-1", "LEGISCTA000006157200")],
+            )
+
+    def test_rejects_a_fiche_with_no_section_ids_at_all(self) -> None:
+        with pytest.raises(CorpusAssertionError, match="assertion 5"):
+            run_fiche_assertions(
+                [fiche("F1", [])],
+                [article_with_section("cid-1", "LEGISCTA000006157200")],
+            )
+
+    def test_a_partially_resolving_fiche_still_passes(self) -> None:
+        """Not every `<dc:source>` id needs an article — only one, per SPEC §7.4."""
+        run_fiche_assertions(
+            [fiche("F1", ["LEGISCTA000006157200", "LEGISCTA000006999999"])],
+            [article_with_section("cid-1", "LEGISCTA000006157200")],
+        )
 
 
 def test_reports_every_violation_at_once_not_just_the_first() -> None:

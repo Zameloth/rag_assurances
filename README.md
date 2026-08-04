@@ -37,33 +37,42 @@ which is for plumbing assertions only — never for recall or ranking numbers ([
 
 ## Corpus
 
-**[`data/corpus/articles.jsonl`](data/corpus/articles.jsonl)** — the **2,375 in-force Code des
-assurances articles** (L, R, A and D), one JSON object per line, sorted by `cid`, ~8.3 MB. Every
-row carries both `texte` and `texteHtml` — `texte` has zero newlines corpus-wide, so `texteHtml`
-is the only place paragraph structure survives, and chunking will need it (SPEC §3.2, §4.2). The
-87 service-public.fr consumer fiches that pair with it are a separate, not-yet-landed ticket.
+Two committed pieces, ~10 MB together:
 
-This is 2 short of the source snapshot's own 2,377-row total: 2 rows carry `etat ==
-"ABROGE_DIFF"` (repealed with deferred effect — not yet lapsed today, but not the literal
-`"VIGUEUR"` ingest assertion 2 requires) and are dropped by the fetch script rather than
-loosening the assertion.
+- **[`data/corpus/articles.jsonl`](data/corpus/articles.jsonl)** — the **2,375 in-force Code des
+  assurances articles** (L, R, A and D), one JSON object per line, sorted by `cid`, ~8.3 MB. Every
+  row carries both `texte` and `texteHtml` — `texte` has zero newlines corpus-wide, so `texteHtml`
+  is the only place paragraph structure survives, and chunking will need it (SPEC §3.2, §4.2).
+  This is 2 short of the source snapshot's own 2,377-row total: 2 rows carry `etat ==
+  "ABROGE_DIFF"` (repealed with deferred effect — not yet lapsed today, but not the literal
+  `"VIGUEUR"` ingest assertion 2 requires) and are dropped by the fetch script rather than
+  loosening the assertion.
+- **[`data/corpus/fiches/`](data/corpus/fiches/)** — **87 service-public.fr consumer fiches**
+  (`F*.xml`), verbatim DILA XML under their original filenames, ~1.9 MB.
 
-Producer, licence and download-provenance attribution live in
+Producer, licence and download-provenance attribution for both live in
 **[`data/corpus/corpus_manifest.json`](data/corpus/corpus_manifest.json)** — script-emitted, never
 hand-maintained, so it cannot drift from what was actually fetched.
 
 **Scope is a rule, not a list**: in scope = any service-public.fr insurance fiche whose
 `<dc:source>` resolves into the Code des assurances, plus the in-force Code des assurances itself
-([SPEC §1.2](SPEC.md)). It is mechanical and reproducible, and it is why the corpus is
-**public-sector information only** — no insurer *conditions générales* or other contract documents
-are in here, or ever will be; that was a deliberate scoping call ([SPEC §1.6](SPEC.md)), not an
-oversight.
+([SPEC §1.2](SPEC.md)). Mechanically: each fiche's `<dc:source>` `LEGISCTA` ids intersected with
+the distinct `sectionParentId` values across the in-force articles — code, not a hand-picked list,
+so `scripts/fetch_fiches.py` reproduces the same 87 documents from the committed articles every
+time it runs. It keeps auto, habitation and vie; it drops pure *assurance maladie*, whose fiches
+rest on the Code de la sécurité sociale and would be structurally ungrounded.
 
-**Refresh** re-runs `scripts/fetch_articles.py` by hand — a dev tool, never part of the build path
-— and commits the result as a **reviewed diff**, never a scheduled job:
+The corpus is **public-sector information only** — no insurer *conditions générales* or other
+contract documents are in here, or ever will be; that was a deliberate scoping call
+([SPEC §1.6](SPEC.md)), not an oversight.
+
+**Refresh** re-runs the fetch scripts by hand — dev tools, never part of the build path — and
+commits the result as a **reviewed diff**, never a scheduled job. Fiches must refresh *after*
+articles, since the scope rule reads whatever `articles.jsonl` is on disk:
 
 ```sh
 uv run --group fetch python scripts/fetch_articles.py
+uv run --group fetch python scripts/fetch_fiches.py
 ```
 
 The repo commits **sources and decisions, never derived binaries** ([SPEC §16.5](SPEC.md)). The two
