@@ -1,10 +1,9 @@
-"""Ingest assertions 1–4 (SPEC §7.4).
+"""Ingest assertions 1–5 (SPEC §7.4).
 
-These gate the article corpus, not only a later ingest run: the fetch script (a dev tool,
-SPEC §3.3) calls `run_article_assertions` before it writes `articles.jsonl`, and the test
-suite calls it again against the committed file so a corpus that fails its own assertions
-can never land on `main`. Assertion 5 (fiche `section_ids` resolve to an article
-`section_id`) needs the fiches corpus and is out of scope here.
+These gate the corpus, not only a later ingest run: the fetch scripts (dev tools, SPEC
+§3.3) call `run_article_assertions` / `run_fiche_assertions` before they write, and the
+test suite calls them again against the committed files so a corpus that fails its own
+assertions can never land on `main`.
 
 Every assertion raises `CorpusAssertionError` with every violation it found, not just the
 first — a refresh that fails for three unrelated reasons should say so once, not three
@@ -18,9 +17,10 @@ from typing import Any
 
 from rag.ingest.lookup_key import normalize_lookup_key
 
-__all__ = ["CorpusAssertionError", "run_article_assertions"]
+__all__ = ["CorpusAssertionError", "run_article_assertions", "run_fiche_assertions"]
 
 ArticleRow = Mapping[str, Any]
+FicheRow = Mapping[str, Any]
 
 
 class CorpusAssertionError(Exception):
@@ -92,3 +92,40 @@ def _assert_citation_ids_present(rows: list[ArticleRow]) -> list[str]:
     if not offenders:
         return []
     return [f"assertion 4: {len(offenders)} row(s) missing citation_id: {offenders}"]
+
+
+def run_fiche_assertions(fiches: Iterable[FicheRow], articles: Iterable[ArticleRow]) -> None:
+    """Run assertion 5 — every fiche's `section_ids` resolve into the article corpus.
+
+    `fiches` and `articles` are each consumed once — callers passing a generator should
+    list() it first if they need it again afterwards.
+    """
+    violations = _assert_fiche_sections_resolve(list(fiches), list(articles))
+    if violations:
+        raise CorpusAssertionError(
+            f"{len(violations)} ingest assertion violation(s):\n" + "\n".join(violations)
+        )
+
+
+def _assert_fiche_sections_resolve(fiches: list[FicheRow], articles: list[ArticleRow]) -> list[str]:
+    """Assertion 5 — every fiche has >=1 `section_ids` entry matching an article `sectionParentId`.
+
+    Per-fiche, not per-entry: a fiche's `<dc:source>` commonly names several `LEGISCTA`
+    sections, and not all of them need carry an in-force article of their own — some point
+    at a higher section in the hierarchy than any article's immediate parent. What actually
+    breaks expansion (SPEC §7.4) is a fiche where *none* of its sections resolve, so that is
+    the condition checked here — the same nonempty-intersection test the scope rule itself
+    used to select the fiche in the first place (SPEC §1.2).
+    """
+    article_section_ids = {row["sectionParentId"] for row in articles if row.get("sectionParentId")}
+    offenders = sorted(
+        row["fiche_id"]
+        for row in fiches
+        if not any(section_id in article_section_ids for section_id in row["section_ids"])
+    )
+    if not offenders:
+        return []
+    return [
+        f"assertion 5: {len(offenders)} fiche(s) with no section_ids resolving to an "
+        f"article section_id: {offenders}"
+    ]

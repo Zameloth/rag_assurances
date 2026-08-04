@@ -10,5 +10,16 @@
     "sha256": "82b9a6a9c70aba51ec96eb63ac4dd1ef649a524174c95a064c2993762a10fb24",
     "document_count": 2375,
     "mirror_of": "https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006073984/"
+  },
+  "fiches": {
+    "producer": "DILA",
+    "licence": "Licence Ouverte 2.0",
+    "licence_url": "https://www.etalab.gouv.fr/wp-content/uploads/2017/04/ETALAB-Licence-Ouverte-v2.0.pdf",
+    "download_url": "https://lecomarquage.service-public.gouv.fr/vdd/3.5/part/zip/vosdroits-latest.zip",
+    "filename": "vosdroits-latest.zip",
+    "file_date": "2026-08-04",
+    "retrieved_at": "2026-08-04T19:09:49Z",
+    "sha256": "482206d39425ed7b194a8f930e47891a33020e3952d2bd6b0e2a156a6023aa1f",
+    "document_count": 87
   }
 }
