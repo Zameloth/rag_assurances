@@ -1,9 +1,11 @@
-"""Ingest assertions 1–5 (SPEC §7.4).
+"""Ingest assertions 1–9 (SPEC §7.4, §4.5).
 
 These gate the corpus, not only a later ingest run: the fetch scripts (dev tools, SPEC
 §3.3) call `run_article_assertions` / `run_fiche_assertions` before they write, and the
 test suite calls them again against the committed files so a corpus that fails its own
-assertions can never land on `main`.
+assertions can never land on `main`. `run_article_chunk_assertions` (6–9, #23) gates the
+*chunker* rather than the raw corpus file, so it is run separately, against `chunk_article`
+output rather than `articles.jsonl` rows.
 
 Every assertion raises `CorpusAssertionError` with every violation it found, not just the
 first — a refresh that fails for three unrelated reasons should say so once, not three
@@ -15,12 +17,28 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from rag.ingest.articles import BAND, STUB_FLOOR, ArticleChunk, ArticleRow, chunk_article
+from rag.ingest.html_blocks import extract_text
 from rag.ingest.lookup_key import normalize_lookup_key
+from rag.ingest.tokenizer import SPECIAL_TOKEN_COUNT, count_tokens
 
-__all__ = ["CorpusAssertionError", "run_article_assertions", "run_fiche_assertions"]
+__all__ = [
+    "CorpusAssertionError",
+    "run_article_assertions",
+    "run_article_chunk_assertions",
+    "run_fiche_assertions",
+]
 
-ArticleRow = Mapping[str, Any]
 FicheRow = Mapping[str, Any]
+
+# One (row, its chunks) pair per article — threaded through all four assertion-6-9 helpers
+# below, so it earns a name rather than repeating the tuple-of-list shape at each signature.
+_Chunked = list[tuple[ArticleRow, list[ArticleChunk]]]
+
+# Generous upper bound on what a stub's citation_id + title + Légifrance URL suffix can add
+# (measured max on the committed corpus: 98 tokens for the whole stub chunk) — wide enough
+# to absorb a longer title after a refresh without chasing a tight constant.
+_STUB_PADDING_BUDGET = 200
 
 
 class CorpusAssertionError(Exception):
@@ -128,4 +146,86 @@ def _assert_fiche_sections_resolve(fiches: list[FicheRow], articles: list[Articl
     return [
         f"assertion 5: {len(offenders)} fiche(s) with no section_ids resolving to an "
         f"article section_id: {offenders}"
+    ]
+
+
+def run_article_chunk_assertions(rows: Iterable[ArticleRow]) -> None:
+    """Run assertions 6–9 (SPEC §4.5) over each row's `chunk_article` output.
+
+    `rows` is consumed once — callers passing a generator should list() it first if they
+    need it again afterwards. Chunking every row costs real time (the BGE-M3 tokenizer, not
+    a character approximation, per assertion 7's own requirement), so this is a separate,
+    heavier gate from `run_article_assertions` — run it where the chunker itself is what's
+    under test, not on every corpus-shape check.
+    """
+    chunked = [(row, chunk_article(row)) for row in rows]
+    violations: list[str] = [
+        *_assert_every_article_has_a_chunk(chunked),
+        *_assert_no_chunk_over_band(chunked),
+        *_assert_non_stub_chunks_meet_floor(chunked),
+        *_assert_no_content_loss(chunked),
+    ]
+    if violations:
+        raise CorpusAssertionError(
+            f"{len(violations)} ingest assertion violation(s):\n" + "\n".join(violations)
+        )
+
+
+def _assert_every_article_has_a_chunk(chunked: _Chunked) -> list[str]:
+    """Assertion 6 — every article yields ≥ 1 chunk.
+
+    Chunking always returns at least the stub path for a body that strips to nothing, so a
+    zero-chunk row can only mean a chunker regression — this assertion exists to catch it
+    at the corpus/chunker boundary rather than as a silently empty document downstream.
+    """
+    offenders = sorted(row["cid"] for row, chunks in chunked if not chunks)
+    if not offenders:
+        return []
+    return [f"assertion 6: {len(offenders)} article(s) with zero chunks: {offenders}"]
+
+
+def _assert_no_chunk_over_band(chunked: _Chunked) -> list[str]:
+    """Assertion 7 — no chunk exceeds the 512-token band under the BGE-M3 tokenizer."""
+    offenders = sorted({row["cid"] for row, chunks in chunked for chunk in chunks if chunk.tokens > BAND})
+    if not offenders:
+        return []
+    return [f"assertion 7: {len(offenders)} article(s) with a chunk over {BAND} tokens: {offenders}"]
+
+
+def _assert_non_stub_chunks_meet_floor(chunked: _Chunked) -> list[str]:
+    """Assertion 8 — every non-stub chunk has ≥ 32 tokens of text."""
+    offenders = sorted(
+        {row["cid"] for row, chunks in chunked for chunk in chunks if not chunk.is_stub and chunk.tokens < STUB_FLOOR}
+    )
+    if not offenders:
+        return []
+    return [f"assertion 8: {len(offenders)} article(s) with a non-stub chunk under {STUB_FLOOR} tokens: {offenders}"]
+
+
+def _assert_no_content_loss(chunked: _Chunked) -> list[str]:
+    """Assertion 9 — `sum(chunk tokens)` per document is within tolerance of the source body
+    token count minus stripped `<table>` content.
+
+    The lower bound is exact (`>=`, zero slack): every real token of table-stripped source
+    text is kept somewhere across a document's chunks, verified once on the committed corpus
+    (measured delta was never negative — splitting and stub padding only ever add tokens,
+    never drop them). The upper bound is generous rather than tight, because it exists to
+    catch an HTML-shape regression duplicating content wholesale, not to police the exact
+    overhead of `<s>`/`</s>` per extra chunk or a stub's citation suffix.
+    """
+    offenders = []
+    for row, chunks in chunked:
+        source_tokens = count_tokens(extract_text(row["texteHtml"]))
+        summed_tokens = sum(chunk.tokens for chunk in chunks)
+        split_overhead = max(0, len(chunks) - 1) * SPECIAL_TOKEN_COUNT
+        stub_budget = _STUB_PADDING_BUDGET if any(chunk.is_stub for chunk in chunks) else 0
+        upper_bound = source_tokens + split_overhead + stub_budget
+        if not (source_tokens <= summed_tokens <= upper_bound):
+            offenders.append(row["cid"])
+    offenders.sort()
+    if not offenders:
+        return []
+    return [
+        f"assertion 9: {len(offenders)} article(s) where chunk tokens sum falls outside "
+        f"tolerance of the source body token count: {offenders}"
     ]
