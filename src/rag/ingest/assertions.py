@@ -3,9 +3,10 @@
 These gate the corpus, not only a later ingest run: the fetch scripts (dev tools, SPEC
 §3.3) call `run_article_assertions` / `run_fiche_assertions` before they write, and the
 test suite calls them again against the committed files so a corpus that fails its own
-assertions can never land on `main`. `run_article_chunk_assertions` (6–9, #23) gates the
-*chunker* rather than the raw corpus file, so it is run separately, against `chunk_article`
-output rather than `articles.jsonl` rows.
+assertions can never land on `main`. `run_article_chunk_assertions` (6–9, #23) and
+`run_fiche_chunk_assertions` (6–9, #24) gate the *chunker* rather than the raw corpus file,
+so each is run separately, against `chunk_article` / `chunk_fiche` output rather than
+`articles.jsonl` rows or fiche XML directly.
 
 Every assertion raises `CorpusAssertionError` with every violation it found, not just the
 first — a refresh that fails for three unrelated reasons should say so once, not three
@@ -18,6 +19,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 from rag.ingest.articles import BAND, STUB_FLOOR, ArticleChunk, ArticleRow, chunk_article
+from rag.ingest.fiches import FicheChunk, chunk_fiche, raw_body_text
 from rag.ingest.html_blocks import extract_text
 from rag.ingest.lookup_key import normalize_lookup_key
 from rag.ingest.tokenizer import SPECIAL_TOKEN_COUNT, count_tokens
@@ -27,6 +29,7 @@ __all__ = [
     "run_article_assertions",
     "run_article_chunk_assertions",
     "run_fiche_assertions",
+    "run_fiche_chunk_assertions",
 ]
 
 FicheRow = Mapping[str, Any]
@@ -35,10 +38,23 @@ FicheRow = Mapping[str, Any]
 # below, so it earns a name rather than repeating the tuple-of-list shape at each signature.
 _Chunked = list[tuple[ArticleRow, list[ArticleChunk]]]
 
+# (fiche_id, its chunks) — the fiche analogue of `_Chunked`. `chunk_fiche` takes raw XML
+# bytes, not a row, so this doesn't carry the source bytes through; assertion 9 below takes
+# them as a separate parallel mapping instead.
+_FicheChunked = list[tuple[str, list[FicheChunk]]]
+
 # Generous upper bound on what a stub's citation_id + title + Légifrance URL suffix can add
 # (measured max on the committed corpus: 98 tokens for the whole stub chunk) — wide enough
 # to absorb a longer title after a refresh without chasing a tight constant.
 _STUB_PADDING_BUDGET = 200
+
+# `chunk_fiche`'s absolute-floor fallback (`_close_absolute_floor_gaps`) can merge two
+# different-boundary leaves into one chunk and clear both labels to `None` — at that point
+# the per-chunk label budget below can no longer see the (up to two) distinct titles that
+# were genuinely excluded from that merged chunk's text. Measured max shortfall on the
+# committed corpus is 31 tokens (one lost `chapitre_titre`); this stays generous rather than
+# exact, same reasoning as `_STUB_PADDING_BUDGET`.
+_FICHE_LABEL_SLACK = 100
 
 
 class CorpusAssertionError(Exception):
@@ -227,5 +243,90 @@ def _assert_no_content_loss(chunked: _Chunked) -> list[str]:
         return []
     return [
         f"assertion 9: {len(offenders)} article(s) where chunk tokens sum falls outside "
+        f"tolerance of the source body token count: {offenders}"
+    ]
+
+
+def run_fiche_chunk_assertions(fiches: Iterable[tuple[str, bytes]]) -> None:
+    """Run assertions 6–9 (SPEC §4.5) over each fiche's `chunk_fiche` output.
+
+    `fiches` is `(fiche_id, xml_bytes)` pairs, consumed once — callers passing a generator
+    should list() it first if they need it again afterwards. Chunking every fiche costs real
+    time (the BGE-M3 tokenizer), so this is a separate, heavier gate from
+    `run_fiche_assertions`, the same split `run_article_chunk_assertions` makes for articles.
+    """
+    materialized = list(fiches)
+    xml_by_id = dict(materialized)
+    chunked: _FicheChunked = [(fiche_id, chunk_fiche(xml_bytes)) for fiche_id, xml_bytes in materialized]
+    violations: list[str] = [
+        *_assert_every_fiche_has_a_chunk(chunked),
+        *_assert_no_fiche_chunk_over_band(chunked),
+        *_assert_every_fiche_chunk_meets_floor(chunked),
+        *_assert_no_fiche_content_loss(chunked, xml_by_id),
+    ]
+    if violations:
+        raise CorpusAssertionError(
+            f"{len(violations)} ingest assertion violation(s):\n" + "\n".join(violations)
+        )
+
+
+def _assert_every_fiche_has_a_chunk(chunked: _FicheChunked) -> list[str]:
+    """Assertion 6 — every fiche yields ≥ 1 chunk — catches the `<ListeSituations>` class of
+    bug, where an element reclassified as navigation silently empties a document."""
+    offenders = sorted(fiche_id for fiche_id, chunks in chunked if not chunks)
+    if not offenders:
+        return []
+    return [f"assertion 6: {len(offenders)} fiche(s) with zero chunks: {offenders}"]
+
+
+def _assert_no_fiche_chunk_over_band(chunked: _FicheChunked) -> list[str]:
+    """Assertion 7 — no chunk exceeds the 512-token band under the BGE-M3 tokenizer."""
+    offenders = sorted({fiche_id for fiche_id, chunks in chunked for chunk in chunks if chunk.tokens > BAND})
+    if not offenders:
+        return []
+    return [f"assertion 7: {len(offenders)} fiche(s) with a chunk over {BAND} tokens: {offenders}"]
+
+
+def _assert_every_fiche_chunk_meets_floor(chunked: _FicheChunked) -> list[str]:
+    """Assertion 8 — every chunk has ≥ 32 tokens of text. Fiches have no stub concept
+    (unlike articles' table-stripped annexes), so the floor applies to every chunk, not just
+    non-stub ones — `chunk_fiche`'s own absolute-floor fallback is what keeps this true."""
+    offenders = sorted({fiche_id for fiche_id, chunks in chunked for chunk in chunks if chunk.tokens < STUB_FLOOR})
+    if not offenders:
+        return []
+    return [f"assertion 8: {len(offenders)} fiche(s) with a chunk under {STUB_FLOOR} tokens: {offenders}"]
+
+
+def _assert_no_fiche_content_loss(chunked: _FicheChunked, xml_by_id: Mapping[str, bytes]) -> list[str]:
+    """Assertion 9 — `sum(chunk tokens)` per fiche is within tolerance of the raw body text
+    token count (SPEC §4.1's four elements, no exclusions).
+
+    Unlike articles' `<table>` stripping, the gap here is `chapitre_titre`/`cas_label` text
+    deliberately moved out of `text` into its own payload field rather than dropped — so the
+    lower bound subtracts a budget for every label actually carried by this fiche's chunks
+    (summed per chunk, which over-counts a label repeated across sibling chunks and so only
+    makes the bound more permissive, never tighter than warranted). The upper bound stays a
+    generous catch for wholesale duplication, as for articles.
+    """
+    offenders = []
+    for fiche_id, chunks in chunked:
+        source_tokens = count_tokens(raw_body_text(xml_by_id[fiche_id]))
+        summed_tokens = sum(chunk.tokens for chunk in chunks)
+        label_budget = sum(
+            count_tokens(label)
+            for chunk in chunks
+            for label in (chunk.chapitre_titre, chunk.cas_label)
+            if label
+        )
+        split_overhead = max(0, len(chunks) - 1) * SPECIAL_TOKEN_COUNT
+        lower_bound = source_tokens - label_budget - _FICHE_LABEL_SLACK
+        upper_bound = source_tokens + split_overhead
+        if not (lower_bound <= summed_tokens <= upper_bound):
+            offenders.append(fiche_id)
+    offenders.sort()
+    if not offenders:
+        return []
+    return [
+        f"assertion 9: {len(offenders)} fiche(s) where chunk tokens sum falls outside "
         f"tolerance of the source body token count: {offenders}"
     ]
