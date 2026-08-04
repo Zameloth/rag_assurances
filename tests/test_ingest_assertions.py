@@ -8,7 +8,14 @@ from typing import Any
 
 import pytest
 
-from rag.ingest.assertions import CorpusAssertionError, run_article_assertions, run_fiche_assertions
+from rag.ingest import assertions as assertions_module
+from rag.ingest.articles import ArticleChunk
+from rag.ingest.assertions import (
+    CorpusAssertionError,
+    run_article_assertions,
+    run_article_chunk_assertions,
+    run_fiche_assertions,
+)
 
 
 def article(cid: str, citation_id: str | None = "L113-3", etat: str = "VIGUEUR") -> Mapping[str, Any]:
@@ -99,6 +106,75 @@ class TestAssertion5FicheSectionsResolve:
             [fiche("F1", ["LEGISCTA000006157200", "LEGISCTA000006999999"])],
             [article_with_section("cid-1", "LEGISCTA000006157200")],
         )
+
+
+def chunkable_article(cid: str, texte_html: str) -> Mapping[str, Any]:
+    return {
+        "cid": cid,
+        "id": f"{cid}-version",
+        "citation_id": "L113-3",
+        "texteHtml": texte_html,
+        "sectionParentTitre": "Chapitre I : Placeholder",
+    }
+
+
+class TestAssertions6to9RunArticleChunkAssertions:
+    """Assertions 6–9 (SPEC §4.5) run `chunk_article` itself, so 6 and 7 are exercised by
+    monkeypatching the chunker's output rather than crafting HTML that forces them — the
+    real chunker is built precisely to make those two states unreachable."""
+
+    def test_passes_on_a_normal_article(self) -> None:
+        text = (
+            "Les assureurs sont tenus de respecter les obligations légales relatives à "
+            "l'information des assurés avant la conclusion de tout contrat d'assurance."
+        )
+        run_article_chunk_assertions([chunkable_article("cid-1", f"<p>{text}</p>")])
+
+    def test_assertion_6_rejects_a_zero_chunk_article(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(assertions_module, "chunk_article", lambda row: [])
+        with pytest.raises(CorpusAssertionError, match="assertion 6"):
+            run_article_chunk_assertions([chunkable_article("cid-1", "<p>x</p>")])
+
+    def test_assertion_7_rejects_a_chunk_over_the_band(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            assertions_module,
+            "chunk_article",
+            lambda row: [ArticleChunk(text="x" * 5000, chunk_index=0, tokens=600, is_stub=False)],
+        )
+        with pytest.raises(CorpusAssertionError, match="assertion 7"):
+            run_article_chunk_assertions([chunkable_article("cid-1", "<p>x</p>")])
+
+    def test_assertion_8_rejects_a_non_stub_chunk_under_the_floor(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            assertions_module,
+            "chunk_article",
+            lambda row: [ArticleChunk(text="Trop court.", chunk_index=0, tokens=5, is_stub=False)],
+        )
+        with pytest.raises(CorpusAssertionError, match="assertion 8"):
+            run_article_chunk_assertions([chunkable_article("cid-1", "<p>x</p>")])
+
+    def test_assertion_8_allows_a_stub_chunk_under_the_floor(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            assertions_module,
+            "chunk_article",
+            lambda row: [ArticleChunk(text="Stub.", chunk_index=0, tokens=5, is_stub=True)],
+        )
+        run_article_chunk_assertions([chunkable_article("cid-1", "<p>x</p>")])
+
+    def test_assertion_9_rejects_a_chunk_sum_below_the_source_token_count(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        text = (
+            "Les assureurs sont tenus de respecter les obligations légales relatives à "
+            "l'information des assurés avant la conclusion de tout contrat d'assurance."
+        )
+        monkeypatch.setattr(
+            assertions_module,
+            "chunk_article",
+            lambda row: [ArticleChunk(text="tronqué", chunk_index=0, tokens=3, is_stub=False)],
+        )
+        with pytest.raises(CorpusAssertionError, match="assertion 9"):
+            run_article_chunk_assertions([chunkable_article("cid-1", f"<p>{text}</p>")])
 
 
 def test_reports_every_violation_at_once_not_just_the_first() -> None:

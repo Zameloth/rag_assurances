@@ -13,6 +13,10 @@ dependencies = [
     "python-dotenv>=1.0",
     # SPEC §6.1 — the native client, not a LangChain VectorStore wrapper.
     "qdrant-client>=1.12",
+    # SPEC §4 — the band is measured with BGE-M3's own tokenizer. The Rust `tokenizers`
+    # library reads `tokenizer.json` straight from the HF hub cache without pulling in the
+    # model weights (#26) or a torch runtime chunking never needs.
+    "tokenizers>=0.23.1",
 ]
 
 [dependency-groups]
