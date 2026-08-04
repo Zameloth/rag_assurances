@@ -18,12 +18,12 @@ FICHE_XML_NO_SOURCE = """<?xml version="1.0" encoding="UTF-8"?>
 </Publication>
 """.encode()
 
-FICHE_XML_DUPLICATE_SOURCE = """<?xml version="1.0" encoding="UTF-8"?>
+FICHE_XML_DUPLICATE_SOURCE = b"""<?xml version="1.0" encoding="UTF-8"?>
 <Publication xmlns:dc="http://purl.org/dc/elements/1.1/" ID="F1234">
   <dc:source>https://www.legifrance.gouv.fr/codes/id/LEGISCTA000006159534, \
 https://www.legifrance.gouv.fr/codes/id/LEGISCTA000006159534</dc:source>
 </Publication>
-""".encode()
+"""
 
 
 def test_parse_fiche_reads_id_and_legiscta_ids() -> None:

@@ -7,7 +7,7 @@
 # prints nothing is indistinguishable from a deploy that worked.
 
 .DEFAULT_GOAL := help
-.PHONY: help install test typecheck check up down logs clean ingest ladder publish-index deploy
+.PHONY: help install test typecheck lint check up down logs clean ingest ladder publish-index deploy
 
 # $(call todo,<build-order step>,<what it will run>)
 define todo
@@ -25,13 +25,16 @@ help: ## Show this help
 install: ## Create the venv and install the package with its dev group
 	uv sync
 
-test: ## Run the test suite
+test: ## Run the test suite with coverage
 	uv run pytest
 
 typecheck: ## Type-check src/ and tests/
 	uv run mypy
 
-check: typecheck test ## Everything CI would run
+lint: ## Lint src/, tests/ and scripts/ with ruff
+	uv run ruff check .
+
+check: typecheck lint test ## Everything CI would run
 
 up: ## Start the dev Qdrant (reachable at QDRANT_URL)
 	docker compose up -d --wait

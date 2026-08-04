@@ -23,6 +23,8 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "mypy>=1.11",
+    "ruff>=0.16.1",
+    "pytest-cov>=7.1.0",
 ]
 # SPEC §3.3 — the fetch script is a dev tool run by hand, never a pipeline stage, so its
 # dependencies are not part of the default `uv sync` and are installed only when someone
@@ -41,7 +43,16 @@ packages = ["src/rag"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --cov=rag --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["src/rag"]
+
+[tool.coverage.report]
+# Below the current 95% (`text_split.py`'s untested word-split fallback is the gap — SPEC
+# says it's not observed on the corpus, so it's a deliberate safety valve, not a hole to
+# close here) but high enough that a real regression still fails the build.
+fail_under = 90
 
 [tool.mypy]
 files = ["src", "tests", "scripts"]
@@ -54,3 +65,13 @@ strict = true
 # everything scripts/fetch_articles.py does with the values pyarrow returns.
 module = "pyarrow.*"
 ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# E5 (line-length) is deliberately left out: several files predate this config with longer
+# lines (long literals in tests, DILA URLs), and retrofitting them is a separate, noisier
+# change from turning the linter on. E4/E7/E9 are ruff's own default error set.
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM"]

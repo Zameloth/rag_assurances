@@ -11,6 +11,7 @@ venv/
 .ruff_cache/
 .mypy_cache/
 *.egg-info/
+.coverage
 
 # Derived artifacts — the repo commits sources and decisions, never derived binaries
 # (SPEC §16.5). Named exceptions live in eval/: the per-item scores and the golden set.

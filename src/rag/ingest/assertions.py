@@ -18,7 +18,13 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from rag.ingest.articles import BAND, STUB_FLOOR, ArticleChunk, ArticleRow, chunk_article
+from rag.ingest.articles import (
+    BAND,
+    STUB_FLOOR,
+    ArticleChunk,
+    ArticleRow,
+    chunk_article,
+)
 from rag.ingest.fiches import FicheChunk, chunk_fiche, raw_body_text
 from rag.ingest.html_blocks import extract_text
 from rag.ingest.lookup_key import normalize_lookup_key

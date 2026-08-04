@@ -4,9 +4,8 @@ Skipped otherwise — see the `qdrant_server` fixture. What is asserted here is 
 mode cannot vouch for: that the *engine* accepts the SPEC §6.3–§6.4 collection shape.
 """
 
-from qdrant_client import QdrantClient, models
-
 from conftest import CreateCollection, MakePoint
+from qdrant_client import QdrantClient, models
 
 COLLECTION = "pytest__skeleton_probe"
 ALIAS = "pytest__skeleton_alias"

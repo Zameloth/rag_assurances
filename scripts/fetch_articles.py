@@ -48,7 +48,11 @@ from typing import Any
 import httpx
 import pyarrow.parquet as pq
 
-from rag.ingest.assertions import CorpusAssertionError, run_article_assertions, run_fiche_assertions
+from rag.ingest.assertions import (
+    CorpusAssertionError,
+    run_article_assertions,
+    run_fiche_assertions,
+)
 from rag.ingest.fiches import parse_fiche
 from rag.ingest.refresh_diff import diff_corpus, load_jsonl
 

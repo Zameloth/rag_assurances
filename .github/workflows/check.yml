@@ -28,6 +28,14 @@ jobs:
       - name: Start the dev Qdrant
         run: make up
 
+      # Keyed on the files mypy actually reads, so a source change invalidates it but a
+      # cache hit still gives incremental mode the prior run's state instead of a cold one.
+      - uses: actions/cache@v4
+        with:
+          path: .mypy_cache
+          key: mypy-${{ runner.os }}-${{ hashFiles('uv.lock', 'src/**/*.py', 'tests/**/*.py', 'scripts/**/*.py') }}
+          restore-keys: mypy-${{ runner.os }}-
+
       - name: Typecheck and test
         run: make check
 

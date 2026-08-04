@@ -4,9 +4,8 @@ These assertions are about the store accepting the shape SPEC §6.3–§6.4 fixe
 search, two named vectors on one point, UUIDv5 ids — not about retrieval quality.
 """
 
-from qdrant_client import QdrantClient, models
-
 from conftest import CreateCollection, MakePoint
+from qdrant_client import QdrantClient, models
 
 
 def test_the_fixture_accepts_dense_and_sparse_as_two_named_vectors(
