@@ -21,12 +21,12 @@ module only turns one article row into its ordered `text` chunks.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
 from rag.ingest.html_blocks import extract_blocks, extract_text
+from rag.ingest.text_split import split_to_band
 from rag.ingest.tokenizer import SPECIAL_TOKEN_COUNT, count_content_tokens, count_tokens
 
 __all__ = ["ArticleChunk", "ArticleRow", "BAND", "STUB_FLOOR", "chunk_article"]
@@ -39,12 +39,6 @@ STUB_FLOOR = 32
 _LEGIFRANCE_URL = "https://www.legifrance.gouv.fr/codes/article_lc/{legiarti_version_id}"
 # Lowercase, verbatim from the ticket and SPEC §4.2: "a `table non indexée` marker".
 _STUB_MARKER = "table non indexée"
-
-# Splits after sentence-ending punctuation followed by whitespace and what looks like the
-# next sentence's start. Only ever invoked on the ~2 blocks per corpus that overflow the
-# band on their own (measured, SPEC §4.2) — false splits inside a legal cross-reference like
-# "l'article L. 344-2" just hand the packer smaller units to re-merge, not lost content.
-_SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[.?!])\s+(?=[A-ZÀ-Ü0-9])")
 
 
 @dataclass(frozen=True)
@@ -93,41 +87,10 @@ def _units(html: str) -> list[str]:
     units: list[str] = []
     for block in extract_blocks(html):
         if count_content_tokens(block) + SPECIAL_TOKEN_COUNT > BAND:
-            units.extend(_split_oversized(block))
+            units.extend(split_to_band(block, BAND))
         else:
             units.append(block)
     return units
-
-
-def _split_oversized(block: str) -> list[str]:
-    sentences = [s for s in _SENTENCE_BOUNDARY_RE.split(block) if s.strip()]
-    units: list[str] = []
-    for sentence in sentences:
-        if count_content_tokens(sentence) + SPECIAL_TOKEN_COUNT > BAND:
-            units.extend(_split_by_words(sentence))
-        else:
-            units.append(sentence)
-    return units
-
-
-def _split_by_words(text: str) -> list[str]:
-    """Last-resort fallback for a single sentence that still overflows the band — not
-    observed on the current corpus (max sentence ~150 tokens), kept so a future DILA
-    refresh can never silently break assertion 7 (SPEC §4.5) on a pathological block."""
-    words = text.split()
-    groups: list[str] = []
-    current: list[str] = []
-    current_tokens = 0
-    for word in words:
-        word_tokens = count_content_tokens(word)
-        if current and current_tokens + word_tokens + SPECIAL_TOKEN_COUNT > BAND:
-            groups.append(" ".join(current))
-            current, current_tokens = [], 0
-        current.append(word)
-        current_tokens += word_tokens
-    if current:
-        groups.append(" ".join(current))
-    return groups
 
 
 def _pack(units: list[str]) -> list[str]:
