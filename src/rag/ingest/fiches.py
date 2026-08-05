@@ -36,8 +36,11 @@ tried (Chapitre+SousChapitre+Cas+Situation vs. Cas-only boundaries; a single flo
 pass vs. a per-run greedy-then-rebalance pack) converged in the 660–870 range and never
 exactly 882/98 — see `tests/test_fiches_chunking_corpus.py` for the full account.
 
-Payload assembly (SPEC §7.1 field for field, point ids, collections) is #25's job — this
-module only turns one fiche's raw XML into its ordered `text` chunks.
+`parse_fiche_metadata` (SPEC §7.1, #25) reads the remaining payload fields a fiche's raw
+XML carries at the document level — `title`, `sp_url`, `date_modified`, `fil_ariane`,
+`fiche_type` — alongside the `fiche_id`/`section_ids` `parse_fiche` already extracts.
+Point ids and collections are #25's job too, in `rag.ingest.payload` — this module only
+turns one fiche's raw XML into its ordered `text` chunks plus its metadata.
 """
 
 from __future__ import annotations
@@ -55,14 +58,22 @@ from rag.ingest.tokenizer import SPECIAL_TOKEN_COUNT, count_content_tokens, coun
 __all__ = [
     "ParsedFiche",
     "parse_fiche",
+    "FicheMetadata",
+    "parse_fiche_metadata",
     "in_scope",
     "FicheChunk",
     "chunk_fiche",
     "raw_body_text",
 ]
 
-_DC_SOURCE_TAG = "{http://purl.org/dc/elements/1.1/}source"
+_DC_NS = "{http://purl.org/dc/elements/1.1/}"
+_DC_SOURCE_TAG = _DC_NS + "source"
+_DC_TITLE_TAG = _DC_NS + "title"
+_DC_DATE_TAG = _DC_NS + "date"
 _LEGISCTA_RE = re.compile(r"LEGISCTA\d+")
+# DILA's own shape, measured 87/87 on the committed corpus — anything else must fail loud
+# rather than silently store a wrong date (SPEC §7.1's date_modified).
+_DATE_MODIFIED_RE = re.compile(r"^modified\s+(\d{4}-\d{2}-\d{2})$")
 
 
 class ParsedFiche(NamedTuple):
@@ -82,6 +93,49 @@ def parse_fiche(xml_bytes: bytes) -> ParsedFiche:
     source_text = source_el.text or "" if source_el is not None else ""
     deduped: dict[str, None] = dict.fromkeys(_LEGISCTA_RE.findall(source_text))
     return ParsedFiche(fiche_id=fiche_id, section_ids=list(deduped))
+
+
+class FicheMetadata(NamedTuple):
+    fiche_id: str
+    section_ids: list[str]
+    title: str
+    sp_url: str
+    date_modified: str
+    fil_ariane: str
+    fiche_type: str
+
+
+def parse_fiche_metadata(xml_bytes: bytes) -> FicheMetadata:
+    """The rest of SPEC §7.1's fiche payload: `title`, `sp_url`, `date_modified`,
+    `fil_ariane`, `fiche_type` (the payload's `type`), alongside `parse_fiche`'s own
+    `fiche_id`/`section_ids`.
+
+    A second `ET.fromstring` pass over the same bytes rather than threading a shared root
+    through both functions — `parse_fiche` already ships as the scope-rule parser fetch_fiches.py
+    calls, and this runs once per fiche at ingest time, not on a hot path.
+    """
+    parsed = parse_fiche(xml_bytes)
+    root = ET.fromstring(xml_bytes)
+    title_el = root.find(_DC_TITLE_TAG)
+    date_el = root.find(_DC_DATE_TAG)
+    fil_el = root.find("FilDAriane")
+    niveaux = fil_el.findall("Niveau") if fil_el is not None else []
+    return FicheMetadata(
+        fiche_id=parsed.fiche_id,
+        section_ids=parsed.section_ids,
+        title=(title_el.text or "").strip() if title_el is not None else "",
+        sp_url=root.attrib["spUrl"],
+        date_modified=_parse_date_modified(date_el.text or "" if date_el is not None else ""),
+        fil_ariane=" > ".join((niveau.text or "").strip() for niveau in niveaux),
+        fiche_type=root.attrib["type"],
+    )
+
+
+def _parse_date_modified(raw: str) -> str:
+    match = _DATE_MODIFIED_RE.match(raw.strip())
+    if not match:
+        raise ValueError(f"dc:date {raw!r} does not match DILA's 'modified YYYY-MM-DD' shape")
+    return match.group(1)
 
 
 def in_scope(section_ids: Iterable[str], article_section_ids: set[str]) -> bool:

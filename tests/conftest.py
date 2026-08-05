@@ -5,16 +5,13 @@ and the server suite assert against the same collection and point layout — SPE
 — and two copies of it would be two things to keep in step with the spec.
 """
 
-import uuid
 from collections.abc import Callable, Iterator
 
 import pytest
 from qdrant_client import QdrantClient, models
 
 from rag.config import load_settings
-
-# Any fixed UUID does; the ingest ticket fixes the project's real namespace.
-NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+from rag.ingest.payload import article_point_id
 
 CreateCollection = Callable[[QdrantClient, str], None]
 MakePoint = Callable[[str, int, list[float]], models.PointStruct]
@@ -95,7 +92,7 @@ def make_point() -> MakePoint:
 
     def build(legiarti_cid: str, chunk_index: int, dense: list[float]) -> models.PointStruct:
         return models.PointStruct(
-            id=str(uuid.uuid5(NAMESPACE, f"{legiarti_cid}#{chunk_index}")),
+            id=article_point_id(legiarti_cid, chunk_index),
             vector={
                 "dense": dense,
                 "sparse": models.SparseVector(indices=[1, 7], values=[0.9, 0.4]),
