@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Golden-set annotation helper</h1>
+<p class="muted">Choisissez une fiche à annoter (#33 — SPEC §12.1).</p>
+<input id="search" type="search" placeholder="Rechercher une fiche (id ou titre)…" autofocus>
+<ul id="fiche-list"></ul>
+
+<script type="application/json" id="fiches-data">{{ fiches_json | safe }}</script>
+<script>
+const fiches = JSON.parse(document.getElementById("fiches-data").textContent);
+const list = document.getElementById("fiche-list");
+const search = document.getElementById("search");
+
+function render(filter) {
+  const q = filter.trim().toLowerCase();
+  list.innerHTML = "";
+  for (const f of fiches) {
+    if (q && !(f.id.toLowerCase().includes(q) || f.title.toLowerCase().includes(q))) continue;
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = "/fiche/" + encodeURIComponent(f.id);
+    a.textContent = f.id + " — " + f.title;
+    li.appendChild(a);
+    list.appendChild(li);
+  }
+}
+search.addEventListener("input", () => render(search.value));
+render("");
+</script>
+{% endblock %}

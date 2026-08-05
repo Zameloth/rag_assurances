@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block title %}{{ fiche_id }} — {{ title }}{% endblock %}
+{% block content %}
+<h1>{{ fiche_id }} — {{ title }}</h1>
+
+<h2>Texte de la fiche</h2>
+<p class="muted">Sélectionnez du texte <strong>à l'intérieur d'un seul paragraphe</strong> pour en faire un <code>gold_span</code> — la sélection doit rester dans un même bloc pour rester vérifiable mot pour mot (SPEC §12.2).</p>
+<div id="chunks">
+  {% for index, text in chunks %}
+  <div class="chunk" data-chunk-index="{{ index }}">{{ text }}</div>
+  {% endfor %}
+</div>
+<div class="field">
+  <button type="button" id="add-span" disabled>+ ajouter la sélection comme gold_span</button>
+  <span id="selection-hint" class="muted"></span>
+</div>
+<div class="chip-list" id="span-chips"></div>
+
+<h2>Articles</h2>
+<p class="muted">Les sections ci-dessous viennent du <code>&lt;dc:source&gt;</code> de la fiche — une suggestion de lecture, jamais une source de label (SPEC §12.3). La recherche plein-corpus juste en dessous permet exactement les mêmes choix.</p>
+
+<div class="row">
+  <div class="col">
+    <h3>Suggestions (&lt;dc:source&gt;)</h3>
+    <div id="reading-list"></div>
+  </div>
+  <div class="col">
+    <h3>Recherche (tout le corpus)</h3>
+    <input id="article-search" type="search" placeholder="citation_id ou texte…">
+    <div id="search-results"></div>
+  </div>
+</div>
+
+<div class="field">
+  <label>gold_articles sélectionnés</label>
+  <div class="chip-list" id="article-chips"></div>
+</div>
+
+<h2>Annoter</h2>
+<form id="annotate-form" onsubmit="return false;">
+  <div class="field">
+    <label for="question">question</label>
+    <input id="question" type="text" required>
+  </div>
+
+  <div class="field">
+    <label for="expected_state">expected_state</label>
+    <select id="expected_state">
+      {% for state in expected_states %}
+      <option value="{{ state }}">{{ state }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="field">
+    <label>gold_fiches</label>
+    <div class="chip-list" id="fiche-chips"></div>
+    <input id="add-fiche" type="text" placeholder="ajouter un autre id de fiche puis Entrée">
+  </div>
+
+  <div class="field">
+    <label>expected_points <span class="muted">(1 à 3)</span></label>
+    <div id="points"></div>
+    <button type="button" id="add-point">+ ajouter un point</button>
+  </div>
+
+  <div class="field">
+    <label for="tags">tags <span class="muted">(séparés par des virgules)</span></label>
+    <input id="tags" type="text" placeholder="situationnel, multi_turn, …">
+  </div>
+
+  <div class="field">
+    <label for="history">history <span class="muted">(JSON de tours {role, content} — scripté à la main, SPEC §12.1; [] pour single-turn)</span></label>
+    <textarea id="history" rows="3">[]</textarea>
+  </div>
+
+  <button type="button" id="save">Enregistrer</button>
+  <div id="save-status"></div>
+</form>
+
+<script type="application/json" id="sections-data">{{ sections_json | safe }}</script>
+<script>
+const ficheId = "{{ fiche_id }}";
+const sections = JSON.parse(document.getElementById("sections-data").textContent);
+// Fetched once per browser session and cached by the `Cache-Control` header `/api/articles`
+// sends back — not re-embedded per fiche page, since the full corpus is ~8 MB.
+let allArticles = {};
+
+// A removable "chip" — the one visual shape gold_spans, gold_articles and gold_fiches all
+// render their selection as, so there's one place to change how a chip looks or behaves.
+function makeChip(label, onRemove) {
+  const chip = document.createElement("span");
+  chip.className = "chip";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+  chip.appendChild(labelEl);
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.textContent = "×";
+  remove.addEventListener("click", onRemove);
+  chip.appendChild(remove);
+  return chip;
+}
+
+// ---- gold_spans -----------------------------------------------------------
+
+const spans = [];
+const addSpanButton = document.getElementById("add-span");
+const selectionHint = document.getElementById("selection-hint");
+let currentSelection = null;
+
+document.addEventListener("selectionchange", () => {
+  const sel = window.getSelection();
+  currentSelection = null;
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+    addSpanButton.disabled = true;
+    selectionHint.textContent = "";
+    return;
+  }
+  const anchorChunk = sel.anchorNode && sel.anchorNode.nodeType === 3
+    ? sel.anchorNode.parentElement.closest(".chunk") : sel.anchorNode && sel.anchorNode.closest && sel.anchorNode.closest(".chunk");
+  const focusChunk = sel.focusNode && sel.focusNode.nodeType === 3
+    ? sel.focusNode.parentElement.closest(".chunk") : sel.focusNode && sel.focusNode.closest && sel.focusNode.closest(".chunk");
+  const text = sel.toString().trim();
+  if (!anchorChunk || anchorChunk !== focusChunk || !text) {
+    addSpanButton.disabled = true;
+    selectionHint.textContent = text ? "sélection à cheval sur plusieurs paragraphes — resélectionnez dans un seul." : "";
+    return;
+  }
+  currentSelection = text;
+  addSpanButton.disabled = false;
+  selectionHint.textContent = "";
+});
+
+addSpanButton.addEventListener("click", () => {
+  if (currentSelection && !spans.includes(currentSelection)) {
+    spans.push(currentSelection);
+    renderSpanChips();
+  }
+});
+
+function renderSpanChips() {
+  const container = document.getElementById("span-chips");
+  container.innerHTML = "";
+  spans.forEach((span, i) => {
+    const label = span.length > 80 ? span.slice(0, 80) + "…" : span;
+    container.appendChild(makeChip(label, () => { spans.splice(i, 1); renderSpanChips(); }));
+  });
+}
+
+// ---- gold_articles ----------------------------------------------------------
+
+const selectedArticleCids = new Set();
+
+function articleRow(cid) {
+  const article = allArticles[cid];
+  const row = document.createElement("div");
+  row.className = "article-row";
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = article.citation_id + " — " + article.title;
+  row.appendChild(meta);
+  const excerpt = document.createElement("div");
+  excerpt.className = "excerpt";
+  excerpt.textContent = article.text.length > 220 ? article.text.slice(0, 220) + "…" : article.text;
+  row.appendChild(excerpt);
+  const button = document.createElement("button");
+  button.type = "button";
+  const selected = selectedArticleCids.has(cid);
+  button.textContent = selected ? "✓ ajouté comme gold_article" : "+ ajouter comme gold_article";
+  button.addEventListener("click", () => {
+    if (selectedArticleCids.has(cid)) selectedArticleCids.delete(cid);
+    else selectedArticleCids.add(cid);
+    renderAll();
+  });
+  row.appendChild(button);
+  return row;
+}
+
+function renderReadingList() {
+  const container = document.getElementById("reading-list");
+  container.innerHTML = "";
+  if (sections.length === 0) {
+    container.innerHTML = '<p class="muted">Cette fiche n\'a pas de &lt;dc:source&gt; exploitable.</p>';
+    return;
+  }
+  for (const section of sections) {
+    const heading = document.createElement("h4");
+    heading.textContent = section.title;
+    container.appendChild(heading);
+    if (section.cids.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "(aucun article en vigueur rattaché à cette section)";
+      container.appendChild(empty);
+      continue;
+    }
+    for (const cid of section.cids) container.appendChild(articleRow(cid));
+  }
+}
+
+function renderSearchResults() {
+  const query = document.getElementById("article-search").value.trim().toLowerCase();
+  const container = document.getElementById("search-results");
+  container.innerHTML = "";
+  if (!query) return;
+  const matches = Object.keys(allArticles)
+    .filter((cid) => {
+      const a = allArticles[cid];
+      return a.citation_id.toLowerCase().includes(query)
+        || a.title.toLowerCase().includes(query)
+        || a.text.toLowerCase().includes(query);
+    })
+    .slice(0, 50);
+  if (matches.length === 0) {
+    container.innerHTML = '<p class="muted">Aucun article ne correspond.</p>';
+    return;
+  }
+  for (const cid of matches) container.appendChild(articleRow(cid));
+}
+
+function renderArticleChips() {
+  const container = document.getElementById("article-chips");
+  container.innerHTML = "";
+  for (const cid of selectedArticleCids) {
+    const label = allArticles[cid].citation_id;
+    container.appendChild(makeChip(label, () => { selectedArticleCids.delete(cid); renderAll(); }));
+  }
+}
+
+function renderAll() {
+  renderReadingList();
+  renderSearchResults();
+  renderArticleChips();
+}
+
+document.getElementById("article-search").addEventListener("input", renderSearchResults);
+document.getElementById("reading-list").innerHTML = '<p class="muted">Chargement des articles…</p>';
+
+(async () => {
+  const response = await fetch("/api/articles");
+  allArticles = await response.json();
+  renderAll();
+})();
+
+// ---- gold_fiches --------------------------------------------------------
+
+const ficheIds = [ficheId];
+
+function renderFicheChips() {
+  const container = document.getElementById("fiche-chips");
+  container.innerHTML = "";
+  ficheIds.forEach((id, i) => {
+    container.appendChild(makeChip(id, () => { ficheIds.splice(i, 1); renderFicheChips(); }));
+  });
+}
+renderFicheChips();
+
+document.getElementById("add-fiche").addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  const value = event.target.value.trim();
+  if (value && !ficheIds.includes(value)) {
+    ficheIds.push(value);
+    renderFicheChips();
+  }
+  event.target.value = "";
+});
+
+// ---- expected_points ------------------------------------------------------
+
+function addPointRow(value) {
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.gap = ".4rem";
+  row.style.margin = ".25rem 0";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = value || "";
+  input.className = "point-input";
+  row.appendChild(input);
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.textContent = "×";
+  remove.addEventListener("click", () => row.remove());
+  row.appendChild(remove);
+  document.getElementById("points").appendChild(row);
+}
+addPointRow("");
+document.getElementById("add-point").addEventListener("click", () => addPointRow(""));
+
+// ---- save -------------------------------------------------------------------
+
+document.getElementById("save").addEventListener("click", async () => {
+  const status = document.getElementById("save-status");
+  status.className = "";
+  status.textContent = "";
+
+  let history;
+  try {
+    history = JSON.parse(document.getElementById("history").value || "[]");
+  } catch (err) {
+    status.className = "error";
+    status.textContent = "history n'est pas un JSON valide : " + err.message;
+    return;
+  }
+
+  const points = Array.from(document.querySelectorAll(".point-input"))
+    .map((el) => el.value.trim())
+    .filter(Boolean);
+  const tags = document.getElementById("tags").value.split(",").map((t) => t.trim()).filter(Boolean);
+
+  const payload = {
+    question: document.getElementById("question").value.trim(),
+    expected_state: document.getElementById("expected_state").value,
+    gold_fiches: ficheIds,
+    gold_articles: Array.from(selectedArticleCids),
+    gold_spans: spans,
+    expected_points: points,
+    tags: tags,
+    history: history,
+  };
+
+  const response = await fetch("/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json();
+  if (response.ok && body.ok) {
+    status.className = "ok";
+    status.textContent = "Enregistré sous " + body.id + ".";
+  } else {
+    status.className = "error";
+    status.textContent = (body.id ? body.id + " — " : "") + (body.detail || "échec de l'enregistrement.");
+  }
+});
+</script>
+{% endblock %}

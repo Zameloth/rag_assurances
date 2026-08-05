@@ -13,18 +13,35 @@ dependencies = [
     "python-dotenv>=1.0",
     # SPEC §6.1 — the native client, not a LangChain VectorStore wrapper.
     "qdrant-client>=1.12",
+    # SPEC §12.1 — the golden set is one repo-canonical YAML file (eval/golden/golden-set.yaml).
+    "pyyaml>=6.0.3",
     # SPEC §4 — the band is measured with BGE-M3's own tokenizer. The Rust `tokenizers`
     # library reads `tokenizer.json` straight from the HF hub cache without pulling in the
     # model weights (#26) or a torch runtime chunking never needs.
     "tokenizers>=0.23.1",
 ]
 
+[tool.uv]
+# Unlike `fetch` (network calls, heavy binary deps, never imported by tests), `annotate`
+# backs real route-tested code (`tests/test_annotate_app.py`) — CI needs it installed to
+# typecheck and test `rag.eval.annotate_app`, so it is a default group, not an opt-in one.
+default-groups = ["dev", "annotate"]
+
 [dependency-groups]
+# #33 — the annotation helper is a hand-run local tool, never imported by the pipeline
+# stages, but its FastAPI + Jinja stack (SPEC §13, reused early rather than inventing a
+# second one) is exercised by the test suite, unlike `fetch`'s scripts below.
+annotate = [
+    "fastapi>=0.141.1",
+    "jinja2>=3.1.6",
+    "uvicorn[standard]>=0.52.1",
+]
 dev = [
     "pytest>=8.0",
     "mypy>=1.11",
     "ruff>=0.16.1",
     "pytest-cov>=7.1.0",
+    "types-pyyaml>=6.0.12.20260724",
 ]
 # SPEC §3.3 — the fetch script is a dev tool run by hand, never a pipeline stage, so its
 # dependencies are not part of the default `uv sync` and are installed only when someone
