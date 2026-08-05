@@ -1,20 +1,16 @@
 """The dev store from docker-compose.yml, when it is up (#25).
 
 Skipped otherwise — see the `qdrant_server` fixture. What is asserted here is what local
-mode cannot vouch for (see `test_collections.py`'s module docstring): `indexing_threshold`
+mode cannot vouch for (see `test_arms.py`'s module docstring): `indexing_threshold`
 actually holding at zero, and the two payload indexes actually taking effect.
 """
 
+from conftest import drop_collections
 from qdrant_client import QdrantClient, models
 
-from rag.ingest.collections import ensure_articles_collection, ensure_fiches_collection
+from rag.ingest.arms import ensure_articles_collection, ensure_fiches_collection
 
 DENSE_DIM = 4
-
-
-def _teardown(qdrant: QdrantClient, *names: str) -> None:
-    for name in names:
-        qdrant.delete_collection(name)
 
 
 def test_the_engine_holds_articles_indexing_threshold_at_zero(qdrant_server: QdrantClient) -> None:
@@ -25,7 +21,7 @@ def test_the_engine_holds_articles_indexing_threshold_at_zero(qdrant_server: Qdr
 
         assert info.config.optimizer_config.indexing_threshold == 0
     finally:
-        _teardown(qdrant_server, "pytest__articles_ensure")
+        drop_collections(qdrant_server, "pytest__articles_ensure")
 
 
 def test_the_engine_holds_fiches_indexing_threshold_at_zero(qdrant_server: QdrantClient) -> None:
@@ -36,7 +32,7 @@ def test_the_engine_holds_fiches_indexing_threshold_at_zero(qdrant_server: Qdran
 
         assert info.config.optimizer_config.indexing_threshold == 0
     finally:
-        _teardown(qdrant_server, "pytest__fiches_ensure")
+        drop_collections(qdrant_server, "pytest__fiches_ensure")
 
 
 def test_articles_collection_has_exactly_two_keyword_payload_indexes(qdrant_server: QdrantClient) -> None:
@@ -49,7 +45,7 @@ def test_articles_collection_has_exactly_two_keyword_payload_indexes(qdrant_serv
         assert set(schema) == {"lookup_key", "section_id"}
         assert all(field.data_type == models.PayloadSchemaType.KEYWORD for field in schema.values())
     finally:
-        _teardown(qdrant_server, "pytest__articles_indexes")
+        drop_collections(qdrant_server, "pytest__articles_indexes")
 
 
 def test_fiches_collection_has_no_payload_indexes(qdrant_server: QdrantClient) -> None:
@@ -61,4 +57,4 @@ def test_fiches_collection_has_no_payload_indexes(qdrant_server: QdrantClient) -
 
         assert schema == {}
     finally:
-        _teardown(qdrant_server, "pytest__fiches_indexes")
+        drop_collections(qdrant_server, "pytest__fiches_indexes")

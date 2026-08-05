@@ -17,6 +17,14 @@ CreateCollection = Callable[[QdrantClient, str], None]
 MakePoint = Callable[[str, int, list[float]], models.PointStruct]
 
 
+def drop_collections(client: QdrantClient, *names: str) -> None:
+    """Shared teardown for tests exercising collection-creation code (`ensure_*_collection`)
+    directly rather than through the `create_collection` fixture below, which always creates
+    unconditionally and so can't be used to test a function whose job is the creation step."""
+    for name in names:
+        client.delete_collection(name)
+
+
 @pytest.fixture
 def qdrant() -> Iterator[QdrantClient]:
     """An in-process Qdrant, per SPEC §6.3.

@@ -9,12 +9,11 @@ vector per input text (`[index, 0, 0, 0]`) precisely so a test can catch the two
 from collections.abc import Sequence
 from typing import Any
 
+from conftest import CreateCollection
 from qdrant_client import QdrantClient, models
 
 from rag.ingest.payload import article_point_id, fiche_point_id
 from rag.ingest.upsert import Embedding, upsert_articles, upsert_fiches
-
-DENSE_DIM = 4
 
 
 def _payload(point: models.Record) -> dict[str, Any]:
@@ -63,17 +62,10 @@ _FICHE_XML = (
 )
 
 
-def _make_collection(qdrant: QdrantClient, name: str) -> None:
-    qdrant.create_collection(
-        collection_name=name,
-        vectors_config={"dense": models.VectorParams(size=DENSE_DIM, distance=models.Distance.COSINE)},
-        sparse_vectors_config={"sparse": models.SparseVectorParams()},
-        optimizers_config=models.OptimizersConfigDiff(indexing_threshold=0),
-    )
-
-
-def test_upsert_articles_writes_one_point_per_chunk(qdrant: QdrantClient) -> None:
-    _make_collection(qdrant, "articles")
+def test_upsert_articles_writes_one_point_per_chunk(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    create_collection(qdrant, "articles")
     rows = [_article_row(texteHtml=f"<p>{_SHORT_TEXT}</p>")]
 
     written = upsert_articles(qdrant, "articles", rows, stub_embed)
@@ -82,9 +74,9 @@ def test_upsert_articles_writes_one_point_per_chunk(qdrant: QdrantClient) -> Non
     assert qdrant.count("articles").count == 1
 
 
-def test_upsert_articles_is_idempotent(qdrant: QdrantClient) -> None:
+def test_upsert_articles_is_idempotent(qdrant: QdrantClient, create_collection: CreateCollection) -> None:
     """SPEC §6.4 — re-running is an overwrite in place, not a second copy of the corpus."""
-    _make_collection(qdrant, "articles")
+    create_collection(qdrant, "articles")
     rows = [_article_row(texteHtml=f"<p>{_SHORT_TEXT}</p>")]
 
     upsert_articles(qdrant, "articles", rows, stub_embed)
@@ -93,10 +85,12 @@ def test_upsert_articles_is_idempotent(qdrant: QdrantClient) -> None:
     assert qdrant.count("articles").count == 1
 
 
-def test_upsert_articles_keeps_texts_and_vectors_in_order_across_rows(qdrant: QdrantClient) -> None:
+def test_upsert_articles_keeps_texts_and_vectors_in_order_across_rows(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
     """A row that chunks to 2+ points, followed by another row, must not scramble which
     vector lands on which point — the exact failure a flattened zip could introduce."""
-    _make_collection(qdrant, "articles")
+    create_collection(qdrant, "articles")
     long_html = "".join(f"<p>{_SHORT_TEXT} Bloc numéro {i}.</p>" for i in range(40))
     rows = [
         _article_row(cid="LEGIARTI_A", id="LEGIARTI_A_v1", citation_id="L100-1", texteHtml=long_html),
@@ -110,8 +104,10 @@ def test_upsert_articles_keeps_texts_and_vectors_in_order_across_rows(qdrant: Qd
     assert _payload(point)["citation_id"] == "L100-2"
 
 
-def test_upsert_fiches_writes_one_point_per_chunk(qdrant: QdrantClient) -> None:
-    _make_collection(qdrant, "fiches")
+def test_upsert_fiches_writes_one_point_per_chunk(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    create_collection(qdrant, "fiches")
 
     written = upsert_fiches(qdrant, "fiches", [_FICHE_XML], stub_embed)
 
@@ -119,8 +115,8 @@ def test_upsert_fiches_writes_one_point_per_chunk(qdrant: QdrantClient) -> None:
     assert qdrant.count("fiches").count == 1
 
 
-def test_upsert_fiches_is_idempotent(qdrant: QdrantClient) -> None:
-    _make_collection(qdrant, "fiches")
+def test_upsert_fiches_is_idempotent(qdrant: QdrantClient, create_collection: CreateCollection) -> None:
+    create_collection(qdrant, "fiches")
 
     upsert_fiches(qdrant, "fiches", [_FICHE_XML], stub_embed)
     upsert_fiches(qdrant, "fiches", [_FICHE_XML], stub_embed)
@@ -128,8 +124,8 @@ def test_upsert_fiches_is_idempotent(qdrant: QdrantClient) -> None:
     assert qdrant.count("fiches").count == 1
 
 
-def test_upsert_fiches_payload_round_trips(qdrant: QdrantClient) -> None:
-    _make_collection(qdrant, "fiches")
+def test_upsert_fiches_payload_round_trips(qdrant: QdrantClient, create_collection: CreateCollection) -> None:
+    create_collection(qdrant, "fiches")
 
     upsert_fiches(qdrant, "fiches", [_FICHE_XML], stub_embed)
 

@@ -23,7 +23,9 @@ __all__ = ["DENSE_DIM", "ensure_articles_collection", "ensure_fiches_collection"
 DENSE_DIM = 1024
 
 
-def ensure_articles_collection(client: QdrantClient, name: str, *, dense_dim: int = DENSE_DIM) -> None:
+def ensure_articles_collection(
+    client: QdrantClient, name: str, *, dense_dim: int = DENSE_DIM
+) -> None:
     """Create the `articles` arm `name` if it does not already exist, with its two payload
     indexes (SPEC §7.2: `lookup_key` for the short-circuit, `section_id` for expansion,
     both keyword). A no-op on a name that already exists — re-running the ingest against an
@@ -31,11 +33,14 @@ def ensure_articles_collection(client: QdrantClient, name: str, *, dense_dim: in
     if client.collection_exists(name):
         return
     _create_collection(client, name, dense_dim)
-    client.create_payload_index(name, field_name="lookup_key", field_schema=models.PayloadSchemaType.KEYWORD)
-    client.create_payload_index(name, field_name="section_id", field_schema=models.PayloadSchemaType.KEYWORD)
+    field_schema = models.PayloadSchemaType.KEYWORD
+    client.create_payload_index(name, field_name="lookup_key", field_schema=field_schema)
+    client.create_payload_index(name, field_name="section_id", field_schema=field_schema)
 
 
-def ensure_fiches_collection(client: QdrantClient, name: str, *, dense_dim: int = DENSE_DIM) -> None:
+def ensure_fiches_collection(
+    client: QdrantClient, name: str, *, dense_dim: int = DENSE_DIM
+) -> None:
     """Create the `fiches` arm `name` if it does not already exist. No payload indexes —
     SPEC §7.1 carries none; `section_ids` is read by expansion, never filtered on."""
     if client.collection_exists(name):
@@ -44,9 +49,10 @@ def ensure_fiches_collection(client: QdrantClient, name: str, *, dense_dim: int 
 
 
 def _create_collection(client: QdrantClient, name: str, dense_dim: int) -> None:
+    vectors_config = {"dense": models.VectorParams(size=dense_dim, distance=models.Distance.COSINE)}
     client.create_collection(
         collection_name=name,
-        vectors_config={"dense": models.VectorParams(size=dense_dim, distance=models.Distance.COSINE)},
+        vectors_config=vectors_config,
         sparse_vectors_config={"sparse": models.SparseVectorParams()},
         # SPEC §6.3 — HNSW never builds, so search stays exact regardless of collection size.
         optimizers_config=models.OptimizersConfigDiff(indexing_threshold=0),
@@ -62,7 +68,8 @@ def flip_alias(client: QdrantClient, alias: str, collection_name: str) -> None:
         return
     operations: list[models.AliasOperations] = []
     if alias in current:
-        operations.append(models.DeleteAliasOperation(delete_alias=models.DeleteAlias(alias_name=alias)))
+        delete_op = models.DeleteAliasOperation(delete_alias=models.DeleteAlias(alias_name=alias))
+        operations.append(delete_op)
     operations.append(
         models.CreateAliasOperation(
             create_alias=models.CreateAlias(collection_name=collection_name, alias_name=alias)

@@ -4,20 +4,16 @@ Collection *shape* (vectors, `indexing_threshold=0`, idempotent re-creation, ali
 plumbing the in-memory client can vouch for. Whether a payload index actually *takes
 effect* is not — local mode warns "Payload indexes have no effect in the local Qdrant" and
 leaves `payload_schema` empty regardless — so that one claim is asserted against the real
-engine in `test_collections_server.py`, skipped when it is not up, the same split
+engine in `test_arms_server.py`, skipped when it is not up, the same split
 `test_qdrant_fixture.py` / `test_qdrant_server.py` already make.
 """
 
+from conftest import drop_collections
 from qdrant_client import QdrantClient, models
 
-from rag.ingest.collections import ensure_articles_collection, ensure_fiches_collection, flip_alias
+from rag.ingest.arms import ensure_articles_collection, ensure_fiches_collection, flip_alias
 
 DENSE_DIM = 4
-
-
-def _teardown(qdrant: QdrantClient, *names: str) -> None:
-    for name in names:
-        qdrant.delete_collection(name)
 
 
 def _assert_has_dense_and_sparse(info: models.CollectionInfo) -> None:
@@ -32,7 +28,7 @@ def test_ensure_articles_collection_creates_dense_and_sparse_vectors(qdrant: Qdr
 
         _assert_has_dense_and_sparse(qdrant.get_collection("articles__test"))
     finally:
-        _teardown(qdrant, "articles__test")
+        drop_collections(qdrant, "articles__test")
 
 
 def test_ensure_fiches_collection_creates_dense_and_sparse_vectors(qdrant: QdrantClient) -> None:
@@ -41,7 +37,7 @@ def test_ensure_fiches_collection_creates_dense_and_sparse_vectors(qdrant: Qdran
 
         _assert_has_dense_and_sparse(qdrant.get_collection("fiches__test"))
     finally:
-        _teardown(qdrant, "fiches__test")
+        drop_collections(qdrant, "fiches__test")
 
 
 def test_ensure_articles_collection_is_idempotent(qdrant: QdrantClient) -> None:
@@ -52,7 +48,7 @@ def test_ensure_articles_collection_is_idempotent(qdrant: QdrantClient) -> None:
 
         assert qdrant.collection_exists("articles__test")
     finally:
-        _teardown(qdrant, "articles__test")
+        drop_collections(qdrant, "articles__test")
 
 
 def test_ensure_fiches_collection_is_idempotent(qdrant: QdrantClient) -> None:
@@ -62,7 +58,7 @@ def test_ensure_fiches_collection_is_idempotent(qdrant: QdrantClient) -> None:
 
         assert qdrant.collection_exists("fiches__test")
     finally:
-        _teardown(qdrant, "fiches__test")
+        drop_collections(qdrant, "fiches__test")
 
 
 def test_flip_alias_points_the_stable_name_at_a_physical_collection(qdrant: QdrantClient) -> None:
@@ -86,7 +82,7 @@ def test_flip_alias_points_the_stable_name_at_a_physical_collection(qdrant: Qdra
         aliases = {a.alias_name: a.collection_name for a in qdrant.get_aliases().aliases}
         assert aliases["articles"] == "articles__arm1"
     finally:
-        _teardown(qdrant, "articles__arm1")
+        drop_collections(qdrant, "articles__arm1")
 
 
 def test_flip_alias_switching_arms_is_atomic_and_leaves_no_stale_binding(qdrant: QdrantClient) -> None:
@@ -103,7 +99,7 @@ def test_flip_alias_switching_arms_is_atomic_and_leaves_no_stale_binding(qdrant:
         assert len(aliases) == 1
         assert aliases[0].collection_name == "articles__arm2"
     finally:
-        _teardown(qdrant, "articles__arm1", "articles__arm2")
+        drop_collections(qdrant, "articles__arm1", "articles__arm2")
 
 
 def test_flip_alias_onto_the_same_arm_is_a_no_op(qdrant: QdrantClient) -> None:
@@ -116,4 +112,4 @@ def test_flip_alias_onto_the_same_arm_is_a_no_op(qdrant: QdrantClient) -> None:
         aliases = [a for a in qdrant.get_aliases().aliases if a.alias_name == "articles"]
         assert len(aliases) == 1
     finally:
-        _teardown(qdrant, "articles__arm1")
+        drop_collections(qdrant, "articles__arm1")

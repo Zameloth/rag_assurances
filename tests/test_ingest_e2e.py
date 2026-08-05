@@ -4,8 +4,8 @@ vectors: arm collections, aliases, payload, idempotent upsert, all wired togethe
 This is the acceptance criterion from the ticket read literally — no model, only something
 shaped like one — and it is deliberately separate from `test_upsert.py` (which drives
 `upsert_articles`/`upsert_fiches` directly against a bare collection) and
-`test_collections.py` (collection shape alone): this file is the one place asserting that
-an arm created by `collections.py`, addressed only through its alias, accepts points built
+`test_arms.py` (collection shape alone): this file is the one place asserting that
+an arm created by `arms.py`, addressed only through its alias, accepts points built
 by `payload.py` via `upsert.py` — the whole path #26 will later swap a real embedder into.
 """
 
@@ -14,7 +14,7 @@ from typing import Any
 
 from qdrant_client import QdrantClient, models
 
-from rag.ingest.collections import ensure_articles_collection, ensure_fiches_collection, flip_alias
+from rag.ingest.arms import ensure_articles_collection, ensure_fiches_collection, flip_alias
 from rag.ingest.upsert import Embedding, upsert_articles, upsert_fiches
 
 DENSE_DIM = 4
