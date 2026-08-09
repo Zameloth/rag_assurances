@@ -51,7 +51,7 @@ clean: ## Stop the dev Qdrant and delete its volume
 # --- pipeline ----------------------------------------------------------------
 
 ingest: ## Corpus -> chunks -> BGE-M3 -> Qdrant (SPEC §4-§7)
-	$(call todo,2,the ingest library over data/corpus — src/rag/ingest/)
+	uv run python -m rag.ingest
 
 ladder: ## Run the six-rung retrieval ablation ladder (SPEC §12.8)
 	$(call todo,7,the eval harness — eval/ — writing per-rung scores to eval/runs/)
