@@ -9,9 +9,11 @@ vector per input text (`[index, 0, 0, 0]`) precisely so a test can catch the two
 from collections.abc import Sequence
 from typing import Any
 
+import pytest
 from conftest import CreateCollection
 from qdrant_client import QdrantClient, models
 
+import rag.ingest.upsert as upsert_module
 from rag.ingest.payload import article_point_id, fiche_point_id
 from rag.ingest.upsert import Embedding, upsert_articles, upsert_fiches
 
@@ -102,6 +104,35 @@ def test_upsert_articles_keeps_texts_and_vectors_in_order_across_rows(
     point_id = article_point_id("LEGIARTI_B", 0)
     [point] = qdrant.retrieve("articles", ids=[point_id], with_payload=True, with_vectors=True)
     assert _payload(point)["citation_id"] == "L100-2"
+
+
+def test_upsert_articles_batches_large_point_sets_across_multiple_upsert_calls(
+    monkeypatch: pytest.MonkeyPatch, qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    """SPEC #26 — one request over Qdrant's REST payload cap must never happen (measured
+    failure against the real corpus: a single 2,801-point call serialized to 70 MB against
+    a 32 MB limit). Regression-tested at a monkeypatched batch size of 2 rather than by
+    generating tens of megabytes of fixture data to reproduce the real threshold."""
+    monkeypatch.setattr(upsert_module, "_UPSERT_BATCH_SIZE", 2)
+    create_collection(qdrant, "articles")
+    rows = [
+        _article_row(cid=f"LEGIARTI_{i}", id=f"LEGIARTI_{i}_v1", citation_id=f"L100-{i}")
+        for i in range(5)
+    ]
+    call_sizes: list[int] = []
+    original_upsert = qdrant.upsert
+
+    def _spying_upsert(**kwargs: Any) -> Any:
+        call_sizes.append(len(kwargs["points"]))
+        return original_upsert(**kwargs)
+
+    monkeypatch.setattr(qdrant, "upsert", _spying_upsert)
+
+    written = upsert_articles(qdrant, "articles", rows, stub_embed)
+
+    assert written == 5
+    assert qdrant.count("articles").count == 5
+    assert call_sizes == [2, 2, 1]
 
 
 def test_upsert_fiches_writes_one_point_per_chunk(

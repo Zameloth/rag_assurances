@@ -18,7 +18,15 @@ dependencies = [
     # SPEC §4 — the band is measured with BGE-M3's own tokenizer. The Rust `tokenizers`
     # library reads `tokenizer.json` straight from the HF hub cache without pulling in the
     # model weights (#26) or a torch runtime chunking never needs.
-    "tokenizers>=0.23.1",
+    # Upper-bounded by FlagEmbedding's transformers pin below, not a chunking requirement.
+    "tokenizers>=0.22.0,<0.23.1",
+    # SPEC §5 — the reference implementation for BGE-M3's dense+sparse (+ColBERT, unused)
+    # single forward pass. ~2.3 GB of model weights land under data/raw/ on first use
+    # (#26), not the default HF cache, and not at import time.
+    "FlagEmbedding>=1.3.0",
+    # Named directly (FlagEmbedding would pull it in anyway) so [tool.uv.sources] below
+    # has a direct dependency to pin to the CPU wheel index.
+    "torch>=2.0",
 ]
 
 [tool.uv]
@@ -26,6 +34,18 @@ dependencies = [
 # backs real route-tested code (`tests/test_annotate_app.py`) — CI needs it installed to
 # typecheck and test `rag.eval.annotate_app`, so it is a default group, not an opt-in one.
 default-groups = ["dev", "annotate"]
+
+[tool.uv.sources]
+# SPEC §5 / §14.4 — BGE-M3 is CPU-viable by design and the VPS has no GPU, so the default
+# PyPI wheel (which bundles several GB of CUDA libraries nothing here ever calls) would be
+# pure waste on both the dev machine and the container. The CPU wheel index is the whole
+# fix; nothing about the model's behaviour changes.
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 # #33 — the annotation helper is a hand-run local tool, never imported by the pipeline
@@ -81,6 +101,19 @@ strict = true
 # without `uv sync --group fetch`. Silencing missing-import here still typechecks
 # everything scripts/fetch_articles.py does with the values pyarrow returns.
 module = "pyarrow.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# FlagEmbedding ships no py.typed marker / stubs. Silencing missing-import here still
+# typechecks everything embedder.py does with the values BGEM3FlagModel.encode() returns.
+module = "FlagEmbedding.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# tokenizers only started shipping py.typed at 0.23.1 (#26's tokenizers upper bound, held
+# down by FlagEmbedding's transformers pin, moved below that). Silencing missing-import
+# here still typechecks everything tokenizer.py does with `Tokenizer`'s return values.
+module = "tokenizers.*"
 ignore_missing_imports = true
 
 [tool.ruff]

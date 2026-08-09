@@ -7,9 +7,13 @@ ids, so a second run overwrites in place rather than duplicating.
 
 `embed` takes the whole batch of chunk texts at once and returns dense+sparse pairs in the
 same order, one per text — the natural shape for BGE-M3's one-forward-pass-per-batch
-encoding (#26), and the seam this ticket leaves for that model to plug into. This ticket
-supplies no real embedder; the acceptance criterion is that a deterministic stub one is
-enough to verify everything else end to end.
+encoding (#26), and the seam #25 left for that model to plug into.
+
+Upserting is chunked into `_UPSERT_BATCH_SIZE`-point requests, not one call per collection:
+a single 1024-dim-fp32-dense-plus-sparse point runs ~25 KB of JSON, so the full `articles`
+collection (2,801 points) serializes past Qdrant's 32 MB REST request cap in one shot
+(measured failure: 70 MB, real corpus, #26). 500 points keeps every request under ~12.5 MB —
+comfortable margin without adding a network round trip per article.
 """
 
 from __future__ import annotations
@@ -27,6 +31,10 @@ __all__ = ["Embedding", "EmbedFn", "upsert_articles", "upsert_fiches"]
 Embedding = tuple[list[float], models.SparseVector]
 EmbedFn = Callable[[Sequence[str]], list[Embedding]]
 
+# See the module docstring — sized against the measured ~25 KB/point of a real BGE-M3
+# point, not the tiny stub vectors the test suite embeds.
+_UPSERT_BATCH_SIZE = 500
+
 
 def upsert_articles(
     client: QdrantClient, collection_name: str, rows: Iterable[ArticleRow], embed: EmbedFn
@@ -40,7 +48,7 @@ def upsert_articles(
         build_article_point(row, chunk, dense, sparse)
         for (row, chunk), (dense, sparse) in zip(flat, embeddings, strict=True)
     ]
-    client.upsert(collection_name=collection_name, points=points)
+    _upsert_in_batches(client, collection_name, points)
     return len(points)
 
 
@@ -56,5 +64,13 @@ def upsert_fiches(
         build_fiche_point(meta, chunk, dense, sparse)
         for (meta, chunk), (dense, sparse) in zip(flat, embeddings, strict=True)
     ]
-    client.upsert(collection_name=collection_name, points=points)
+    _upsert_in_batches(client, collection_name, points)
     return len(points)
+
+
+def _upsert_in_batches(
+    client: QdrantClient, collection_name: str, points: list[models.PointStruct]
+) -> None:
+    for start in range(0, len(points), _UPSERT_BATCH_SIZE):
+        batch = points[start : start + _UPSERT_BATCH_SIZE]
+        client.upsert(collection_name=collection_name, points=batch)
