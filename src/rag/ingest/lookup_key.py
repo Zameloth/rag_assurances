@@ -16,13 +16,18 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["normalize_lookup_key"]
+__all__ = ["LOOKUP_KEY_BODY", "normalize_lookup_key"]
 
-# Full match only: uppercase L/R/A/D, an optional decree-en-Conseil-d'État asterisk, then
-# any mix of a single space/dot before the digits, then one or more dash-joined digit
-# groups. Anything not matching *in full* — the 21 prose annexe labels above all — is not
-# an article number and gets `None`.
-_PATTERN = re.compile(r"^[LRAD]\*?\s?\.?\s?\d+(?:-\d+)*$")
+# Uppercase L/R/A/D, an optional decree-en-Conseil-d'État asterisk, then any mix of a
+# single space/dot before the digits, then one or more dash-joined digit groups. Shared
+# with the query-side scanner (SPEC §9.1, `rag.retrieval.short_circuit`) — "one normalizer,
+# two patterns" means the character shape lives once; only the anchoring differs (this
+# module's `^...$` full match vs. the scanner's `\b...\b` embedded match).
+LOOKUP_KEY_BODY = r"[LRAD]\*?\s?\.?\s?\d+(?:-\d+)*"
+
+# Full match only. Anything not matching *in full* — the 21 prose annexe labels above all —
+# is not an article number and gets `None`.
+_PATTERN = re.compile(rf"^{LOOKUP_KEY_BODY}$")
 
 # The three characters SPEC §7.3 says lookup_key strips on top of uppercasing. `-` is
 # deliberately absent — dash segments are load-bearing (`L113-15` != `L113-15-2`).
