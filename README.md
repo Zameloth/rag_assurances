@@ -5,13 +5,16 @@ fiches plus the in-force Code des assurances. It answers a curious consumer's qu
 parts: an explanation in consumer French, and the *fondement juridique* citing the article behind
 it.
 
-**Status: design complete; the skeleton and dev harness are in place, no pipeline stage is built
-yet.** Build order is [SPEC §20](SPEC.md).
+**Status: corpus and the full ingest pipeline are built — `make ingest` runs corpus → chunks →
+BGE-M3 → Qdrant end to end. Retrieval is under way (the short-circuit has landed); generation, eval
+and the app have not started.** Build order is [SPEC §20](SPEC.md); the section below says where it
+stands.
 
 | | |
 |---|---|
 | [`SPEC.md`](SPEC.md) | The full specification — corpus, chunking, embeddings, vector store, retrieval, generation, eval, interface, deployment. Detailed enough to build from. |
 | [`CONTEXT.md`](CONTEXT.md) | The project's domain vocabulary. |
+| [`CODING_STANDARDS.md`](CODING_STANDARDS.md) | The house rules a review checks against, consolidated from `pyproject.toml`, `CONTEXT.md` and the ADRs. |
 | [`docs/adr/`](docs/adr/) | Fourteen architecture decision records. |
 | [`docs/research/`](docs/research/) | Primary-source research notes on corpora, French embedding models, and Langfuse. |
 | [Map #1](https://github.com/Zameloth/rag_assurances/issues/1) | The wayfinding map and its sixteen decision tickets, where the full reasoning lives. |
@@ -27,13 +30,52 @@ make up                  # dev Qdrant, reachable at QDRANT_URL
 make check               # mypy, then the test suite
 ```
 
-`make` on its own lists every target. The pipeline targets — `ingest`, `ladder`, `publish-index`,
-`deploy` — are named now and stubbed until their ticket lands; each exits non-zero and prints the
-command it will run.
+`make` on its own lists every target. Of the four pipeline targets, `ingest` is real — it needs
+`make up` first, and downloads the BGE-M3 weights into gitignored `data/raw/` on its first run.
+The remaining three — `ladder`, `publish-index`, `deploy` — are named now and stubbed until their
+ticket lands; each exits non-zero and prints the command it will run.
 
 The suite is green without a live store: anything needing the real engine takes the `qdrant_server`
 fixture and skips when nothing answers at `QDRANT_URL`. Everything else uses `QdrantClient(":memory:")`,
 which is for plumbing assertions only — never for recall or ranking numbers ([SPEC §6.3](SPEC.md)).
+
+## Where the build stands
+
+Against the twelve steps of [SPEC §20](SPEC.md):
+
+| Step | | |
+|---|---|---|
+| 1 | Corpus | **done** — 2,375 articles + 87 fiches committed, assertions 1–5 green |
+| 2 | Ingest library | **done** — `make ingest` runs chunk → payload → BGE-M3 → Qdrant, assertions 6–9 green |
+| 3 | Retrieval library | **in progress** — the article-reference short-circuit has landed; the retriever itself and the four ladder arms have not |
+| 4 | Golden set | tooling built (schema, corpus validator, annotation helper); **not a single item annotated yet** |
+| 5–12 | Eval harness, ladder, generation, condenser, app, deploy | not started |
+
+What that means concretely:
+
+- **Ingest is end-to-end.** `rag.ingest.pipeline` reads the committed corpus, gates it with ingest
+  assertions 1–9, embeds every chunk with BGE-M3 (dense + learned sparse in one forward pass),
+  upserts into a versioned arm collection and flips the stable alias onto it ([ADR-0005](docs/adr/0005-qdrant-two-collections-behind-aliases.md)).
+- **It writes 3,650 points** — 2,801 article chunks + 849 fiche chunks. SPEC §4.4 estimated 3,687;
+  the gap is a known, accepted difference between the estimate and what the committed chunkers
+  actually measure, documented at `rag.ingest.fiches` and the two corpus-chunking test modules, not
+  an open defect.
+- **Retrieval has one piece.** `rag.retrieval.short_circuit` resolves a query carrying an article
+  reference against `lookup_key` without searching at all ([SPEC §9.1](SPEC.md)) — one normalizer,
+  two patterns. Nothing yet consumes it: there is no `BaseRetriever`, no hybrid legs, no fusion.
+- **The golden set is empty.** `eval/golden/` holds only its `.gitkeep`. Annotation is
+  [#34](https://github.com/Zameloth/rag_assurances/issues/34), a human task, and it blocks the whole
+  eval track — #34 → #35 → #36 → #37 → the rungs. No rung can run without it.
+- **One gate ahead is one-way.** The pre-registered rung/metric table
+  ([#37](https://github.com/Zameloth/rag_assurances/issues/37), step 6) has to be committed *before
+  a single rung runs*; written afterwards it is post-hoc metric selection, and no later commit
+  repairs that ([SPEC §12.7](SPEC.md)). Nothing else in the build order is irrecoverable.
+
+Next up, both unblocked: [#28](https://github.com/Zameloth/rag_assurances/issues/28) — the retriever
+skeleton, the rung-1 baseline — and #34.
+
+The suite is **254 passed, 7 skipped** (the skips are the ones needing a live Qdrant), at 96% line
+coverage against a 90% floor.
 
 ## Corpus
 
