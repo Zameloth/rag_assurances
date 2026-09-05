@@ -20,7 +20,9 @@ from rag.retrieval.pipeline import (
     retrieve_rung2,
     retrieve_rung3,
     retrieve_rung4,
+    retrieve_rung5,
 )
+from rag.retrieval.rerank import RerankFn
 from rag.retrieval.short_circuit import ShortCircuitPath
 
 
@@ -392,7 +394,11 @@ def _reversing_rerank(query: str, candidates: list[Candidate]) -> list[Candidate
     reversed_pool = list(reversed(candidates))
     return [
         Candidate(
-            id=c.id, score=100.0 + i, register=c.register, payload=c.payload, provenance=c.provenance
+            id=c.id,
+            score=100.0 + i,
+            register=c.register,
+            payload=c.payload,
+            provenance=c.provenance,
         )
         for i, c in enumerate(reversed_pool)
     ]
@@ -509,5 +515,183 @@ def test_rung4_rerank_fn_defaults_to_none_and_resolves_the_real_reranker(
 
 def test_rung4_is_registered_but_rung1_stays_the_default_arm() -> None:
     assert RETRIEVAL_ARMS["rung4"] is retrieve_rung4
+    assert DEFAULT_RETRIEVAL_ARM == "rung1"
+    assert RETRIEVAL_ARMS[DEFAULT_RETRIEVAL_ARM] is retrieve_rung1
+
+
+def _fixed_score_rerank(scores: dict[str, float]) -> RerankFn:
+    """A fake `RerankFn` that stamps a caller-chosen score onto each candidate by id,
+    leaving provenance/register/payload untouched — so a rung-5 test can control exactly
+    which candidates clear the relevance floor and in what order, independent of the fake
+    store's own cosine numbers (SPEC §6.3)."""
+
+    def _fn(query: str, candidates: list[Candidate]) -> list[Candidate]:
+        return [
+            Candidate(
+                id=c.id,
+                score=scores.get(c.id, c.score),
+                register=c.register,
+                payload=c.payload,
+                provenance=c.provenance,
+            )
+            for c in candidates
+        ]
+
+    return _fn
+
+
+def test_rung5_short_circuit_behaves_exactly_like_rung1(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[raw_point(1, [0.0, 0.0, 0.0, 1.0], {"lookup_key": "L113-2", "chunk_index": 0})],
+    )
+
+    result = retrieve_rung5(
+        qdrant, stub_embed([1.0, 0.0, 0.0, 0.0]), "Que dit L113-2 ?", {"L113-2"}
+    )
+
+    assert result.short_circuit_path is ShortCircuitPath.RESOLVED
+    assert result.candidate_pools == {}
+    assert result.floor_met is None
+    [context] = result.contexts
+    assert context.provenance == frozenset({Provenance.LOOKUP})
+
+
+def test_rung5_fills_fiche_and_article_slots_separately_not_a_shared_top_8(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    """The failure SPEC §9.5 designs out: a naive shared top-8 cap over a pool this lopsided
+    would return eight fiches and zero articles. Quota assembly must not."""
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(
+        FICHES_ALIAS,
+        points=[raw_point(i, [1.0, 0.0, 0.0, 0.0], {"fiche_id": f"F{i}"}) for i in range(6)],
+    )
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[
+            raw_point(100 + i, [1.0, 0.0, 0.0, 0.0], {"citation_id": f"L{i}"}) for i in range(2)
+        ],
+    )
+    # Every fiche outscores every article post-rerank — naive top-8 would take all 6
+    # fiches and both articles ranked below them, never leaving room to notice a shortfall,
+    # but there are only 2 articles here regardless: the point is that quota reserves 4
+    # article slots rather than letting fiches crowd every remaining slot.
+    scores = {str(i): 0.9 - i * 0.01 for i in range(6)}
+    scores.update({"100": 0.8, "101": 0.7})
+    identity_rerank = _fixed_score_rerank(scores)
+
+    result = retrieve_rung5(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "une question ouverte",
+        set(),
+        rerank_fn=identity_rerank,
+    )
+
+    fiche_contexts = [c for c in result.contexts if c.register is Register.FICHE]
+    article_contexts = [c for c in result.contexts if c.register is Register.ARTICLE]
+    assert len(fiche_contexts) == 4
+    assert len(article_contexts) == 2
+    assert result.floor_met is True
+    assert set(result.candidate_pools) == {FICHE_LEG, ARTICLE_LEG, EXPANSION_POOL}
+
+
+def test_rung5_article_floor_not_met_inserts_the_no_article_marker(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(FICHES_ALIAS, points=[raw_point(1, [1.0, 0.0, 0.0, 0.0], {"fiche_id": "F1"})])
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[raw_point(2, [1.0, 0.0, 0.0, 0.0], {"citation_id": "L113-2"})],
+    )
+    below_floor_rerank = _fixed_score_rerank({"1": 0.9, "2": 0.1})
+
+    result = retrieve_rung5(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "une question ouverte",
+        set(),
+        rerank_fn=below_floor_rerank,
+    )
+
+    assert result.floor_met is False
+    article_contexts = [c for c in result.contexts if c.register is Register.ARTICLE]
+    [marker] = article_contexts
+    assert marker.provenance == frozenset()
+
+
+def test_rung5_quota_and_floor_are_overridable_by_the_caller(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    """This ticket's own acceptance criterion: quota depth and the floor value are config,
+    not code — the rung-5-vs-rung-1 comparison stays a config change."""
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(FICHES_ALIAS, points=[raw_point(1, [1.0, 0.0, 0.0, 0.0], {"fiche_id": "F1"})])
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[raw_point(2, [1.0, 0.0, 0.0, 0.0], {"citation_id": "L113-2"})],
+    )
+    low_score_rerank = _fixed_score_rerank({"1": 0.9, "2": 0.2})
+
+    result = retrieve_rung5(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "une question ouverte",
+        set(),
+        rerank_fn=low_score_rerank,
+        relevance_floor=0.1,
+    )
+
+    assert result.floor_met is True
+    article_contexts = [c for c in result.contexts if c.register is Register.ARTICLE]
+    assert [c.id for c in article_contexts] == ["2"]
+
+
+def test_rung5_rerank_fn_defaults_to_none_and_resolves_the_real_reranker(
+    monkeypatch: pytest.MonkeyPatch, qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    """Mirrors rung 4's own equivalent test: with no `rerank_fn` injected, `retrieve_rung5`
+    reaches `rag.retrieval.rerank.rerank` bound to `reranker_model`/`reranker_backend`."""
+    import rag.retrieval.pipeline as pipeline_module
+    from rag.retrieval.rerank import RerankerBackend
+
+    seen: dict[str, object] = {}
+
+    def _fake_rerank(
+        query: str, candidates: list[Candidate], *, model_id: str, backend: RerankerBackend
+    ) -> list[Candidate]:
+        seen["query"] = query
+        seen["model_id"] = model_id
+        seen["backend"] = backend
+        return candidates
+
+    monkeypatch.setattr(pipeline_module, "rerank", _fake_rerank)
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+
+    retrieve_rung5(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "une question ouverte",
+        set(),
+        reranker_model="Alibaba-NLP/gte-multilingual-reranker-base",
+        reranker_backend=RerankerBackend.ONNX_INT8,
+    )
+
+    assert seen["query"] == "une question ouverte"
+    assert seen["model_id"] == "Alibaba-NLP/gte-multilingual-reranker-base"
+    assert seen["backend"] is RerankerBackend.ONNX_INT8
+
+
+def test_rung5_is_registered_but_rung1_stays_the_default_arm() -> None:
+    assert RETRIEVAL_ARMS["rung5"] is retrieve_rung5
     assert DEFAULT_RETRIEVAL_ARM == "rung1"
     assert RETRIEVAL_ARMS[DEFAULT_RETRIEVAL_ARM] is retrieve_rung1
