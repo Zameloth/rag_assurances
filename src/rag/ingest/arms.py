@@ -16,7 +16,21 @@ from __future__ import annotations
 
 from qdrant_client import QdrantClient, models
 
-__all__ = ["DENSE_DIM", "ensure_articles_collection", "ensure_fiches_collection", "flip_alias"]
+__all__ = [
+    "ARTICLES_ALIAS",
+    "DENSE_DIM",
+    "FICHES_ALIAS",
+    "ensure_articles_collection",
+    "ensure_fiches_collection",
+    "flip_alias",
+]
+
+# The two SPEC §6.4 stable names, defined once here — this module is their natural single
+# home, since `flip_alias` is the only thing that ever points either at a physical
+# collection. `rag.ingest.pipeline` (which flips them) and `rag.retrieval.legs` (which
+# queries through them) both import these rather than restating the literals.
+ARTICLES_ALIAS = "articles"
+FICHES_ALIAS = "fiches"
 
 # BGE-M3's dense output (SPEC §5). Collection-creation callers override it for tests, where
 # the point is collection *shape*, not the real embedder.

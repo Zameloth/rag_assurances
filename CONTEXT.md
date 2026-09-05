@@ -68,7 +68,7 @@ and must be answered from both.
 | **the membership check** | Normalizing a scanned reference and confirming it is in the loaded `lookup_key` set **before** short-circuiting. Turns any future regex gap into normal search rather than a confidently wrong article. |
 | **fiche leg / article leg** | The two hybrid search paths. Fiche leg is dense-leaning, article leg sparse-leaning — the MIRACL/MLDR regime inverts with document length. |
 | **expansion** | The third path: top-3 fiches → their `<dc:source>` sections → a **filtered vector search** within those sections, capped at 40. The **spine** of the architecture — it *removes* the consumer→legal hop rather than improving it. ✗ *fiche-to-article lookup*, *chaining* |
-| **provenance** | Whether a candidate arrived by expansion or by search. A retrieval **annotation** and a **set**, not a scalar — an article can arrive by both legs and the sets are unioned. |
+| **provenance** | Whether a candidate arrived by expansion, by search, or by the short-circuit's metadata **lookup** (#28). A retrieval **annotation** and a **set**, not a scalar — an article can arrive by both legs and the sets are unioned. `lookup` never joins that union: the short-circuit skips search entirely, so a lookup-provenance candidate is never merged with a search- or expansion-sourced one. |
 | **the quota** | Context assembly: **4 fiche chunks + 4 articles**, filled separately after reranking, article slots preferring expansion-sourced. |
 | **the relevance floor** | The threshold on article slots. **Pad nothing.** |
 | **the no-article marker** | What enters the context when the floor is not met. The model must *state* the absence; it is an answer, not a refusal. |
