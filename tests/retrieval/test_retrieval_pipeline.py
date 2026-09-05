@@ -11,12 +11,14 @@ from rag.retrieval.legs import ARTICLES_ALIAS, FICHES_ALIAS
 from rag.retrieval.pipeline import (
     ARTICLE_LEG,
     DEFAULT_RETRIEVAL_ARM,
+    EXPANSION_POOL,
     FICHE_LEG,
     RETRIEVAL_ARMS,
     rank_candidates,
     retrieve,
     retrieve_rung1,
     retrieve_rung2,
+    retrieve_rung3,
 )
 from rag.retrieval.short_circuit import ShortCircuitPath
 
@@ -251,3 +253,132 @@ def test_rung2_leg_weights_are_overridable_by_the_caller(
     # flat score is exactly what a zero dense weight predicts.
     fiche_scores = {c.score for c in result.candidate_pools[FICHE_LEG]}
     assert fiche_scores == {0.25}
+
+
+def test_rung3_short_circuit_behaves_exactly_like_rung1(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[raw_point(1, [0.0, 0.0, 0.0, 1.0], {"lookup_key": "L113-2", "chunk_index": 0})],
+    )
+
+    result = retrieve_rung3(
+        qdrant, stub_embed([1.0, 0.0, 0.0, 0.0]), "Que dit L113-2 ?", {"L113-2"}
+    )
+
+    assert result.short_circuit_path is ShortCircuitPath.RESOLVED
+    assert result.candidate_pools == {}
+    [context] = result.contexts
+    assert context.provenance == frozenset({Provenance.LOOKUP})
+
+
+def test_rung3_adds_an_expansion_pool_alongside_the_two_legs(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(
+        FICHES_ALIAS,
+        points=[raw_point(1, [1.0, 0.0, 0.0, 0.0], {"fiche_id": "F1", "section_ids": ["S1"]})],
+    )
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[raw_point(2, [1.0, 0.0, 0.0, 0.0], {"citation_id": "L113-2", "section_id": "S1"})],
+    )
+
+    result = retrieve_rung3(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "une question ouverte",
+        set(),
+    )
+
+    assert set(result.candidate_pools) == {FICHE_LEG, ARTICLE_LEG, EXPANSION_POOL}
+    assert len(result.candidate_pools[EXPANSION_POOL]) == 1
+    assert result.candidate_pools[EXPANSION_POOL][0].provenance == frozenset({Provenance.EXPANSION})
+
+
+def test_rung3_an_article_reached_by_both_the_article_leg_and_expansion_carries_both_provenances(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    """SPEC §7.5 / this ticket's own acceptance criterion — the union survives the merge
+    regardless of which pool `merge_candidates` sees first."""
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(
+        FICHES_ALIAS,
+        points=[raw_point(1, [1.0, 0.0, 0.0, 0.0], {"fiche_id": "F1", "section_ids": ["S1"]})],
+    )
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[raw_point(2, [1.0, 0.0, 0.0, 0.0], {"citation_id": "L113-2", "section_id": "S1"})],
+    )
+
+    result = retrieve_rung3(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "une question ouverte",
+        set(),
+    )
+
+    # Present in both `article_pool` (unfiltered hybrid search over all of `articles`) and
+    # `expansion_pool` (the same point, filtered on its own `section_id`) — the merged
+    # context must carry both, not whichever pool happened to be merged first.
+    [article_context] = [c for c in result.contexts if c.register is Register.ARTICLE]
+    assert article_context.provenance == frozenset({Provenance.SEARCH, Provenance.EXPANSION})
+
+
+def test_rung3_expansion_depth_zero_disables_expansion(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    """`expansion_depth`/`expansion_cap` are real parameters, the same shape
+    `fiche_weights`/`article_weights` already take (#29) — this ticket's own acceptance
+    criterion is that the arm stays ablatable through them."""
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(
+        FICHES_ALIAS,
+        points=[raw_point(1, [1.0, 0.0, 0.0, 0.0], {"fiche_id": "F1", "section_ids": ["S1"]})],
+    )
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[raw_point(2, [1.0, 0.0, 0.0, 0.0], {"citation_id": "L113-2", "section_id": "S1"})],
+    )
+
+    result = retrieve_rung3(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "une question ouverte",
+        set(),
+        expansion_depth=0,
+    )
+
+    assert result.candidate_pools[EXPANSION_POOL] == []
+
+
+def test_rung3_final_contexts_are_capped_at_top_k(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[raw_point(i, [1.0, 0.0, 0.0, 0.0], {"citation_id": f"L{i}"}) for i in range(10)],
+    )
+
+    result = retrieve_rung3(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "une question ouverte",
+        set(),
+    )
+
+    assert len(result.contexts) == 8
+
+
+def test_rung3_is_registered_but_rung1_stays_the_default_arm() -> None:
+    assert RETRIEVAL_ARMS["rung3"] is retrieve_rung3
+    assert DEFAULT_RETRIEVAL_ARM == "rung1"
+    assert RETRIEVAL_ARMS[DEFAULT_RETRIEVAL_ARM] is retrieve_rung1
