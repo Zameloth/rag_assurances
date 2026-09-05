@@ -21,8 +21,10 @@ MakePoint = Callable[[str, int, list[float]], models.PointStruct]
 
 def raw_point(point_id: int, dense: list[float], payload: Mapping[str, Any]) -> models.PointStruct:
     """A bare point for retrieval-plumbing tests: one dense vector, a fixed 1-index sparse
-    component (present only so a collection created with `sparse_vectors_config` never
-    rejects the upsert — its value is never read), and whatever payload the test needs.
+    component — indices=[1], values=[0.5] on every point, so a collection created with
+    `sparse_vectors_config` never rejects the upsert, and rung-2 hybrid tests that do query
+    the sparse half get a deterministic dot product rather than an arbitrary one — and
+    whatever payload the test needs.
 
     Unlike `make_point` below, this derives no natural-key id and assumes no fixed payload
     shape — `rag.retrieval`'s tests exercise several different payload shapes (fiche vs
@@ -39,9 +41,15 @@ def stub_embed(dense: list[float]) -> EmbedFn:
     rung-1 retriever only reads the dense half of the BGE-M3 embedding shape (SPEC §12.7:
     "single index, dense-only"), so the sparse half's exact content is never asserted on
     and an empty one is exactly as informative as a real one here."""
+    return stub_embed_hybrid(dense, models.SparseVector(indices=[], values=[]))
+
+
+def stub_embed_hybrid(dense: list[float], sparse: models.SparseVector) -> EmbedFn:
+    """`stub_embed`'s rung-2 counterpart: both halves are real, for tests exercising
+    `retrieve_rung2`'s hybrid legs (SPEC §9.3, #29) rather than rung 1's dense-only path."""
 
     def embed(texts: Sequence[str]) -> list[Embedding]:
-        return [(dense, models.SparseVector(indices=[], values=[]))] * len(texts)
+        return [(dense, sparse)] * len(texts)
 
     return embed
 

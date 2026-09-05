@@ -1,10 +1,12 @@
 """SPEC §9.1, §12.7, ADR-0015 — the rung-1 arm: path selection, merge, top-8, the fat object."""
 
 import pytest
-from conftest import CreateCollection, raw_point, stub_embed
+from conftest import CreateCollection, raw_point, stub_embed, stub_embed_hybrid
 from qdrant_client import QdrantClient
+from qdrant_client.models import SparseVector
 
 from rag.retrieval.candidates import Candidate, Provenance, Register
+from rag.retrieval.fusion import LegWeights
 from rag.retrieval.legs import ARTICLES_ALIAS, FICHES_ALIAS
 from rag.retrieval.pipeline import (
     ARTICLE_LEG,
@@ -14,6 +16,7 @@ from rag.retrieval.pipeline import (
     rank_candidates,
     retrieve,
     retrieve_rung1,
+    retrieve_rung2,
 )
 from rag.retrieval.short_circuit import ShortCircuitPath
 
@@ -145,3 +148,106 @@ def test_retrieve_rejects_an_unknown_arm(
 def test_rung1_is_the_default_arm_and_is_registered() -> None:
     assert DEFAULT_RETRIEVAL_ARM == "rung1"
     assert RETRIEVAL_ARMS["rung1"] is retrieve_rung1
+
+
+def test_rung2_short_circuit_behaves_exactly_like_rung1(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[raw_point(1, [0.0, 0.0, 0.0, 1.0], {"lookup_key": "L113-2", "chunk_index": 0})],
+    )
+
+    result = retrieve_rung2(
+        qdrant, stub_embed([1.0, 0.0, 0.0, 0.0]), "Que dit L113-2 ?", {"L113-2"}
+    )
+
+    assert result.short_circuit_path is ShortCircuitPath.RESOLVED
+    assert result.candidate_pools == {}
+    [context] = result.contexts
+    assert context.provenance == frozenset({Provenance.LOOKUP})
+
+
+def test_rung2_hybridizes_both_legs_and_returns_hybrid_leg_pools(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(FICHES_ALIAS, points=[raw_point(1, [1.0, 0.0, 0.0, 0.0], {"fiche_id": "F1"})])
+    qdrant.upsert(
+        ARTICLES_ALIAS, points=[raw_point(2, [0.9, 0.1, 0.0, 0.0], {"citation_id": "L113-2"})]
+    )
+
+    result = retrieve_rung2(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "Quelle franchise pour un dégât des eaux ?",
+        set(),
+    )
+
+    assert result.short_circuit_path is ShortCircuitPath.NO_REFERENCE
+    assert set(result.candidate_pools) == {FICHE_LEG, ARTICLE_LEG}
+    assert len(result.candidate_pools[FICHE_LEG]) == 1
+    assert len(result.candidate_pools[ARTICLE_LEG]) == 1
+    assert {c.register for c in result.contexts} == {Register.FICHE, Register.ARTICLE}
+    assert all(c.provenance == frozenset({Provenance.SEARCH}) for c in result.contexts)
+
+
+def test_rung2_final_contexts_are_capped_at_top_k(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[raw_point(i, [1.0, 0.0, 0.0, 0.0], {"citation_id": f"L{i}"}) for i in range(10)],
+    )
+
+    result = retrieve_rung2(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "une question ouverte",
+        set(),
+    )
+
+    assert len(result.contexts) == 8
+
+
+def test_rung2_is_registered_but_rung1_stays_the_default_arm() -> None:
+    assert RETRIEVAL_ARMS["rung2"] is retrieve_rung2
+    assert DEFAULT_RETRIEVAL_ARM == "rung1"
+    assert RETRIEVAL_ARMS[DEFAULT_RETRIEVAL_ARM] is retrieve_rung1
+
+
+def test_rung2_leg_weights_are_overridable_by_the_caller(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    """`fiche_weights`/`article_weights` are real parameters, not just internal ones
+    `hybrid_leg` happens to take — a caller can override the defaults without editing
+    `fusion.py`'s constants (ADR-0016)."""
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(
+        FICHES_ALIAS,
+        points=[
+            raw_point(1, [1.0, 0.0, 0.0, 0.0], {"fiche_id": "F1"}),
+            raw_point(2, [0.0, 1.0, 0.0, 0.0], {"fiche_id": "F2"}),
+        ],
+    )
+
+    all_sparse = LegWeights(dense=0.0, sparse=1.0)
+    result = retrieve_rung2(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "une question ouverte",
+        set(),
+        fiche_weights=all_sparse,
+    )
+
+    # Dense contributes nothing under an all-sparse override, so every hit fuses to the
+    # same sparse-only score (the sparse dot product of the identical query/point vectors,
+    # 0.5*0.5) regardless of dense similarity — membership, not ranking (SPEC §6.3), but the
+    # flat score is exactly what a zero dense weight predicts.
+    fiche_scores = {c.score for c in result.candidate_pools[FICHE_LEG]}
+    assert fiche_scores == {0.25}
