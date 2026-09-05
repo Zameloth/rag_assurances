@@ -14,7 +14,7 @@ not be retrofitted once it does.
 
 **Rung 1, precisely** (SPEC §12.7's ladder row, read the way ADR-0015 reconciles it against
 ADR-0005's two collections): dense-only, no hybrid weighting (#29), no `<dc:source>`
-expansion (#30), no rerank, no register quota (#33-ish, "quota vs free-for-all" is rung 5)
+expansion (#30), no rerank, no register quota (#32, "quota vs free-for-all" is rung 5)
 — a flat top-8 by raw dense score across both legs merged. The short-circuit (#27, SPEC
 §9.1) sits in front of every rung, rung 1 included: it is not part of the ladder, it is
 what decides whether the ladder's search path runs at all.
@@ -23,6 +23,15 @@ what decides whether the ladder's search path runs at all.
 fused pool — still no LangChain, no Langfuse: the reranker is not a LangChain component, so
 hand-wrapping its call in a Langfuse span lives at the retriever boundary instead
 (`langchain_retriever.py`'s `_traced`), not this module's job.
+
+**Rung 5** (SPEC §9.5, #32) replaces rung 4's shared `rank_candidates` top-8 cap with
+`rag.retrieval.quota.assemble_quota` over the same reranked pool: 4 fiche slots and 4
+article slots, filled separately, article slots preferring expansion-sourced candidates
+within a margin (a tiebreak among comparably-scored candidates, not a hard partition —
+ADR-0019) and rejecting (never padding) anything under the relevance floor. `RetrievalResult` gains
+`floor_met` here — `None` on every rung that doesn't run quota assembly (rungs 1-4, and
+rung 5's own short-circuit path, which is a metadata lookup with no quota to fill), `True`/
+`False` only where `assemble_quota` actually ran.
 """
 
 from __future__ import annotations
@@ -39,6 +48,13 @@ from rag.retrieval.expansion import EXPANSION_CAP, EXPANSION_FICHE_DEPTH, expand
 from rag.retrieval.fusion import ARTICLE_LEG_WEIGHTS, FICHE_LEG_WEIGHTS, LegWeights, hybrid_leg
 from rag.retrieval.legs import search_leg
 from rag.retrieval.lookup import lookup_article_chunks_by_key
+from rag.retrieval.quota import (
+    ARTICLE_QUOTA,
+    ARTICLE_RELEVANCE_FLOOR,
+    EXPANSION_PREFERENCE_MARGIN,
+    FICHE_QUOTA,
+    assemble_quota,
+)
 from rag.retrieval.rerank import DEFAULT_RERANKER_MODEL, RerankerBackend, RerankFn, rerank
 from rag.retrieval.short_circuit import ShortCircuitPath, resolve_short_circuit
 
@@ -57,6 +73,7 @@ __all__ = [
     "retrieve_rung2",
     "retrieve_rung3",
     "retrieve_rung4",
+    "retrieve_rung5",
 ]
 
 # SPEC §9.2 fixes both search legs at top-20 independently of which rung is active; rung 1
@@ -84,6 +101,11 @@ class RetrievalResult:
     short_circuit_path: ShortCircuitPath
     contexts: list[Candidate]
     candidate_pools: dict[str, list[Candidate]] = field(default_factory=dict)
+    # SPEC §9.5/#32: whether register quota's article floor was met. `None` everywhere
+    # quota assembly doesn't run (rungs 1-4, and rung 5's own short-circuit path) — a
+    # metadata lookup has no article slots to fill, so "the floor" doesn't apply, which is
+    # a different fact from the floor having been checked and passed.
+    floor_met: bool | None = None
 
 
 def rank_candidates(candidates: list[Candidate], *, top_k: int = TOP_K) -> list[Candidate]:
@@ -333,6 +355,95 @@ def retrieve_rung4(
     )
 
 
+def retrieve_rung5(
+    client: QdrantClient,
+    embed: EmbedFn,
+    raw_turn: str,
+    lookup_keys: AbstractSet[str],
+    *,
+    fiche_weights: LegWeights = FICHE_LEG_WEIGHTS,
+    article_weights: LegWeights = ARTICLE_LEG_WEIGHTS,
+    expansion_depth: int = EXPANSION_FICHE_DEPTH,
+    expansion_cap: int = EXPANSION_CAP,
+    reranker_model: str = DEFAULT_RERANKER_MODEL,
+    reranker_backend: RerankerBackend = RerankerBackend.FP32,
+    rerank_fn: RerankFn | None = None,
+    fiche_quota: int = FICHE_QUOTA,
+    article_quota: int = ARTICLE_QUOTA,
+    relevance_floor: float = ARTICLE_RELEVANCE_FLOOR,
+    expansion_preference_margin: float = EXPANSION_PREFERENCE_MARGIN,
+) -> RetrievalResult:
+    """SPEC §9.1's three paths, then SPEC §9.5's rung-5 arm on the fall-through paths: the
+    same reranked pool `retrieve_rung4` builds is handed to `assemble_quota`
+    (`rag.retrieval.quota`) instead of `rank_candidates`' shared top-8 cap — 4 fiche slots
+    and 4 article slots, filled separately, article slots preferring expansion-sourced
+    candidates within a margin and rejecting rather than padding anything under the
+    relevance floor. Short-circuit, both legs, expansion, merge and rerank are
+    `retrieve_rung4`'s own calls, unchanged; only the final cap differs.
+    `RetrievalResult.candidate_pools` keeps rung 3's exact shape for the same reason it does
+    at rung 4 — quota assembly, like reranking, is an ordering/selection step over the
+    merged pool, not a fifth candidate pool.
+
+    `fiche_quota`/`article_quota`/`relevance_floor`/`expansion_preference_margin` default to
+    the named SPEC §9.5 constants but are real parameters, the same shape every other rung's
+    tunables already take (#29, #30, #31) — this ticket's own acceptance criterion is that
+    quota depth and the floor value stay reachable without a code change, so the
+    rung-5-vs-rung-1 ("quota vs free-for-all") comparison is itself just which arm runs.
+    """
+    result = resolve_short_circuit(raw_turn, frozenset(lookup_keys))
+    if result.path is ShortCircuitPath.RESOLVED:
+        assert result.lookup_key is not None  # RESOLVED always carries its key
+        contexts = lookup_article_chunks_by_key(client, result.lookup_key)
+        return RetrievalResult(
+            short_circuit_path=result.path, contexts=contexts, candidate_pools={}
+        )
+
+    dense_vector, sparse_vector = embed([raw_turn])[0]
+    fiche_pool = hybrid_leg(
+        client,
+        Register.FICHE,
+        dense_vector,
+        sparse_vector,
+        fiche_weights,
+        limit=LEG_CANDIDATE_LIMIT,
+    )
+    article_pool = hybrid_leg(
+        client,
+        Register.ARTICLE,
+        dense_vector,
+        sparse_vector,
+        article_weights,
+        limit=LEG_CANDIDATE_LIMIT,
+    )
+    expansion_pool = expand(
+        client, fiche_pool, dense_vector, depth=expansion_depth, cap=expansion_cap
+    )
+
+    merged = merge_candidates(fiche_pool, article_pool, expansion_pool)
+    scorer = rerank_fn or (
+        lambda q, c: rerank(q, c, model_id=reranker_model, backend=reranker_backend)
+    )
+    reranked = scorer(raw_turn, merged)
+    quota_result = assemble_quota(
+        reranked,
+        fiche_quota=fiche_quota,
+        article_quota=article_quota,
+        relevance_floor=relevance_floor,
+        expansion_preference_margin=expansion_preference_margin,
+    )
+
+    return RetrievalResult(
+        short_circuit_path=result.path,
+        contexts=quota_result.contexts,
+        candidate_pools={
+            FICHE_LEG: fiche_pool,
+            ARTICLE_LEG: article_pool,
+            EXPANSION_POOL: expansion_pool,
+        },
+        floor_met=quota_result.floor_met,
+    )
+
+
 RetrieveFn = Callable[[QdrantClient, EmbedFn, str, AbstractSet[str]], RetrievalResult]
 
 # The registry `rag.query` (and later the retriever wrapper) select from — this ticket's
@@ -348,6 +459,7 @@ RETRIEVAL_ARMS: dict[str, RetrieveFn] = {
     "rung2": retrieve_rung2,
     "rung3": retrieve_rung3,
     "rung4": retrieve_rung4,
+    "rung5": retrieve_rung5,
 }
 DEFAULT_RETRIEVAL_ARM = "rung1"
 
