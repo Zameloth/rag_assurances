@@ -25,7 +25,13 @@ from pathlib import Path
 from qdrant_client import QdrantClient
 
 from rag.config import load_settings
-from rag.ingest.arms import ensure_articles_collection, ensure_fiches_collection, flip_alias
+from rag.ingest.arms import (
+    ARTICLES_ALIAS,
+    FICHES_ALIAS,
+    ensure_articles_collection,
+    ensure_fiches_collection,
+    flip_alias,
+)
 from rag.ingest.articles import ArticleRow
 from rag.ingest.assertions import (
     run_article_assertions,
@@ -92,8 +98,8 @@ def run_ingest(
     articles_written = upsert_articles(client, articles_arm, rows, embed)
     fiches_written = upsert_fiches(client, fiches_arm, fiche_bytes, embed)
 
-    flip_alias(client, "articles", articles_arm)
-    flip_alias(client, "fiches", fiches_arm)
+    flip_alias(client, ARTICLES_ALIAS, articles_arm)
+    flip_alias(client, FICHES_ALIAS, fiches_arm)
 
     return IngestReport(
         articles_arm=articles_arm,

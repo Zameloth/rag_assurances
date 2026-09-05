@@ -5,16 +5,45 @@ and the server suite assert against the same collection and point layout — SPE
 — and two copies of it would be two things to keep in step with the spec.
 """
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from typing import Any
 
 import pytest
 from qdrant_client import QdrantClient, models
 
 from rag.config import load_settings
 from rag.ingest.payload import article_point_id
+from rag.ingest.upsert import Embedding, EmbedFn
 
 CreateCollection = Callable[[QdrantClient, str], None]
 MakePoint = Callable[[str, int, list[float]], models.PointStruct]
+
+
+def raw_point(point_id: int, dense: list[float], payload: Mapping[str, Any]) -> models.PointStruct:
+    """A bare point for retrieval-plumbing tests: one dense vector, a fixed 1-index sparse
+    component (present only so a collection created with `sparse_vectors_config` never
+    rejects the upsert — its value is never read), and whatever payload the test needs.
+
+    Unlike `make_point` below, this derives no natural-key id and assumes no fixed payload
+    shape — `rag.retrieval`'s tests exercise several different payload shapes (fiche vs
+    article, with vs without `lookup_key`) against the same tiny collections."""
+    return models.PointStruct(
+        id=point_id,
+        vector={"dense": dense, "sparse": models.SparseVector(indices=[1], values=[0.5])},
+        payload=dict(payload),
+    )
+
+
+def stub_embed(dense: list[float]) -> EmbedFn:
+    """An `EmbedFn` returning `dense` (and an empty sparse vector) for every text — the
+    rung-1 retriever only reads the dense half of the BGE-M3 embedding shape (SPEC §12.7:
+    "single index, dense-only"), so the sparse half's exact content is never asserted on
+    and an empty one is exactly as informative as a real one here."""
+
+    def embed(texts: Sequence[str]) -> list[Embedding]:
+        return [(dense, models.SparseVector(indices=[], values=[]))] * len(texts)
+
+    return embed
 
 
 def drop_collections(client: QdrantClient, *names: str) -> None:
