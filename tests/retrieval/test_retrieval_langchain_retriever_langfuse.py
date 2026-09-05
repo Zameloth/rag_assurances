@@ -14,10 +14,13 @@ from rag.retrieval.legs import ARTICLES_ALIAS, FICHES_ALIAS
 
 
 def test_invoke_with_a_langfuse_callback_produces_a_retriever_observation(
-    qdrant: QdrantClient, create_collection: CreateCollection
+    qdrant: QdrantClient,
+    create_collection: CreateCollection,
+    langfuse_client: Langfuse,
+    langfuse_span_exporter: InMemorySpanExporter,
 ) -> None:
-    span_exporter = InMemorySpanExporter()
-    client = Langfuse(public_key="test", secret_key="test", span_exporter=span_exporter)
+    client = langfuse_client
+    span_exporter = langfuse_span_exporter
     handler = CallbackHandler(public_key="test")
 
     create_collection(qdrant, FICHES_ALIAS)

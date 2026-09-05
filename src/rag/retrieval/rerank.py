@@ -15,9 +15,8 @@ never wired in here — CC-BY-NC-4.0 in a public portfolio repo.
 
 **Not a LangChain component** (SPEC §9.4, §11.1) — nothing in this module imports
 `langfuse` or `langchain`. Hand-wrapping a call to `rerank()` in a Langfuse span, so rung
-4's own measurement isn't silently blind, is paired work with @Zameloth per the #31 issue
-comment — it belongs at the LangChain/Langfuse retriever boundary (`langchain_retriever.py`
-/ wherever that wrapper grows), not here.
+4's own measurement isn't silently blind, lives at the LangChain/Langfuse retriever
+boundary instead (`langchain_retriever.py`'s `_traced`), not here.
 """
 
 from __future__ import annotations

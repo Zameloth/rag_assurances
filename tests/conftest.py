@@ -9,6 +9,8 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import Any
 
 import pytest
+from langfuse import Langfuse
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from qdrant_client import QdrantClient, models
 
 from rag.config import load_settings
@@ -125,6 +127,46 @@ def create_collection() -> Iterator[CreateCollection]:
     finally:
         for client, name in reversed(created):
             client.delete_collection(name)
+
+
+_LANGFUSE_TEST_SPAN_EXPORTER = InMemorySpanExporter()
+_langfuse_test_client: Langfuse | None = None
+
+
+@pytest.fixture
+def langfuse_span_exporter() -> Iterator[InMemorySpanExporter]:
+    """A `Langfuse` client wired to an in-memory OTEL exporter, for tests asserting on
+    emitted spans (#28, #31).
+
+    Built once per process, not once per test: OpenTelemetry's `TracerProvider` is a
+    process-wide singleton (`set_tracer_provider` is a no-op past the first call), so a
+    second `Langfuse(...)` construction would silently keep sending spans to the *first*
+    test's exporter instead of its own — verified directly, and it's exactly what broke
+    the moment a second Langfuse-observation test (#31's rerank span) joined the one from
+    #28.
+
+    Flush-then-clear happens in teardown, not at setup: the SDK's span processor batches
+    and exports asynchronously, so a test that raises before calling `.flush()` itself
+    (an assertion failure, or #31's still-`NotImplementedError` `_traced` stub) can still
+    have spans land in the exporter *after* a plain setup-time `.clear()` would have run —
+    forcing the flush here is what actually guarantees the next test starts from empty.
+    """
+    global _langfuse_test_client
+    if _langfuse_test_client is None:
+        _langfuse_test_client = Langfuse(
+            public_key="test", secret_key="test", span_exporter=_LANGFUSE_TEST_SPAN_EXPORTER
+        )
+    yield _LANGFUSE_TEST_SPAN_EXPORTER
+    _langfuse_test_client.flush()
+    _LANGFUSE_TEST_SPAN_EXPORTER.clear()
+
+
+@pytest.fixture
+def langfuse_client(langfuse_span_exporter: InMemorySpanExporter) -> Langfuse:
+    """The shared client itself, for tests that call `.flush()` to force span export
+    before reading `langfuse_span_exporter.get_finished_spans()`."""
+    assert _langfuse_test_client is not None  # langfuse_span_exporter always creates it first
+    return _langfuse_test_client
 
 
 @pytest.fixture

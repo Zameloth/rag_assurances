@@ -21,9 +21,8 @@ what decides whether the ladder's search path runs at all.
 
 **Rung 4** (SPEC §9.4, #31) adds `rag.retrieval.rerank`'s cross-encoder over rung 3's exact
 fused pool — still no LangChain, no Langfuse: the reranker is not a LangChain component, so
-hand-wrapping its call in a Langfuse span belongs at the retriever boundary
-(`langchain_retriever.py`), paired work with @Zameloth per the #31 issue comment, not this
-module's job.
+hand-wrapping its call in a Langfuse span lives at the retriever boundary instead
+(`langchain_retriever.py`'s `_traced`), not this module's job.
 """
 
 from __future__ import annotations
