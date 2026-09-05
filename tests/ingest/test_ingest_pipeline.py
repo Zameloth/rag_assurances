@@ -27,7 +27,7 @@ from rag.ingest.arms import DENSE_DIM
 from rag.ingest.pipeline import IngestReport, main, run_ingest
 from rag.ingest.upsert import Embedding
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 ARTICLES_PATH = REPO_ROOT / "data" / "corpus" / "articles.jsonl"
 FICHES_DIR = REPO_ROOT / "data" / "corpus" / "fiches"
 

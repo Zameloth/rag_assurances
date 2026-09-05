@@ -14,7 +14,7 @@ import pytest
 
 from rag.ingest.assertions import run_article_assertions
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 ARTICLES_PATH = REPO_ROOT / "data" / "corpus" / "articles.jsonl"
 MANIFEST_PATH = REPO_ROOT / "data" / "corpus" / "corpus_manifest.json"
 LICENSE_PATH = REPO_ROOT / "data" / "corpus" / "LICENSE.md"

@@ -22,7 +22,7 @@ import pytest
 from rag.ingest.assertions import run_fiche_assertions
 from rag.ingest.fiches import ParsedFiche, in_scope, parse_fiche
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 FICHES_DIR = REPO_ROOT / "data" / "corpus" / "fiches"
 ARTICLES_PATH = REPO_ROOT / "data" / "corpus" / "articles.jsonl"
 MANIFEST_PATH = REPO_ROOT / "data" / "corpus" / "corpus_manifest.json"

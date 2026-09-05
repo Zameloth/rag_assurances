@@ -32,7 +32,7 @@ from rag.ingest.articles import BAND, STUB_FLOOR
 from rag.ingest.assertions import run_fiche_chunk_assertions
 from rag.ingest.fiches import FicheChunk, chunk_fiche
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 FICHES_DIR = REPO_ROOT / "data" / "corpus" / "fiches"
 
 # See the module docstring — short of SPEC §4.4's documented 882 / 98.

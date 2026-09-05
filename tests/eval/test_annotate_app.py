@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from rag.eval.annotate_app import create_app
 from rag.eval.schema import load_golden_set
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 FICHES_DIR = REPO_ROOT / "data" / "corpus" / "fiches"
 ARTICLES_PATH = REPO_ROOT / "data" / "corpus" / "articles.jsonl"
 

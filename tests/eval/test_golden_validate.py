@@ -18,7 +18,7 @@ from rag.eval.validate import (
     validate_golden_set_against_corpus,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 FICHES_DIR = REPO_ROOT / "data" / "corpus" / "fiches"
 ARTICLES_PATH = REPO_ROOT / "data" / "corpus" / "articles.jsonl"
 

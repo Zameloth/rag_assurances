@@ -22,7 +22,7 @@ import pytest
 from rag.ingest.articles import BAND, STUB_FLOOR, ArticleChunk, chunk_article
 from rag.ingest.assertions import run_article_chunk_assertions
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 ARTICLES_PATH = REPO_ROOT / "data" / "corpus" / "articles.jsonl"
 
 # See the module docstring — four short of SPEC §4.4's documented 2,805.

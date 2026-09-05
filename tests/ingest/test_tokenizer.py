@@ -17,7 +17,7 @@ def test_longer_text_counts_more_tokens() -> None:
 
 def test_matches_spec_measured_median() -> None:
     """Calibration check: SPEC §4 reports article `texte` median 167 tokens on this corpus."""
-    articles_path = Path(__file__).resolve().parents[1] / "data" / "corpus" / "articles.jsonl"
+    articles_path = Path(__file__).resolve().parents[2] / "data" / "corpus" / "articles.jsonl"
     counts = sorted(count_tokens(json.loads(line)["texte"]) for line in articles_path.read_text(encoding="utf-8").splitlines())
     median = counts[len(counts) // 2]
     assert median == 167
