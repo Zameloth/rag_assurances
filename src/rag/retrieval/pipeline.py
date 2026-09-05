@@ -30,6 +30,7 @@ from qdrant_client import QdrantClient
 
 from rag.ingest.upsert import EmbedFn
 from rag.retrieval.candidates import Candidate, Register, merge_candidates
+from rag.retrieval.expansion import EXPANSION_CAP, EXPANSION_FICHE_DEPTH, expand
 from rag.retrieval.fusion import ARTICLE_LEG_WEIGHTS, FICHE_LEG_WEIGHTS, LegWeights, hybrid_leg
 from rag.retrieval.legs import search_leg
 from rag.retrieval.lookup import lookup_article_chunks_by_key
@@ -38,6 +39,7 @@ from rag.retrieval.short_circuit import ShortCircuitPath, resolve_short_circuit
 __all__ = [
     "ARTICLE_LEG",
     "DEFAULT_RETRIEVAL_ARM",
+    "EXPANSION_POOL",
     "FICHE_LEG",
     "LEG_CANDIDATE_LIMIT",
     "RETRIEVAL_ARMS",
@@ -47,6 +49,7 @@ __all__ = [
     "retrieve",
     "retrieve_rung1",
     "retrieve_rung2",
+    "retrieve_rung3",
 ]
 
 # SPEC §9.2 fixes both search legs at top-20 independently of which rung is active; rung 1
@@ -61,6 +64,7 @@ TOP_K = 8
 
 FICHE_LEG = "fiche_leg"
 ARTICLE_LEG = "article_leg"
+EXPANSION_POOL = "expansion"
 
 
 @dataclass(frozen=True)
@@ -177,6 +181,71 @@ def retrieve_rung2(
     )
 
 
+def retrieve_rung3(
+    client: QdrantClient,
+    embed: EmbedFn,
+    raw_turn: str,
+    lookup_keys: AbstractSet[str],
+    *,
+    fiche_weights: LegWeights = FICHE_LEG_WEIGHTS,
+    article_weights: LegWeights = ARTICLE_LEG_WEIGHTS,
+    expansion_depth: int = EXPANSION_FICHE_DEPTH,
+    expansion_cap: int = EXPANSION_CAP,
+) -> RetrievalResult:
+    """SPEC §9.1's three paths, then SPEC §9.2's rung-3 arm on the fall-through paths: the
+    top `expansion_depth` fiches from the (already-hybrid) fiche pool expand into the
+    `LEGISCTA` sections they cite, and a filtered vector search within those sections joins
+    the fused pool (#30, the headline experiment — ADR-0006). Short-circuit, both legs, merge
+    and rank are `retrieve_rung2`'s own calls, unchanged; expansion is a third, additional
+    pool alongside them, not a replacement for either leg.
+
+    `expansion_depth`/`expansion_cap` default to the named SPEC constants but are real
+    parameters, the same shape `fiche_weights`/`article_weights` already take (#29) — this
+    ticket's own acceptance criterion is that the arm stays ablatable through them.
+    """
+    result = resolve_short_circuit(raw_turn, frozenset(lookup_keys))
+    if result.path is ShortCircuitPath.RESOLVED:
+        assert result.lookup_key is not None  # RESOLVED always carries its key
+        contexts = lookup_article_chunks_by_key(client, result.lookup_key)
+        return RetrievalResult(
+            short_circuit_path=result.path, contexts=contexts, candidate_pools={}
+        )
+
+    dense_vector, sparse_vector = embed([raw_turn])[0]
+    fiche_pool = hybrid_leg(
+        client,
+        Register.FICHE,
+        dense_vector,
+        sparse_vector,
+        fiche_weights,
+        limit=LEG_CANDIDATE_LIMIT,
+    )
+    article_pool = hybrid_leg(
+        client,
+        Register.ARTICLE,
+        dense_vector,
+        sparse_vector,
+        article_weights,
+        limit=LEG_CANDIDATE_LIMIT,
+    )
+    expansion_pool = expand(
+        client, fiche_pool, dense_vector, depth=expansion_depth, cap=expansion_cap
+    )
+
+    merged = merge_candidates(fiche_pool, article_pool, expansion_pool)
+    contexts = rank_candidates(merged)
+
+    return RetrievalResult(
+        short_circuit_path=result.path,
+        contexts=contexts,
+        candidate_pools={
+            FICHE_LEG: fiche_pool,
+            ARTICLE_LEG: article_pool,
+            EXPANSION_POOL: expansion_pool,
+        },
+    )
+
+
 RetrieveFn = Callable[[QdrantClient, EmbedFn, str, AbstractSet[str]], RetrievalResult]
 
 # The registry `rag.query` (and later the retriever wrapper) select from — this ticket's
@@ -187,7 +256,11 @@ RetrieveFn = Callable[[QdrantClient, EmbedFn, str, AbstractSet[str]], RetrievalR
 # addition ADR-0015 anticipated: "no `Settings`/`.env.example` change is implied by that
 # addition." `DEFAULT_RETRIEVAL_ARM` stays "rung1" — landing an arm is not the same as the
 # ladder adopting it (SPEC §12.7's pre-registered rule, "inconclusive keeps the incumbent").
-RETRIEVAL_ARMS: dict[str, RetrieveFn] = {"rung1": retrieve_rung1, "rung2": retrieve_rung2}
+RETRIEVAL_ARMS: dict[str, RetrieveFn] = {
+    "rung1": retrieve_rung1,
+    "rung2": retrieve_rung2,
+    "rung3": retrieve_rung3,
+}
 DEFAULT_RETRIEVAL_ARM = "rung1"
 
 
