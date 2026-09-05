@@ -3,22 +3,14 @@ seam, and the citation guardrail into the fat `GenerationResult` object, never r
 
 from __future__ import annotations
 
+from candidates import make_article
+
 from rag.generation.pipeline import GenerateFn, generate
 from rag.generation.prompt import HistoryTurn, Message
 from rag.generation.schema import Envelope, FondementJuridique, Reponse
-from rag.retrieval.candidates import Candidate, Provenance, Register
+from rag.retrieval.candidates import Candidate, Register
 from rag.retrieval.pipeline import RetrievalResult
 from rag.retrieval.short_circuit import ShortCircuitPath
-
-
-def _article(citation_id: str) -> Candidate:
-    return Candidate(
-        id=f"point-{citation_id}",
-        score=0.9,
-        register=Register.ARTICLE,
-        payload={"citation_id": citation_id, "text": "..."},
-        provenance=frozenset({Provenance.SEARCH}),
-    )
 
 
 def _fake_generate_fn(envelope: Envelope) -> GenerateFn:
@@ -47,7 +39,7 @@ def test_generate_returns_the_envelope_the_seam_produced() -> None:
 
 def test_generate_carries_the_final_contexts_and_candidate_pools_forward() -> None:
     fiche_pool = [Candidate(id="f1", score=0.5, register=Register.FICHE, payload={}, provenance=frozenset())]
-    article = _article("L113-15-2")
+    article = make_article("L113-15-2")
     retrieval = _retrieval([article], {"fiche_leg": fiche_pool})
     envelope = Reponse(
         explanation="...",
@@ -61,7 +53,7 @@ def test_generate_carries_the_final_contexts_and_candidate_pools_forward() -> No
 
 
 def test_generate_checks_citations_against_the_same_contexts_used_for_the_prompt() -> None:
-    retrieval = _retrieval([_article("L113-15-2")], {})
+    retrieval = _retrieval([make_article("L113-15-2")], {})
     envelope = Reponse(
         explanation="...",
         fondement_juridique=[FondementJuridique(article_id="L121-1", gloss="fabriquée")],
@@ -76,7 +68,7 @@ def test_generate_checks_citations_against_the_same_contexts_used_for_the_prompt
 def test_generate_never_repairs_the_returned_envelope() -> None:
     """SPEC §10.5: the guardrail is never auto-repaired — `generate()`'s own return must
     carry the model's fabricated citation untouched, for eval to record."""
-    retrieval = _retrieval([_article("L113-15-2")], {})
+    retrieval = _retrieval([make_article("L113-15-2")], {})
     envelope = Reponse(
         explanation="...",
         fondement_juridique=[FondementJuridique(article_id="L121-1", gloss="fabriquée")],
@@ -95,7 +87,7 @@ def test_generate_passes_the_raw_turn_and_contexts_into_the_prompt_seen_by_gener
         captured.append(messages)
         return Reponse(explanation="...", fondement_juridique=[])
 
-    retrieval = _retrieval([_article("L113-15-2")], {})
+    retrieval = _retrieval([make_article("L113-15-2")], {})
     history = [HistoryTurn(role="user", content="précédent")]
 
     generate("une question", retrieval, capturing_fn, history=history)

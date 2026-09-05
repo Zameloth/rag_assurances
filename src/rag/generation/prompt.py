@@ -123,8 +123,9 @@ def _article_block(candidate: Candidate) -> str:
         return NO_ARTICLE_MARKER_TEXT
     payload = candidate.payload
     citation_id = str(payload["citation_id"])
+    full_sections_titre = payload.get("full_sections_titre")
     breadcrumb = strip_breadcrumb_root(
-        payload.get("full_sections_titre") if isinstance(payload.get("full_sections_titre"), str) else None
+        full_sections_titre if isinstance(full_sections_titre, str) else None
     )
     label = f"{citation_id} · {breadcrumb}" if breadcrumb else citation_id
     text = str(payload.get("text", ""))

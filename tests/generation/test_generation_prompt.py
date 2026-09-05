@@ -4,6 +4,8 @@ stripped of citations by construction."""
 
 from __future__ import annotations
 
+from candidates import make_article, make_fiche, no_article_marker
+
 from rag.generation.prompt import (
     ARTICLE_HEADING,
     FICHE_HEADING,
@@ -13,38 +15,7 @@ from rag.generation.prompt import (
     build_messages,
     strip_breadcrumb_root,
 )
-from rag.retrieval.candidates import Candidate, Provenance, Register
-from rag.retrieval.quota import NO_ARTICLE_MARKER_ID, NO_ARTICLE_MARKER_TEXT
-
-
-def _fiche(**payload: object) -> Candidate:
-    return Candidate(
-        id="fiche-1",
-        score=0.9,
-        register=Register.FICHE,
-        payload=payload,
-        provenance=frozenset({Provenance.SEARCH}),
-    )
-
-
-def _article(**payload: object) -> Candidate:
-    return Candidate(
-        id="article-1",
-        score=0.9,
-        register=Register.ARTICLE,
-        payload=payload,
-        provenance=frozenset({Provenance.EXPANSION}),
-    )
-
-
-def _marker() -> Candidate:
-    return Candidate(
-        id=NO_ARTICLE_MARKER_ID,
-        score=0.0,
-        register=Register.ARTICLE,
-        payload={"text": NO_ARTICLE_MARKER_TEXT},
-        provenance=frozenset(),
-    )
+from rag.retrieval.quota import NO_ARTICLE_MARKER_TEXT
 
 
 def test_strip_breadcrumb_root_drops_only_the_first_segment() -> None:
@@ -67,13 +38,13 @@ def test_strip_breadcrumb_root_handles_missing_breadcrumb() -> None:
 
 
 def test_context_section_groups_by_register_under_named_headings() -> None:
-    fiche = _fiche(
+    fiche = make_fiche(
         title="Modification du contrat d'assurance habitation",
         cas_label="Si vous êtes locataire",
         text="Vous devez prévenir l'assureur dans les quinze jours.",
     )
-    article = _article(
-        citation_id="L113-15-2",
+    article = make_article(
+        "L113-15-2",
         full_sections_titre="Partie législative > Livre Ier : Le contrat > Chapitre IV : Résiliation",
         text="Le contrat peut être résilié par l'assuré...",
     )
@@ -90,7 +61,7 @@ def test_context_section_groups_by_register_under_named_headings() -> None:
 
 
 def test_citation_id_is_the_label_no_bracket_handles() -> None:
-    article = _article(citation_id="L113-15-2", text="...")
+    article = make_article("L113-15-2")
 
     section = build_context_section([article])
 
@@ -100,16 +71,15 @@ def test_citation_id_is_the_label_no_bracket_handles() -> None:
 
 
 def test_excluded_fields_never_appear_in_the_prompt() -> None:
-    fiche = _fiche(
+    fiche = make_fiche(
         title="Titre",
         text="texte",
         fiche_id="F2123",
         sp_url="https://service-public.fr/fiche/F2123",
         date_modified="2026-01-01",
     )
-    article = _article(
-        citation_id="L113-15-2",
-        text="texte",
+    article = make_article(
+        "L113-15-2",
         legiarti_version_id="LEGIARTI000006791829",
         date_debut="2020-01-01",
     )
@@ -124,14 +94,14 @@ def test_excluded_fields_never_appear_in_the_prompt() -> None:
 
 
 def test_no_article_marker_renders_without_a_citation_label() -> None:
-    section = build_context_section([_marker()])
+    section = build_context_section([no_article_marker()])
 
     assert ARTICLE_HEADING in section
     assert NO_ARTICLE_MARKER_TEXT in section
 
 
 def test_empty_register_omits_its_heading() -> None:
-    section = build_context_section([_article(citation_id="L113-15-2", text="...")])
+    section = build_context_section([make_article("L113-15-2")])
 
     assert FICHE_HEADING not in section
     assert ARTICLE_HEADING in section
