@@ -18,6 +18,12 @@ expansion (#30), no rerank, no register quota (#33-ish, "quota vs free-for-all" 
 — a flat top-8 by raw dense score across both legs merged. The short-circuit (#27, SPEC
 §9.1) sits in front of every rung, rung 1 included: it is not part of the ladder, it is
 what decides whether the ladder's search path runs at all.
+
+**Rung 4** (SPEC §9.4, #31) adds `rag.retrieval.rerank`'s cross-encoder over rung 3's exact
+fused pool — still no LangChain, no Langfuse: the reranker is not a LangChain component, so
+hand-wrapping its call in a Langfuse span belongs at the retriever boundary
+(`langchain_retriever.py`), paired work with @Zameloth per the #31 issue comment, not this
+module's job.
 """
 
 from __future__ import annotations
@@ -34,6 +40,7 @@ from rag.retrieval.expansion import EXPANSION_CAP, EXPANSION_FICHE_DEPTH, expand
 from rag.retrieval.fusion import ARTICLE_LEG_WEIGHTS, FICHE_LEG_WEIGHTS, LegWeights, hybrid_leg
 from rag.retrieval.legs import search_leg
 from rag.retrieval.lookup import lookup_article_chunks_by_key
+from rag.retrieval.rerank import DEFAULT_RERANKER_MODEL, RerankerBackend, RerankFn, rerank
 from rag.retrieval.short_circuit import ShortCircuitPath, resolve_short_circuit
 
 __all__ = [
@@ -50,6 +57,7 @@ __all__ = [
     "retrieve_rung1",
     "retrieve_rung2",
     "retrieve_rung3",
+    "retrieve_rung4",
 ]
 
 # SPEC §9.2 fixes both search legs at top-20 independently of which rung is active; rung 1
@@ -246,6 +254,86 @@ def retrieve_rung3(
     )
 
 
+def retrieve_rung4(
+    client: QdrantClient,
+    embed: EmbedFn,
+    raw_turn: str,
+    lookup_keys: AbstractSet[str],
+    *,
+    fiche_weights: LegWeights = FICHE_LEG_WEIGHTS,
+    article_weights: LegWeights = ARTICLE_LEG_WEIGHTS,
+    expansion_depth: int = EXPANSION_FICHE_DEPTH,
+    expansion_cap: int = EXPANSION_CAP,
+    reranker_model: str = DEFAULT_RERANKER_MODEL,
+    reranker_backend: RerankerBackend = RerankerBackend.FP32,
+    rerank_fn: RerankFn | None = None,
+) -> RetrievalResult:
+    """SPEC §9.1's three paths, then SPEC §9.4's rung-4 arm on the fall-through paths: the
+    same fused pool `retrieve_rung3` builds (both hybrid legs + `<dc:source>` expansion) is
+    rescored by a cross-encoder before the top-K cap, every candidate's score replaced
+    outright (ADR-0017 already named unifying the merged pool's scale across three
+    incomparable sources "rung 4's problem"). Short-circuit, both legs, expansion and merge
+    are `retrieve_rung3`'s own calls, unchanged; rerank is a fourth, final step over the
+    already-merged pool, not a fifth candidate pool — `RetrievalResult.candidate_pools`
+    keeps rung 3's exact shape, since reranking has nothing to do with which leg or
+    expansion found a candidate, only how the whole set is ordered.
+
+    `reranker_model`/`reranker_backend` default to the SPEC §9.4 primary arm but are real
+    parameters — this ticket's own acceptance criterion is that the cheap arm and int8 ONNX
+    quantisation stay reachable without a code change (SPEC §14.4's deploy-time RAM rule),
+    the same shape `expansion_depth`/`fiche_weights` already take.
+
+    `rerank_fn` defaults to `None`, resolved below to the real `rerank()` bound to
+    `reranker_model`/`reranker_backend` — tests inject a fake instead (mirrors the `EmbedFn`
+    seam), in which case `reranker_model`/`reranker_backend` go unused, since the injected
+    function owns scoring entirely.
+    """
+    result = resolve_short_circuit(raw_turn, frozenset(lookup_keys))
+    if result.path is ShortCircuitPath.RESOLVED:
+        assert result.lookup_key is not None  # RESOLVED always carries its key
+        contexts = lookup_article_chunks_by_key(client, result.lookup_key)
+        return RetrievalResult(
+            short_circuit_path=result.path, contexts=contexts, candidate_pools={}
+        )
+
+    dense_vector, sparse_vector = embed([raw_turn])[0]
+    fiche_pool = hybrid_leg(
+        client,
+        Register.FICHE,
+        dense_vector,
+        sparse_vector,
+        fiche_weights,
+        limit=LEG_CANDIDATE_LIMIT,
+    )
+    article_pool = hybrid_leg(
+        client,
+        Register.ARTICLE,
+        dense_vector,
+        sparse_vector,
+        article_weights,
+        limit=LEG_CANDIDATE_LIMIT,
+    )
+    expansion_pool = expand(
+        client, fiche_pool, dense_vector, depth=expansion_depth, cap=expansion_cap
+    )
+
+    merged = merge_candidates(fiche_pool, article_pool, expansion_pool)
+    scorer = rerank_fn or (
+        lambda q, c: rerank(q, c, model_id=reranker_model, backend=reranker_backend)
+    )
+    contexts = rank_candidates(scorer(raw_turn, merged))
+
+    return RetrievalResult(
+        short_circuit_path=result.path,
+        contexts=contexts,
+        candidate_pools={
+            FICHE_LEG: fiche_pool,
+            ARTICLE_LEG: article_pool,
+            EXPANSION_POOL: expansion_pool,
+        },
+    )
+
+
 RetrieveFn = Callable[[QdrantClient, EmbedFn, str, AbstractSet[str]], RetrievalResult]
 
 # The registry `rag.query` (and later the retriever wrapper) select from — this ticket's
@@ -260,6 +348,7 @@ RETRIEVAL_ARMS: dict[str, RetrieveFn] = {
     "rung1": retrieve_rung1,
     "rung2": retrieve_rung2,
     "rung3": retrieve_rung3,
+    "rung4": retrieve_rung4,
 }
 DEFAULT_RETRIEVAL_ARM = "rung1"
 

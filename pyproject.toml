@@ -46,6 +46,14 @@ dependencies = [
 # typecheck and test `rag.eval.annotate_app`, so it is a default group, not an opt-in one.
 default-groups = ["dev", "annotate"]
 
+# #31 — `optimum`'s own `transformers` pin is stricter than FlagEmbedding's, and uv's
+# default universal resolution would otherwise downgrade `transformers` project-wide (every
+# group, including the default `dev`/`annotate` install) just to satisfy a lever
+# (`RerankerBackend.ONNX_INT8`) most installs never touch. Marking the group conflicting
+# forks its resolution instead, so `uv sync --group rerank-onnx` is the only path that ever
+# sees the older `transformers`.
+conflicts = [[{ group = "dev" }, { group = "rerank-onnx" }]]
+
 [tool.uv.sources]
 # SPEC §5 / §14.4 — BGE-M3 is CPU-viable by design and the VPS has no GPU, so the default
 # PyPI wheel (which bundles several GB of CUDA libraries nothing here ever calls) would be
@@ -80,6 +88,14 @@ dev = [
 fetch = [
     "pyarrow>=17",
     "httpx>=0.27",
+]
+# SPEC §9.4/§14.4, #31 — int8 ONNX dynamic quantisation is a deploy-time RAM lever for the
+# rung-4 reranker (`rag.retrieval.rerank.RerankerBackend.ONNX_INT8`), reached for only when
+# the fp32 reranker doesn't fit prod's ~4.5 GB budget. Its own group, installed only when
+# that lever is actually needed, the same posture `fetch` already takes for its own
+# rarely-run path.
+rerank-onnx = [
+    "optimum[onnxruntime]>=1.23",
 ]
 
 [build-system]
@@ -118,6 +134,13 @@ ignore_missing_imports = true
 # FlagEmbedding ships no py.typed marker / stubs. Silencing missing-import here still
 # typechecks everything embedder.py does with the values BGEM3FlagModel.encode() returns.
 module = "FlagEmbedding.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Not installed by default (see the `rerank-onnx` group above), so mypy cannot see its
+# stubs without `uv sync --group rerank-onnx`. Silencing missing-import here still
+# typechecks everything `rerank.py`'s ONNX int8 path does with the values it returns.
+module = "optimum.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

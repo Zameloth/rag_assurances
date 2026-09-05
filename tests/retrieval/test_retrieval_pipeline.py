@@ -19,6 +19,7 @@ from rag.retrieval.pipeline import (
     retrieve_rung1,
     retrieve_rung2,
     retrieve_rung3,
+    retrieve_rung4,
 )
 from rag.retrieval.short_circuit import ShortCircuitPath
 
@@ -380,5 +381,133 @@ def test_rung3_final_contexts_are_capped_at_top_k(
 
 def test_rung3_is_registered_but_rung1_stays_the_default_arm() -> None:
     assert RETRIEVAL_ARMS["rung3"] is retrieve_rung3
+    assert DEFAULT_RETRIEVAL_ARM == "rung1"
+    assert RETRIEVAL_ARMS[DEFAULT_RETRIEVAL_ARM] is retrieve_rung1
+
+
+def _reversing_rerank(query: str, candidates: list[Candidate]) -> list[Candidate]:
+    """A fake `RerankFn`: reverses the merged pool and stamps a distinctive score on each
+    candidate — so a test can tell "rung 4 reordered/rescored this" from "rung 3's own
+    order/score survived untouched"."""
+    reversed_pool = list(reversed(candidates))
+    return [
+        Candidate(
+            id=c.id, score=100.0 + i, register=c.register, payload=c.payload, provenance=c.provenance
+        )
+        for i, c in enumerate(reversed_pool)
+    ]
+
+
+def test_rung4_short_circuit_behaves_exactly_like_rung1(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[raw_point(1, [0.0, 0.0, 0.0, 1.0], {"lookup_key": "L113-2", "chunk_index": 0})],
+    )
+
+    result = retrieve_rung4(
+        qdrant, stub_embed([1.0, 0.0, 0.0, 0.0]), "Que dit L113-2 ?", {"L113-2"}
+    )
+
+    assert result.short_circuit_path is ShortCircuitPath.RESOLVED
+    assert result.candidate_pools == {}
+    [context] = result.contexts
+    assert context.provenance == frozenset({Provenance.LOOKUP})
+
+
+def test_rung4_reranks_the_merged_pool_and_keeps_rung3_s_candidate_pool_shape(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(
+        FICHES_ALIAS,
+        points=[raw_point(1, [1.0, 0.0, 0.0, 0.0], {"fiche_id": "F1", "section_ids": ["S1"]})],
+    )
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[raw_point(2, [1.0, 0.0, 0.0, 0.0], {"citation_id": "L113-2", "section_id": "S1"})],
+    )
+
+    result = retrieve_rung4(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "une question ouverte",
+        set(),
+        rerank_fn=_reversing_rerank,
+    )
+
+    # candidate_pools is rung 3's own shape, unaffected by reranking (SPEC §9.4: reranking
+    # is one step over the already-merged pool, not a fifth candidate pool).
+    assert set(result.candidate_pools) == {FICHE_LEG, ARTICLE_LEG, EXPANSION_POOL}
+    # Every returned context carries the fake reranker's stamped score, proving rung 4's
+    # rerank step (not rung 3's fused score) is what `rank_candidates` sorted.
+    assert all(c.score >= 100.0 for c in result.contexts)
+
+
+def test_rung4_final_contexts_are_capped_at_top_k(
+    qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+    qdrant.upsert(
+        ARTICLES_ALIAS,
+        points=[raw_point(i, [1.0, 0.0, 0.0, 0.0], {"citation_id": f"L{i}"}) for i in range(10)],
+    )
+
+    result = retrieve_rung4(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "une question ouverte",
+        set(),
+        rerank_fn=_reversing_rerank,
+    )
+
+    assert len(result.contexts) == 8
+
+
+def test_rung4_rerank_fn_defaults_to_none_and_resolves_the_real_reranker(
+    monkeypatch: pytest.MonkeyPatch, qdrant: QdrantClient, create_collection: CreateCollection
+) -> None:
+    """Proves the production seam: with no `rerank_fn` injected, `retrieve_rung4` reaches
+    `rag.retrieval.rerank.rerank` itself, bound to `reranker_model`/`reranker_backend` — the
+    same shape `expansion_depth`/`fiche_weights` already take (#29, #30), and this ticket's
+    own acceptance criterion that the cheap arm/int8 ONNX are reachable without a code
+    change."""
+    import rag.retrieval.pipeline as pipeline_module
+    from rag.retrieval.rerank import RerankerBackend
+
+    seen: dict[str, object] = {}
+
+    def _fake_rerank(
+        query: str, candidates: list[Candidate], *, model_id: str, backend: RerankerBackend
+    ) -> list[Candidate]:
+        seen["query"] = query
+        seen["model_id"] = model_id
+        seen["backend"] = backend
+        return candidates
+
+    monkeypatch.setattr(pipeline_module, "rerank", _fake_rerank)
+    create_collection(qdrant, FICHES_ALIAS)
+    create_collection(qdrant, ARTICLES_ALIAS)
+
+    retrieve_rung4(
+        qdrant,
+        stub_embed_hybrid([1.0, 0.0, 0.0, 0.0], SparseVector(indices=[1], values=[0.5])),
+        "une question ouverte",
+        set(),
+        reranker_model="Alibaba-NLP/gte-multilingual-reranker-base",
+        reranker_backend=RerankerBackend.ONNX_INT8,
+    )
+
+    assert seen["query"] == "une question ouverte"
+    assert seen["model_id"] == "Alibaba-NLP/gte-multilingual-reranker-base"
+    assert seen["backend"] is RerankerBackend.ONNX_INT8
+
+
+def test_rung4_is_registered_but_rung1_stays_the_default_arm() -> None:
+    assert RETRIEVAL_ARMS["rung4"] is retrieve_rung4
     assert DEFAULT_RETRIEVAL_ARM == "rung1"
     assert RETRIEVAL_ARMS[DEFAULT_RETRIEVAL_ARM] is retrieve_rung1

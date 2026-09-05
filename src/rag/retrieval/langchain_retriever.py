@@ -3,6 +3,14 @@
 No ranking, no filtering, no retries here — that all lives in `rag.retrieval.pipeline`.
 This module's whole job is the `Candidate` -> `Document` conversion at the boundary
 (SPEC §7.5: register/provenance are attached here, never stored, never computed twice).
+
+**Rung 4 / #31, not yet done here.** SPEC §9.4/§11.1: the reranker is not a LangChain
+component, so `retrieve(arm="rung4")`'s call to `rag.retrieval.rerank.rerank()` does not
+auto-trace the way `hybrid_leg`/`expand` do by riding inside this class's own `retriever`
+observation span. Rung 4's own measurement needs that call hand-wrapped in a Langfuse span
+here (or wherever this boundary grows) — left to @Zameloth per the #31 issue comment
+(LangChain/Langfuse portions are paired, not agent-authored), same as this class's own
+`CallbackHandler` wiring was for #28.
 """
 
 from __future__ import annotations
