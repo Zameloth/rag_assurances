@@ -47,8 +47,11 @@ class Settings:
 
     openrouter_api_key: str
     generation_model: str
+    generation_provider: str
     condenser_model: str
+    condenser_provider: str
     judge_model: str
+    judge_provider: str
     langfuse_public_key: str
     langfuse_secret_key: str
     langfuse_base_url: str
@@ -67,8 +70,11 @@ class Settings:
         return cls(
             openrouter_api_key=env.get("OPENROUTER_API_KEY", ""),
             generation_model=env.get("GENERATION_MODEL", ""),
+            generation_provider=env.get("GENERATION_PROVIDER", ""),
             condenser_model=env.get("CONDENSER_MODEL", ""),
+            condenser_provider=env.get("CONDENSER_PROVIDER", ""),
             judge_model=env.get("JUDGE_MODEL", ""),
+            judge_provider=env.get("JUDGE_PROVIDER", ""),
             langfuse_public_key=env.get("LANGFUSE_PUBLIC_KEY", ""),
             langfuse_secret_key=env.get("LANGFUSE_SECRET_KEY", ""),
             langfuse_base_url=env.get("LANGFUSE_BASE_URL") or DEFAULT_LANGFUSE_BASE_URL,
