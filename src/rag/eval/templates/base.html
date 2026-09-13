@@ -40,10 +40,30 @@
   #save-status.ok { display: block; background: color-mix(in srgb, #2e7d32 20%, transparent); }
   #save-status.error { display: block; background: color-mix(in srgb, #c62828 20%, transparent); }
   .muted { opacity: .7; font-size: .9em; }
+  #progress-banner { margin-top: .4rem; }
 </style>
 </head>
 <body>
-<header><a href="/">&larr; toutes les fiches</a></header>
+<header>
+  <a href="/">&larr; toutes les fiches</a>
+  <div id="progress-banner" class="muted">Chargement de la progression…</div>
+</header>
 {% block content %}{% endblock %}
+<script>
+async function refreshProgress() {
+  const banner = document.getElementById("progress-banner");
+  try {
+    const response = await fetch("/api/progress");
+    const p = await response.json();
+    banner.textContent =
+      `${p.total}/${p.target_total} items — reponse ${p.reponse}/${p.target_reponse} `
+      + `(dont citation-form ${p.citation_form}/${p.target_citation_form}) · `
+      + `reponse_sans_article ${p.sans_article}/${p.target_sans_article}`;
+  } catch (err) {
+    banner.textContent = "Progression indisponible.";
+  }
+}
+refreshProgress();
+</script>
 </body>
 </html>
