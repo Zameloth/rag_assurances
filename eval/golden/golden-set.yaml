@@ -1,0 +1,735 @@
+- id: gs-002
+  question: Je vais me retrouver au chomage, est-ce que je peux récupérer l'argent de mon Perp ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F10259
+  gold_spans: []
+  gold_articles:
+  - LEGIARTI000006793783
+  expected_points:
+  - Il est possible de débloquer l'argent dans le Perp uniquement après l'éxpiration de vos droits aux
+    allocations chômage.
+  tags: []
+- id: gs-004
+  question: Je déménage la semaine prochaine, est-ce que je dois prévenir tout de suite mon assureur ou
+    ca peut attendre ?
+  history: []
+  expected_state: reponse_sans_article
+  gold_fiches:
+  - F10827
+  gold_spans:
+  - En cas de déménagement, vous devez prévenir votre assureur. En effet, la fin de l'occupation du logement
+    assuré peut entraîner des modifications de votre contrat d'assurance habitation. Vous pouvez prévenir
+    l'assureur avant le déménagement, mais si vous n'avez pas pu le faire, vous devez obligatoirement
+    l'informer dans les 15 jours calendaires après avoir quitté le logement. Vous devez le faire par lettre
+    recommandée ou par envoi recommandé électronique. Le contrat pourra alors être résilié ou transféré
+    sur votre nouveau logement.
+  gold_articles: []
+  expected_points:
+  - l'assureur doit être prévenu au maximum 15 jours après le déménagement
+  tags: []
+- id: gs-005
+  question: Est-ce que mon association est obligée de prendre une assurance si on organise juste des réunions
+    entre membres ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F1124
+  gold_spans:
+  - Toutes les associations ne sont pas obligées de souscrire une assurance. Cependant, certaines activités
+    exercées par une association imposent la souscription d’une assurance, notamment lorsque l’association
+    organise des activités sportives, accueille des mineurs ou exerce certaines activités réglementées.
+    Même lorsque l’assurance n’est pas obligatoire, il est recommandé d’en souscrire une afin de couvrir
+    la responsabilité de l’association en cas de dommages causés à des tiers ou subis par ses membres.
+  gold_articles:
+  - LEGIARTI000006793526
+  expected_points:
+  - L'assurance est facultative, mais fortement recommandée si les activités ne représentent aucun risque
+    pour ses memebres
+  tags: []
+- id: gs-006
+  question: Si l’assurance me propose une indemnisation trop basse, est-ce que je peux négocier ou contester
+    leur décision sans aller au tribunal ?
+  history: []
+  expected_state: reponse_sans_article
+  gold_fiches:
+  - F1352
+  gold_spans:
+  - En cas de désaccord Si vous contestez le montant proposé ou un refus d’indemnisation, vous pouvez
+    répondre à l’assureur en présentant vos arguments.
+  gold_articles: []
+  expected_points:
+  - Il est recommandé d’envoyer une réclamation écrite à votre assureur en exposant vos arguments et en
+    fournissant des justificatifs (devis, expertises, etc.).
+  tags:
+  - ai_assisted
+- id: gs-007
+  question: Si je ne paie pas mes cotisations à temps, est-ce que mon contrat peut être annulé et est-ce
+    que je perds tout l’argent que j’ai déjà versé ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F15274
+  gold_spans:
+  - 'En cas de non paiement des primes dans les 10 jours suivant la date d''échéance, l''assureur vous
+    adresse une lettre recommandée avec AR . Si vous ne payez pas dans les 40 jours qui suivent l’envoi
+    de cette lettre, l’assureur peut : soit résilier le contrat si sa valeur de rachat est nulle ou insuffisante,
+    soit maintenir le contrat avec des garanties réduites.'
+  gold_articles:
+  - LEGIARTI000006793108
+  - LEGIARTI000006793125
+  expected_points:
+  - En cas de résiliation pour non-paiement, vous ne récupérez pas les sommes déjà versées si la valeur
+    de rachat est nulle ou insuffisante.
+  tags:
+  - ai_assisted
+- id: gs-008
+  question: Comment ça se passe si l’autre conducteur n’a pas d’assurance ou s’il a pris la fuite après
+    l’accident ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2152
+  gold_spans:
+  - Si le responsable de l'accident ne peut pas être identifié, vous pourrez, sous conditions, être indemnisé
+    par le Fonds de garantie des assurances obligatoires de dommages (FGAO)
+  gold_articles:
+  - LEGIARTI000006801527
+  expected_points:
+  - Si le conducteur responsable n’a pas d’assurance ou prend la fuite, vous pouvez être indemnisé par
+    le Fonds de garantie des assurances obligatoires de dommages (FGAO).
+  tags:
+  - ai_assisted
+- id: gs-009
+  question: Si je loue un appartement, est-ce que mon assurance habitation couvre aussi les dégâts que
+    je pourrais causer aux voisins ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2591
+  gold_spans:
+  - Si le logement est situé en copropriété , vous devez au moins être assuré en responsabilité civile
+    pour couvrir les dommages que vous pourriez causer aux autres.
+  gold_articles:
+  - LEGIARTI000006791983
+  - LEGIARTI000006785773
+  expected_points:
+  - La responsabilité civile incluse dans votre contrat d’assurance habitation s’applique aux dommages
+    matériels ou corporels causés à autrui, y compris vos voisins.
+  tags:
+  - ai_assisted
+- id: gs-010
+  question: Si je me fais contrôler sans assurance, est-ce que je risque vraiment de perdre mon permis
+    ou de me faire confisquer ma voiture ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2628
+  gold_spans:
+  - Le fait de mettre en circulation un véhicule terrestre à moteur sans l'avoir assuré est un délit puni
+    par une amende de 3 750 € .
+  - 'En fonction des circonstances, une ou plusieurs des peines complémentaires suivantes peuvent être
+    appliquées en plus : Travaux d''intérêt général Jours-amendes (amendes dont le montant est fixé par
+    jour) Suspension du permis de conduire (jusqu''à 3 ans) Annulation du permis de conduire et l''interdiction
+    de le repasser pendant un certain temps (3 ans au plus) Interdiction de conduire certains véhicules,
+    même s''ils ne nécessitent pas le permis de conduire Obligation d''accomplir à ses frais un stage
+    de sensibilisation à la sécurité routière Immobilisation et/ou confiscation du véhicule avec lequel
+    l''infraction a été commise.'
+  gold_articles:
+  - LEGIARTI000006795642
+  expected_points:
+  - Conduire sans assurance est un délit passible d’une amende pouvant aller jusqu’à 3 750 €.
+  - Le tribunal peut prononcer une suspension ou une annulation du permis de conduire, ainsi qu’une confiscation
+    du véhicule.
+  - Des peines complémentaires comme des travaux d’intérêt général ou un stage de sensibilisation peuvent
+    également être imposées.
+  tags:
+  - ai_assisted
+- id: gs-012
+  question: Est-ce que mon employeur est obligé de me proposer une mutuelle d’entreprise, même si je suis
+    en CDD ou en intérim ?
+  history: []
+  expected_state: reponse_sans_article
+  gold_fiches:
+  - F20739
+  gold_spans:
+  - L'employeur doit faire bénéficier tous ses salariés d'une couverture complémentaire santé, quelle
+    que soit leur ancienneté dans l'entreprise.
+  - Seules les entreprises sont concernées. Le particulier qui emploie un salarié à domicile n'est pas
+    concerné.
+  gold_articles: []
+  expected_points:
+  - L’employeur doit proposer une mutuelle d’entreprise à tous ses salariés, y compris ceux en CDD ou
+    en intérim.
+  - La couverture complémentaire santé doit être offerte dès l’embauche, sans condition d’ancienneté.
+  tags:
+  - ai_assisted
+- id: gs-013
+  question: Si je vends ma maison avant la fin des 10 ans, est-ce que l’assurance dommages-ouvrage continue
+    de couvrir les nouveaux propriétaires ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2032
+  gold_spans:
+  - Lors d'un sinistre survenu après la vente du bien immobilier, c'est l'acquéreur, en tant que bénéficiaire
+    de l'assurance DO, qui doit déclencher la procédure en saisissant l'assureur.
+  gold_articles:
+  - LEGIARTI000019231566
+  expected_points:
+  - L’assurance dommages-ouvrage est transférée automatiquement au nouveau propriétaire en cas de vente
+    du bien avant 10 ans.
+  - Le nouvel acquéreur devient le bénéficiaire de la garantie et peut engager les démarches auprès de
+    l’assureur en cas de sinistre.
+  - La couverture reste valable jusqu’à l’expiration du délai de 10 ans à compter de la réception des
+    travaux, indépendamment du changement de propriétaire.
+  tags:
+  - ai_assisted
+- id: gs-014
+  question: Est-ce que je dois vraiment assurer ma vieille voiture qui ne roule plus et qui reste garée
+    dans mon jardin ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F23499
+  gold_spans:
+  - Un véhicule immatriculé reste soumis à l'obligation d'assurance tant qu’il n’a pas été formellement
+    déclaré retiré de la circulation auprès de l’administration (via un certificat de retrait).
+  - Si votre véhicule n'est plus en état de circuler, vous n'êtes pas obligé de l'assurer. Mais, attention,
+    le véhicule qui n'est plus en état de circuler n'est pas juste le véhicule qui est tombé en panne.
+    Il s'agit du véhicule auquel il manque les éléments essentiels pour pouvoir rouler, à savoir les roues,
+    la batterie et le réservoir de carburant.
+  gold_articles:
+  - LEGIARTI000006795642
+  expected_points:
+  - Un véhicule immatriculé doit obligatoirement être assuré tant qu’il n’a pas été officiellement retiré
+    de la circulation via un certificat de retrait administratif.
+  - L’obligation d’assurance cesse uniquement si le véhicule est considéré comme *hors d’état de circuler*,
+    c’est-à-dire privé d’éléments essentiels comme les roues, la batterie ou le réservoir de carburant.
+  - Même garé dans un jardin, un véhicule en état de rouler (ou potentiellement roulable) reste soumis
+    à l’assurance obligatoire sous peine de sanctions.
+  tags:
+  - ai_assisted
+- id: gs-015
+  question: Est-ce que je peux vraiment forcer une assurance à me couvrir si elles me refusent toutes
+    ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2660
+  gold_spans:
+  - Si aucune compagnie d'assurance ne veut assurer votre véhicule, vous pouvez saisir le Bureau central
+    de tarification (BCT).
+  - Cet organisme peut contraindre une compagnie à vous assurer pour la garantie obligatoire de responsabilité
+    civile.
+  - Dans ce cas, c'est le BCT qui fixe lui-même le tarif du contrat.
+  gold_articles:
+  - LEGIARTI000006795670
+  - LEGIARTI000006795691
+  expected_points:
+  - Toute compagnie d’assurance peut être contrainte par le Bureau central de tarification (BCT) à vous
+    couvrir pour la garantie obligatoire de responsabilité civile.
+  - La saisine du BCT est possible si aucune assurance n’accepte de vous assurer pour votre véhicule.
+  tags:
+  - ai_assisted
+- id: gs-016
+  question: Est-ce que je serai remboursé si je me fais renverser en tant que piéton, même si c’est de
+    ma faute ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2677
+  gold_spans:
+  - Les piétons et les passagers victimes d’un accident de la route bénéficient d’une indemnisation intégrale
+    pour leurs dommages corporels, quelle que soit la responsabilité du conducteur.
+  - 'Toutefois, une exception existe : si la victime a volontairement provoqué l’accident (par exemple
+    dans le cadre d’une tentative de suicide), elle peut être exclue du droit à indemnisation.'
+  gold_articles:
+  - LEGIARTI000019235847
+  expected_points:
+  - En tant que piéton victime d’un accident de la route, vous serez indemnisé pour vos dommages corporels
+    même si l’accident est de votre faute.
+  - L’indemnisation couvre intégralement les préjudices corporels, sans tenir compte de la responsabilité
+    du conducteur ou de la vôtre.
+  - Seule une faute intentionnelle (comme une tentative de suicide) peut exclure le droit à indemnisation.
+  tags:
+  - ai_assisted
+- id: gs-018
+  question: Si ma voiture en leasing est volée ou détruite, est-ce que je vais devoir payer la différence
+    entre ce que vaut la voiture aujourd’hui et ce que je dois encore au loueur ?
+  history: []
+  expected_state: reponse_sans_article
+  gold_fiches:
+  - F31329
+  gold_spans:
+  - Vous pouvez aussi souscrire une assurance spécifique au leasing. Elle permet de prendre en charge,
+    en cas de destruction ou de vol du véhicule, la différence entre la valeur vénale et la valeur à neuf
+    du véhicule.
+  gold_articles: []
+  expected_points:
+  - Une assurance "perte financière" ou "gap" couvre spécifiquement ce risque en prenant en charge cet
+    écart.
+  - En cas de vol ou de destruction totale du véhicule en leasing, vous pourriez être tenu de payer la
+    différence entre la valeur résiduelle du contrat et l’indemnisation versée par l’assurance.
+  - Sans cette assurance complémentaire, la responsabilité du paiement de la différence vous incombe selon
+    les termes du contrat de leasing.
+  tags:
+  - ai_assisted
+- id: gs-019
+  question: Si j’ai déjà eu des problèmes de santé, est-ce que je vais payer plus cher mon assurance ou
+    est-ce qu’on peut me refuser ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2457
+  gold_spans:
+  - Les personnes ayant ou ayant eu des problèmes de santé graves sont généralement considérées comme
+    présentant des risques aggravés par les assurances. Cependant, si vous êtes dans ce cas, vous pouvez
+    bénéficier de la convention Aeras . Cette convention vous permet notamment de ne pas remplir de questionnaire
+    médical de santé.
+  gold_articles:
+  - LEGIARTI000006791998
+  - LEGIARTI000006792029
+  - LEGIARTI000006792057
+  expected_points:
+  - Les assureurs peuvent appliquer des surprimes ou des exclusions de garantie en cas de risques aggravés
+    de santé.
+  tags:
+  - ai_assisted
+- id: gs-020
+  question: J’ai laissé ma porte ouverte par erreur et on m’a volé mon ordinateur, est-ce que l’assurance
+    va quand même me couvrir ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2028
+  gold_spans:
+  - 'Les exclusions courantes sont les suivantes : Vol ou vandalisme commis par un membre de votre famille
+    ou une personne hébergée dans votre logement Vol facilité par une négligence manifeste (porte laissée
+    ouverte, absence de fermeture à clé, objets de valeur laissés sans protection)'
+  - 'Ces exclusions varient selon les assureurs : il est donc important de consulter votre contrat pour
+    savoir dans quels cas vous êtes couvert.'
+  gold_articles:
+  - LEGIARTI000006791983
+  expected_points:
+  - La couverture du vol dépend des exclusions prévues dans votre contrat d’assurance, notamment en cas
+    de négligence manifeste comme une porte laissée ouverte.
+  tags:
+  - ai_assisted
+- id: gs-021
+  question: Quelles sont les conditions pour assurer une voiture de collection ? Est-ce qu’il y a des
+    restrictions sur qui peut la conduire ?
+  history: []
+  expected_state: reponse_sans_article
+  gold_fiches:
+  - F31417
+  gold_spans:
+  - L'assureur peut aussi vous imposer des conditions plus restrictives pour l'assurance du véhicule de
+    collection. Il peut par exemple exiger que le conducteur ait plus de 21 ans et/ou qu'il n'ait pas été
+    responsable d'accident pendant les 2 années qui précèdent la souscription du contrat.
+  gold_articles: []
+  expected_points:
+  - L'assureur peut imposer des conditions plus restrictives pour assurer une voiture de collection, par
+    exemple un âge minimal de 21 ans ou l'absence d'accident responsable dans les 2 dernières années.
+  tags:
+  - ai_assisted
+- id: gs-022
+  question: Si ma voiture est retrouvée abîmée après le vol, est-ce que l’assurance paie toutes les réparations
+    ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2685
+  gold_spans:
+  - Si votre véhicule est retrouvé endommagé ou a subi une tentative de vol, ne lancez pas de réparations
+    sans l’accord écrit de votre assureur . Dans la plupart des cas, une expertise préalable est obligatoire.
+    Si des réparations urgentes sont nécessaires (par exemple pour sécuriser le véhicule), vous devez
+    prévenir immédiatement l’assureur et conserver les factures détaillées . Des travaux faits sans accord
+    ou sans justificatifs peuvent entraîner une réduction ou un refus d’indemnisation .
+  gold_articles:
+  - LEGIARTI000006812140
+  expected_points:
+  - L’assurance couvre les réparations des dommages liés au vol uniquement après une expertise préalable
+    validée par l’assureur.
+  - Les réparations urgentes (sécurisation du véhicule) doivent être signalées immédiatement à l’assureur
+    et justifiées par des factures détaillées.
+  tags:
+  - ai_assisted
+- id: gs-023
+  question: Si je bricole ma remorque pour la rendre plus pratique, est-ce que je dois absolument prévenir
+    mon assurance ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2626
+  gold_spans:
+  - Si vous apportez des modifications à la remorque, vous devez le signaler à l'assurance, car elles
+    peuvent avoir une incident sur votre contrat d'assurance.
+  - Si vous ne prévenez pas votre assurance et qu’un accident se produit, l’assureur peut refuser de vous
+    indemniser.
+  - En le déclarant, vous êtes sûr d’être couvert.
+  gold_articles:
+  - LEGIARTI000006795331
+  expected_points:
+  - Toute modification apportée à votre remorque doit être déclarée à votre assurance pour maintenir la
+    validité de votre contrat.
+  - Ne pas signaler ces modifications peut entraîner un refus d’indemnisation en cas d’accident.
+  - La déclaration des modifications garantit que votre couverture reste adaptée et effective.
+  tags:
+  - ai_assisted
+- id: gs-025
+  question: Est-ce que mon assurance auto de base va me rembourser si je percute un sanglier ?
+  history: []
+  expected_state: reponse_sans_article
+  gold_fiches:
+  - F21616
+  gold_spans:
+  - Si vous êtes assuré uniquement au tiers (responsabilité civile), les dommages matériels subis par
+    votre véhicule ne sont pas indemnisés.
+  gold_articles: []
+  expected_points:
+  - Avec une assurance auto de base (responsabilité civile uniquement), les dommages à votre véhicule
+    ne sont pas couverts en cas de collision avec un sanglier.
+  - Seules les garanties complémentaires (comme la garantie dommages tous accidents ou collision) peuvent
+    prendre en charge ce type de sinistre.
+  tags:
+  - ai_assisted
+- id: gs-026
+  question: Si mon ado a un accident pendant la conduite accompagnée, est-ce que c’est moi qui vais devoir
+    payer une partie des réparations ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2662
+  gold_spans:
+  - Le nom du conducteur accompagné sera ainsi mentionné dans votre contrat d'assurance auto.
+  - L’assuré accompagnateur prendra à sa charge une partie des dommages en cas d’accident.
+  gold_articles:
+  - LEGIARTI000006795331
+  - LEGIARTI000006812136
+  - LEGIARTI000006812140
+  expected_points:
+  - L’assurance du véhicule couvre les dommages en cas d’accident pendant la conduite accompagnée, mais
+    l’accompagnateur peut être tenu responsable financièrement d’une partie des réparations.
+  tags:
+  - ai_assisted
+- id: gs-027
+  question: Si je me dispute avec mon garagiste parce qu’il me facture des réparations que je n’ai pas
+    demandées, est-ce que l’assurance peut payer mon avocat ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F3049
+  gold_spans:
+  - 'La garantie protection juridique peut intervenir dans de nombreux domaines de la vie quotidienne
+    : consommation, logement, voisinage, travail ou encore litiges avec un professionnel.'
+  - 'Les principaux frais et honoraires nécessaires au règlement du litige pris en charge par l’assureur
+    sont les suivants : Frais d''avocat Frais de commissaire de justice Frais et honoraires d’experts
+    Frais de procédure'
+  gold_articles:
+  - LEGIARTI000006792738
+  expected_points:
+  - Votre assurance protection juridique peut prendre en charge les frais d’avocat en cas de litige avec
+    un garagiste pour des réparations non demandées.
+  - Le Code des assurances (art. L127-1) encadre les conditions de prise en charge des frais liés à un
+    litige par la protection juridique.
+  tags:
+  - ai_assisted
+- id: gs-028
+  question: Pourquoi est-ce que les jeunes conducteurs paient plus cher leur assurance que les autres
+    ?
+  history: []
+  expected_state: reponse_sans_article
+  gold_fiches:
+  - F2599
+  gold_spans:
+  - Pour fixer leurs tarifs, les compagnies d’assurance s’appuient notamment sur des statistiques portant
+    sur le nombre et le coût des accidents.
+  - Une surprime peut être appliquée pour les jeunes conducteurs (moins de 3 ans de permis) ou après une
+    longue période sans assurance (plus de 3 ans).
+  - De même, les conducteurs les plus jeunes, les moins expérimentés et ceux qui ont le plus grand nombre
+    d'antécédents de sinistre auront les tarifs les plus élevés.
+  gold_articles: []
+  expected_points:
+  - Les jeunes conducteurs paient plus cher leur assurance en raison d’un risque statistiquement plus
+    élevé d’accidents.
+  - Les tarifs élevés reflètent le manque d’expérience et la fréquence accrue de sinistres chez les jeunes
+    conducteurs.
+  tags:
+  - ai_assisted
+- id: gs-029
+  question: Si l’autre conducteur s’en va sans signer le constat, est-ce que mon assurance va quand même
+    me rembourser ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2149
+  gold_spans:
+  - Si l'autre conducteur prend la fuite après l'accident , il est important de noter le numéro de sa
+    plaque d'immatriculation et de prévenir la police ou la gendarmerie.
+  - Vous devez remplir complètement le constat en signalant le refus de l'autre conducteur dans la partie
+    "Observations" au recto.
+  - Vous devez informer votre assureur même si l'autre conducteur a refusé de signer le constat.
+  gold_articles:
+  - LEGIARTI000006795446
+  expected_points:
+  - Votre assurance peut vous rembourser même si l’autre conducteur prend la fuite, à condition d’avoir
+    noté son numéro de plaque et prévenu les forces de l’ordre.
+  - Vous devez impérativement informer votre assureur du refus de signature, même en l’absence de constat
+    signé par les deux parties.
+  - Il est obligatoire de remplir le constat en mentionnant le refus de signature de l’autre conducteur
+    dans la partie "Observations".
+  tags:
+  - ai_assisted
+- id: gs-030
+  question: Est-ce que mon assurance va me rembourser si je me blesse dans un accident alors que j’avais
+    bu ?
+  history: []
+  expected_state: reponse_sans_article
+  gold_fiches:
+  - F2630
+  gold_spans:
+  - Si vous causez un accident alors que vous êtes sous l'effet de l'alcool ou de drogues, votre assurance
+    ne couvrira pas vos propres dommages (corporels et matériels).
+  gold_articles: []
+  expected_points:
+  - Les garanties personnelles (comme l’individuelle accident ou la protection du conducteur) peuvent
+    être refusées en cas de conduite sous l’influence de l’alcool.
+  tags:
+  - ai_assisted
+- id: gs-031
+  question: Si l’autre conducteur était ivre et qu’il a pris la fuite, comment je fais pour être indemnisé
+    ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2630
+  gold_spans:
+  - Envoyer une demande d’indemnisation, via le formulaire dédié, au FGAO et joindre les justificatifs
+    nécessaires (PV de police, certificats médicaux, devis de réparation,...)
+  - Vous devez saisir le FGAO dans un délai de 3 ans après l’accident. Si un recours en justice est en
+    cours, ce délai peut être prolongé.
+  gold_articles:
+  - LEGIARTI000006801527
+  expected_points:
+  - Pour être indemnisé après un accident causé par un conducteur ivre en fuite, vous devez adresser une
+    demande au Fonds de Garantie des Assurances Obligatoires (FGAO).
+  - Le dossier doit inclure des justificatifs comme le procès-verbal de police, les certificats médicaux
+    et les devis de réparation.
+  tags:
+  - ai_assisted
+- id: gs-032
+  question: Est-ce que mon assurance habitation couvre automatiquement les dégâts si ma maison est inondée
+    après de grosses pluies ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F3076
+  gold_spans:
+  - La garantie catastrophe naturelle permet d’être indemnisé pour les dommages matériels directs causés
+    par un phénomène naturel d’intensité anormale (inondation, sécheresse, glissement de terrain, avalanche,
+    tremblement de terre, etc.).
+  - 2 conditions doivent être réunies pour que la garantie s’applique. Être assuré contre les dommages
+    aux biens Vous devez avoir souscrit un contrat d’assurance couvrant les biens endommagés (par exemple
+    une assurance multirisque habitation). Reconnaissance officielle de la catastrophe naturelle Un arrêté
+    interministériel doit reconnaître l’état de catastrophe naturelle dans la zone concernée.
+  gold_articles:
+  - LEGIARTI000006792610
+  - LEGIARTI000006792615
+  - LEGIARTI000006792618
+  expected_points:
+  - Votre assurance habitation ne couvre pas automatiquement les dégâts d’inondation après de grosses
+    pluies sans la reconnaissance officielle d’un état de catastrophe naturelle.
+  - La garantie catastrophe naturelle s’applique uniquement si vous avez souscrit une assurance multirisque
+    habitation (ou un contrat couvrant les dommages aux biens).
+  - Un arrêté interministériel doit reconnaître l’état de catastrophe naturelle dans votre commune pour
+    que l’indemnisation soit possible.
+  tags:
+  - ai_assisted
+- id: gs-037
+  question: Est-ce que mon assurance auto française marche aussi si je vais en vacances en Espagne ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F31258
+  - F2694
+  gold_spans:
+  - Validité territoriale de l'assurance L'assurance auto responsabilité civile souscrite en France couvre
+    tous les pays de l'Union européenne.
+  gold_articles:
+  - LEGIARTI000006795376
+  expected_points:
+  - Votre assurance auto responsabilité civile française couvre automatiquement l'Espagne, comme tous
+    les pays de l'Union européenne.
+  tags:
+  - ai_assisted
+- id: gs-038
+  question: Qu’est-ce qui se passe si je ne débroussaille pas et qu’il y a un incendie ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F33298
+  gold_spans:
+  - Majoration de la franchise d'assurance (montant de 5 000 € maximum).
+  - Le maire peut vous mettre en demeure de débroussailler. Cette mise en demeure peut être accompagnée
+    d'une astreinte de 100 € maximum par jour de retard.
+  gold_articles:
+  - LEGIARTI000006792560
+  expected_points:
+  - L’article L122-8 du Code des assurances encadre les conséquences en cas de non-respect des obligations
+    de débroussaillement.
+  - Si vous ne débroussaillez pas et qu’un incendie survient, votre assurance peut majorer votre franchise
+    jusqu’à 5 000 €.
+  - Le maire peut vous adresser une mise en demeure pour débroussailler, avec une astreinte pouvant aller
+    jusqu’à 100 € par jour de retard.
+  tags:
+  - ai_assisted
+- id: gs-039
+  question: Est-ce que je dois vraiment tout dire sur ma santé dans un questionnaire pour assurance décès?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F22394
+  gold_spans:
+  - Une fausse déclaration ou un oubli aura des conséquences car l’assureur pourra mettre fin au contrat
+    et pourra contester sa prise en charge.
+  - Si l'annulation est prononcée par la justice, l'assureur a le droit de conserver les cotisations qui
+    ont été payées.
+  - Vous devez répondre exactement et sincèrement au questionnaire médical.
+  gold_articles:
+  - LEGIARTI000006791998
+  - LEGIARTI000006792084
+  expected_points:
+  - La loi (article L113-2 du Code des assurances) impose de répondre avec exactitude et sincérité aux
+    questions sur l’état de santé pour éviter tout risque de sanction.
+  tags:
+  - ai_assisted
+- id: gs-040
+  question: Est-ce que mon assurance va vraiment augmenter si j’ai un accident, même si ce n’est pas de
+    ma faute ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2655
+  gold_spans:
+  - Seuls les sinistres dans lesquels votre responsabilité, totale ou partielle, a été reconnue et ont
+    donné lieu à une indemnisation par votre assureur sont pris en compte dans le calcul du bonus-malus.
+  gold_articles:
+  - LEGIARTI000018797416
+  expected_points:
+  - Seuls les sinistres avec une responsabilité reconnue (totale ou partielle) impactent le bonus-malus.
+  tags:
+  - ai_assisted
+- id: gs-043
+  question: Est-ce que l'article L113-2 m'oblige à prévenir mon assureur si je change de voiture ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2595
+  gold_spans: []
+  gold_articles:
+  - LEGIARTI000006791998
+  expected_points:
+  - Un changement de véhicule constitue une modification du risque et doit être signalé à l’assureur.
+  tags:
+  - citation_form
+  - ai_assisted
+- id: gs-044
+  question: Que dit l'article L. 113-9 si je me suis trompé sans le faire exprès dans ma déclaration de
+    risque ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F31325
+  gold_spans: []
+  gold_articles:
+  - LEGIARTI000006792066
+  expected_points:
+  - Une erreur non intentionnelle (sans mauvaise foi) n’entraîne pas la nullité, mais peut donner lieu
+    à une réduction proportionnelle de l’indemnité en cas de sinistre.
+  tags:
+  - citation_form
+- id: gs-045
+  question: L'article L113-15-2, ça change quoi pour résilier mon assurance auto en cours d'année ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2659
+  gold_spans: []
+  gold_articles:
+  - LEGIARTI000028742552
+  expected_points:
+  - Après un an de contrat, l’assuré peut résilier à tout moment sans frais ni pénalités.
+  - La résiliation prend effet un mois après réception de la notification par l’assureur.
+  tags:
+  - citation_form
+- id: gs-046
+  question: L'article L. 121-12 dit quoi sur le remboursement si l'autre conducteur est responsable de
+    l'accident ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F31258
+  gold_spans: []
+  gold_articles:
+  - LEGIARTI000006792366
+  expected_points:
+  - L’assureur qui a indemnisé son assuré est subrogé dans ses droits contre le tiers responsable de l’accident.
+  tags:
+  - citation_form
+- id: gs-047
+  question: Est-ce que mon assurance habitation couvre les dégâts si mon enfant casse quelque chose chez
+    un ami ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2123
+  gold_spans:
+  - 'La garantie responsabilité civile vie privée couvre les dommages causés à des tiers par : vous-même,
+    votre conjoint, vos enfants, vos animaux, les objets qui sont sous votre garde (c’est-à-dire sous
+    votre responsabilité).'
+  gold_articles:
+  - LEGIARTI000006792251
+  expected_points:
+  - Votre assurance habitation couvre généralement les dommages causés par votre enfant à un tiers dans
+    le cadre de la garantie responsabilité civile vie privée.
+  tags:
+  - ai_assisted
+- id: gs-048
+  question: Si ma voiture est abîmée à cause d’une inondation ou d’une tempête, est-ce que je vais devoir
+    payer plus que pour un accident ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F2706
+  gold_spans:
+  - En cas de catastrophe naturelle, la franchise est fixée par la loi. Elle ne peut pas être négociée
+    avec l'assureur.
+  gold_articles:
+  - LEGIARTI000006792318
+  - LEGIARTI000006792615
+  expected_points:
+  - En cas de catastrophe naturelle reconnue, la franchise applicable est fixée par la loi et non par
+    l’assureur.
+  tags:
+  - ai_assisted
+- id: gs-049
+  question: Si un bénévole se blesse en aidant à monter un événement, est-ce que l’assurance de l’association
+    le couvre ou c’est à lui de se débrouiller ?
+  history: []
+  expected_state: reponse_sans_article
+  gold_fiches:
+  - F1124
+  gold_spans:
+  - Les bénévoles peuvent être couverts par l’assurance responsabilité civile de l’association pour les
+    dommages qu’ils causent à des tiers dans le cadre de leurs activités associatives.
+  - Cependant, cette assurance ne couvre pas toujours les dommages corporels subis par les bénévoles eux-mêmes.
+  - L’association peut alors souscrire une assurance individuelle accident afin de mieux protéger ses
+    bénévoles.
+  gold_articles: []
+  expected_points:
+  - L’assurance responsabilité civile de l’association ne couvre généralement pas les blessures subies
+    par le bénévole lui-même.
+  tags:
+  - ai_assisted
