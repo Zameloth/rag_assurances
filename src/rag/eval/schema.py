@@ -25,6 +25,7 @@ import yaml
 __all__ = [
     "EXPECTED_STATES",
     "FIELDS",
+    "MULTI_TURN_TAG",
     "GoldenItem",
     "GoldenSetSchemaError",
     "dump_golden_set",
@@ -58,6 +59,12 @@ FIELDS = (
 )
 
 _STRING_LIST_FIELDS = ("gold_fiches", "gold_spans", "gold_articles", "expected_points", "tags")
+
+# SPEC §12.1 — "50 single-turn / 10 multi-turn, as a cross-cutting tag rather than a fifth
+# state". Shared between `validate.py` (which checks the tag tracks `history` rather than
+# being set by hand) and `annotate_app.py` (which derives it server-side on save), so the
+# two can't drift on the tag's spelling.
+MULTI_TURN_TAG = "multi_turn"
 
 
 class GoldenSetSchemaError(Exception):

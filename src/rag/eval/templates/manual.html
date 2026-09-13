@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+{% block title %}Annoter un item sans fiche{% endblock %}
+{% block content %}
+<h1>Annoter un item sans fiche</h1>
+<p class="muted">
+  Pour les 22 items comportementaux et les 10 items multi-tour (#44, SPEC §12.4) : écrits à la main, sans LLM —
+  ni brouillon de question, ni proposition de gold_spans/gold_articles. Les refus d'acte régulé
+  (<code>refus:recommandation_produit</code>, <code>refus:conseil_action</code>) gardent des gold contexts
+  renseignés — la retrieval réussit, le refus est un jugement côté génération.
+</p>
+
+<form id="annotate-form" onsubmit="return false;">
+  <div class="field">
+    <label for="question">question</label>
+    <input id="question" type="text" required>
+  </div>
+
+  <div class="field">
+    <label for="expected_state">expected_state</label>
+    <select id="expected_state">
+      {% for state in expected_states %}
+      <option value="{{ state.value }}" data-regulated-refus="{{ state.regulated_refus | lower }}" data-no-points="{{ state.no_points | lower }}">{{ state.label }}</option>
+      {% endfor %}
+    </select>
+    <p class="muted" id="state-hint"></p>
+  </div>
+
+  <h2>gold_fiches</h2>
+  <p class="muted">Recherche sur tout le corpus de fiches — aucune fiche d'ancrage ici (#44 : items handwritten, pas fiche-anchored).</p>
+  <div class="field">
+    <input id="fiche-search" type="search" placeholder="citation_id ou titre de fiche…">
+    <div id="fiche-search-results"></div>
+  </div>
+  <div class="field">
+    <label>gold_fiches sélectionnées</label>
+    <div class="chip-list" id="fiche-chips"></div>
+  </div>
+
+  <h2>gold_articles</h2>
+  <div class="row">
+    <div class="col">
+      <input id="article-search" type="search" placeholder="citation_id ou texte…">
+      <div id="search-results"></div>
+    </div>
+  </div>
+  <div class="field">
+    <label>gold_articles sélectionnés</label>
+    <div class="chip-list" id="article-chips"></div>
+  </div>
+
+  <div class="field">
+    <label>gold_spans <span class="muted">(verbatim, optionnel pour les items comportementaux)</span></label>
+    <div id="spans"></div>
+    <button type="button" id="add-span">+ ajouter un gold_span</button>
+  </div>
+
+  <div class="field">
+    <label>expected_points <span class="muted">(1 à 3 ; aucun pour refus:hors_corpus, SPEC §12.9)</span></label>
+    <div id="points"></div>
+    <button type="button" id="add-point">+ ajouter un point</button>
+  </div>
+
+  <div class="field">
+    <label for="tags">tags <span class="muted">(séparés par des virgules — situationnel, … ; multi_turn est géré automatiquement)</span></label>
+    <input id="tags" type="text" placeholder="situationnel, …">
+  </div>
+
+  <h2>history</h2>
+  <p class="muted">
+    Scriptée et figée à la main (SPEC §8.7, §12.1) — déjà sous la forme <strong>stripped</strong> que le
+    pipeline réel transmet : prose uniquement côté <code>assistant</code>, jamais de <code>fondement_juridique</code>
+    survivant. Vide pour un item single-turn ; le tag <code>multi_turn</code> est ajouté ou retiré automatiquement
+    à l'enregistrement selon que <code>history</code> est vide ou non — inutile de le saisir dans le champ tags.
+  </p>
+  <div id="history-turns"></div>
+  <button type="button" id="add-turn">+ ajouter un tour</button>
+  <p class="muted" id="history-hint"></p>
+
+  <button type="button" id="save">Enregistrer</button>
+  <div id="save-status"></div>
+</form>
+
+<script>
+// A removable "chip" — same shape gold_spans/gold_articles/gold_fiches all render their
+// selection as (mirrors fiche_detail.html's makeChip; this page has no fiche-anchored
+// context to share a script include with, so the small helper is duplicated rather than
+// factoring out a shared static file for one function).
+function makeChip(label, onRemove) {
+  const chip = document.createElement("span");
+  chip.className = "chip";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+  chip.appendChild(labelEl);
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.textContent = "×";
+  remove.addEventListener("click", onRemove);
+  chip.appendChild(remove);
+  return chip;
+}
+
+// ---- expected_state hints (#44 acceptance: prompt for regulated-act gold contexts,
+// and never let the two empty-cell states read as interchangeable) --------------------
+
+const expectedStateSelect = document.getElementById("expected_state");
+const stateHint = document.getElementById("state-hint");
+
+function currentPointsCount() {
+  return Array.from(document.querySelectorAll(".point-input")).filter((el) => el.value.trim()).length;
+}
+
+// `regulated_refus`/`no_points` come from the server's `_expected_state_options()` via the
+// selected <option>'s dataset, not a second hardcoded set here — one source of truth for
+// which states are the regulated-refus pair and which one carries no expected_points.
+function renderStateHint() {
+  const option = expectedStateSelect.selectedOptions[0];
+  const state = option.value;
+  const isRegulatedRefus = option.dataset.regulatedRefus === "true";
+  const carriesNoPoints = option.dataset.noPoints === "true";
+  const hints = [];
+
+  if (isRegulatedRefus && (selectedArticleCids.size === 0 || ficheIds.length === 0)) {
+    hints.push("⚠ un refus d'acte régulé garde des gold_fiches et gold_articles renseignés — la retrieval réussit, ne les laissez pas vides.");
+  } else if (state === "refus:hors_corpus" && (ficheIds.length > 0 || selectedArticleCids.size > 0)) {
+    hints.push("⚠ refus:hors_corpus veut dire que rien n'existe dans le corpus — videz gold_fiches et gold_articles.");
+  } else if (state === "reponse_sans_article" && ficheIds.length === 0) {
+    hints.push("⚠ reponse_sans_article a besoin d'au moins une gold_fiche — seul gold_articles reste vide.");
+  }
+
+  // SPEC §12.9 — refusals still need 1-3 expected_points ("a bare refusal fails correctly
+  // instead of scoring as a clean refusal"); hors_corpus is the one state that carries none.
+  if (carriesNoPoints && currentPointsCount() > 0) {
+    hints.push("⚠ refus:hors_corpus ne porte aucun expected_point — videz la liste.");
+  } else if (!carriesNoPoints && currentPointsCount() === 0) {
+    hints.push("⚠ il faut 1 à 3 expected_points, y compris pour un refus — un refus sans point note à tort comme un refus propre.");
+  }
+
+  stateHint.textContent = hints.join(" ");
+}
+expectedStateSelect.addEventListener("change", renderStateHint);
+document.getElementById("points").addEventListener("input", renderStateHint);
+
+// A search-result row's toggle button — same "+ ajouter" / "✓ ajouté(e)" shape for both
+// the gold_fiche and gold_article pickers below; only the row's own meta/excerpt content
+// differs, built by each caller before this is appended.
+function appendPickerButton(row, kind, isSelected, onToggle) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = isSelected ? `✓ ajouté(e) comme ${kind}` : `+ ajouter comme ${kind}`;
+  button.addEventListener("click", onToggle);
+  row.appendChild(button);
+}
+
+// ---- gold_fiches (multi-fiche search, no anchor) -----------------------------------
+
+let allFiches = [];
+const ficheIds = [];
+
+function renderFicheChips() {
+  const container = document.getElementById("fiche-chips");
+  container.innerHTML = "";
+  ficheIds.forEach((id, i) => {
+    container.appendChild(makeChip(id, () => { ficheIds.splice(i, 1); renderFicheChips(); renderStateHint(); }));
+  });
+}
+
+function renderFicheSearchResults() {
+  const query = document.getElementById("fiche-search").value.trim().toLowerCase();
+  const container = document.getElementById("fiche-search-results");
+  container.innerHTML = "";
+  if (!query) return;
+  const matches = allFiches
+    .filter((f) => f.id.toLowerCase().includes(query) || f.title.toLowerCase().includes(query))
+    .slice(0, 50);
+  for (const f of matches) {
+    const row = document.createElement("div");
+    row.className = "article-row";
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = f.id + " — " + f.title;
+    row.appendChild(meta);
+    appendPickerButton(row, "gold_fiche", ficheIds.includes(f.id), () => {
+      if (ficheIds.includes(f.id)) {
+        ficheIds.splice(ficheIds.indexOf(f.id), 1);
+      } else {
+        ficheIds.push(f.id);
+      }
+      renderFicheChips();
+      renderFicheSearchResults();
+      renderStateHint();
+    });
+    container.appendChild(row);
+  }
+}
+document.getElementById("fiche-search").addEventListener("input", renderFicheSearchResults);
+
+(async () => {
+  const response = await fetch("/api/fiches");
+  allFiches = await response.json();
+})();
+
+// ---- gold_articles (full-corpus search, no dc:source reading list) ----------------
+
+let allArticles = {};
+const selectedArticleCids = new Set();
+
+function articleRow(cid) {
+  const article = allArticles[cid];
+  const row = document.createElement("div");
+  row.className = "article-row";
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = article.citation_id + " — " + article.title;
+  row.appendChild(meta);
+  const excerpt = document.createElement("div");
+  excerpt.className = "excerpt";
+  const truncated = article.text.length > 220;
+  let expanded = false;
+  const render = () => { excerpt.textContent = !truncated || expanded ? article.text : article.text.slice(0, 220) + "…"; };
+  render();
+  if (truncated) {
+    excerpt.style.cursor = "pointer";
+    excerpt.title = "Cliquer pour afficher le texte complet";
+    excerpt.addEventListener("click", () => { expanded = !expanded; render(); });
+  }
+  row.appendChild(excerpt);
+  appendPickerButton(row, "gold_article", selectedArticleCids.has(cid), () => {
+    if (selectedArticleCids.has(cid)) {
+      selectedArticleCids.delete(cid);
+    } else {
+      selectedArticleCids.add(cid);
+    }
+    renderArticleChips();
+    renderSearchResults();
+    renderStateHint();
+  });
+  return row;
+}
+
+function renderSearchResults() {
+  const query = document.getElementById("article-search").value.trim().toLowerCase();
+  const container = document.getElementById("search-results");
+  container.innerHTML = "";
+  if (!query) return;
+  const matches = Object.keys(allArticles)
+    .filter((cid) => {
+      const a = allArticles[cid];
+      return a.citation_id.toLowerCase().includes(query) || a.title.toLowerCase().includes(query) || a.text.toLowerCase().includes(query);
+    })
+    .slice(0, 50);
+  for (const cid of matches) container.appendChild(articleRow(cid));
+}
+
+function renderArticleChips() {
+  const container = document.getElementById("article-chips");
+  container.innerHTML = "";
+  for (const cid of selectedArticleCids) {
+    container.appendChild(makeChip(allArticles[cid].citation_id, () => { selectedArticleCids.delete(cid); renderArticleChips(); renderStateHint(); }));
+  }
+}
+document.getElementById("article-search").addEventListener("input", renderSearchResults);
+
+(async () => {
+  const response = await fetch("/api/articles");
+  allArticles = await response.json();
+  renderSearchResults();
+})();
+
+// ---- gold_spans (free text — no fiche text to select verbatim from here) ------------
+
+function addSpanRow(value) {
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.gap = ".4rem";
+  row.style.margin = ".25rem 0";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = value || "";
+  input.className = "span-input";
+  row.appendChild(input);
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.textContent = "×";
+  remove.addEventListener("click", () => row.remove());
+  row.appendChild(remove);
+  document.getElementById("spans").appendChild(row);
+}
+document.getElementById("add-span").addEventListener("click", () => addSpanRow(""));
+
+// ---- expected_points ----------------------------------------------------------------
+
+function addPointRow(value) {
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.gap = ".4rem";
+  row.style.margin = ".25rem 0";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = value || "";
+  input.className = "point-input";
+  row.appendChild(input);
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.textContent = "×";
+  remove.addEventListener("click", () => row.remove());
+  row.appendChild(remove);
+  document.getElementById("points").appendChild(row);
+}
+addPointRow("");
+document.getElementById("add-point").addEventListener("click", () => addPointRow(""));
+
+// ---- history (scripted multi-turn, stripped form) -----------------------------------
+
+const historyHint = document.getElementById("history-hint");
+
+function renderHistoryHint() {
+  const turnCount = document.querySelectorAll(".history-turn").length;
+  historyHint.textContent = turnCount === 0
+    ? ""
+    : `${turnCount} tour(s) — le tag multi_turn sera ajouté automatiquement à l'enregistrement.`;
+}
+
+function addTurnRow(role, content) {
+  const row = document.createElement("div");
+  row.className = "history-turn";
+  row.style.display = "flex";
+  row.style.gap = ".4rem";
+  row.style.margin = ".25rem 0";
+  row.style.alignItems = "flex-start";
+
+  const roleSelect = document.createElement("select");
+  roleSelect.style.width = "auto";
+  for (const value of ["user", "assistant"]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    if (value === role) option.selected = true;
+    roleSelect.appendChild(option);
+  }
+  row.appendChild(roleSelect);
+
+  const contentInput = document.createElement("input");
+  contentInput.type = "text";
+  contentInput.value = content || "";
+  contentInput.placeholder = "prose uniquement — jamais de fondement_juridique côté assistant";
+  contentInput.style.flex = "1";
+  row.appendChild(contentInput);
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.textContent = "×";
+  remove.addEventListener("click", () => { row.remove(); renderHistoryHint(); });
+  row.appendChild(remove);
+
+  document.getElementById("history-turns").appendChild(row);
+  renderHistoryHint();
+}
+document.getElementById("add-turn").addEventListener("click", () => addTurnRow("user", ""));
+
+// ---- save -----------------------------------------------------------------------
+
+document.getElementById("save").addEventListener("click", async () => {
+  const status = document.getElementById("save-status");
+  status.className = "";
+  status.textContent = "";
+
+  const history = Array.from(document.querySelectorAll(".history-turn")).map((row) => ({
+    role: row.querySelector("select").value,
+    content: row.querySelector("input[type=text]").value.trim(),
+  }));
+
+  const spans = Array.from(document.querySelectorAll(".span-input")).map((el) => el.value.trim()).filter(Boolean);
+  const points = Array.from(document.querySelectorAll(".point-input")).map((el) => el.value.trim()).filter(Boolean);
+  const tags = document.getElementById("tags").value.split(",").map((t) => t.trim()).filter(Boolean);
+
+  const payload = {
+    question: document.getElementById("question").value.trim(),
+    expected_state: document.getElementById("expected_state").value,
+    gold_fiches: ficheIds,
+    gold_articles: Array.from(selectedArticleCids),
+    gold_spans: spans,
+    expected_points: points,
+    tags: tags,
+    history: history,
+    ai_assisted: false,
+  };
+
+  const response = await fetch("/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json();
+  if (response.ok && body.ok) {
+    status.className = "ok";
+    status.textContent = "Enregistré sous " + body.id + ".";
+    refreshProgress();
+  } else {
+    status.className = "error";
+    status.textContent = (body.id ? body.id + " — " : "") + (body.detail || "échec de l'enregistrement.");
+  }
+});
+
+renderStateHint();
+</script>
+{% endblock %}

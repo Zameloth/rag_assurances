@@ -1,15 +1,21 @@
-"""The golden-set annotation helper (SPEC §12.1-§12.4, ADR-0010, #33).
+"""The golden-set annotation helper (SPEC §12.1-§12.4, ADR-0010, #33, #44).
 
 A local FastAPI app, read-only against `data/corpus/` — it only ever writes
-`eval/golden/golden-set.yaml` and its id counter file. One screen per fiche: the fiche's
-own chunk text (for highlighting a `gold_span` verbatim by construction), its `<dc:source>`
-sections' in-force articles as a reading list, and full-corpus article search — both
-rendered through the **same** client-side row template, so picking an article the fiche
-never cited is never the harder path (SPEC §12.3).
+`eval/golden/golden-set.yaml` and its id counter file. Two authoring surfaces:
 
-`GET /save` does not exist; `POST /save` **re-validates the whole candidate file** against
-the committed corpus before writing anything, using the exact function
-(`validate_golden_set_against_corpus`) the CLI validator runs — the helper and the
+- `/fiche/{fiche_id}` (#33, #70): one screen per fiche, LLM-assisted — the fiche's own
+  chunk text (for highlighting a `gold_span` verbatim by construction), its `<dc:source>`
+  sections' in-force articles as a reading list, and full-corpus article search — both
+  rendered through the **same** client-side row template, so picking an article the fiche
+  never cited is never the harder path (SPEC §12.3).
+- `/manual` (#44): the 22 behavioural items and the 10 multi-turn ones — handwritten, no
+  LLM, no fiche anchor. `gold_fiches`/`gold_articles` are picked by search rather than read
+  off one fiche's own text, since regulated-act refusals still need populated gold contexts
+  (SPEC §12.4) even though nothing here anchors on a single fiche.
+
+Both post to the same `/save` — `GET /save` does not exist; `POST /save` **re-validates the
+whole candidate file** against the committed corpus before writing anything, using the exact
+function (`validate_golden_set_against_corpus`) the CLI validator runs — the helper and the
 validator can never disagree about what "valid" means because they are the same code.
 
 Run it with:
@@ -43,7 +49,13 @@ from rag.eval.corpus import (
 from rag.eval.corpus import fiche_ids as corpus_fiche_ids
 from rag.eval.ids import allocate_id
 from rag.eval.propose import filter_verbatim_spans, lexical_shortlist
-from rag.eval.schema import EXPECTED_STATES, GoldenItem, dump_golden_set, load_golden_set
+from rag.eval.schema import (
+    EXPECTED_STATES,
+    MULTI_TURN_TAG,
+    GoldenItem,
+    dump_golden_set,
+    load_golden_set,
+)
 from rag.eval.validate import GoldenSetValidationError, validate_golden_set_against_corpus
 from rag.generation.chain import OPENROUTER_BASE_URL
 
@@ -52,15 +64,65 @@ __all__ = ["create_app"]
 REPO_ROOT = Path(__file__).resolve().parents[3]
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 
-# SPEC §12.1's composition table for the 38 retrieval-bearing items (#34) — a target the
-# validator deliberately never checks (it's per-item, not corpus-wide), so the helper
-# surfaces it instead as a live progress readout, not a gate.
-_TARGET_TOTAL = 38
+# SPEC §12.1's composition table, split across the two tickets that annotate it — a target
+# the validator deliberately never checks (it's per-item, not corpus-wide), so the helper
+# surfaces it instead as a live progress readout, not a gate. `_TARGET_TOTAL` is the full
+# 60-item golden set (SPEC §12.1's "60 hand-annotated items"), not just #34's slice —
+# `"total": len(items)` in `/api/progress` below counts every item in the file regardless
+# of which authoring surface wrote it, so its target has to match.
+_TARGET_TOTAL = 60
+# The 38 retrieval-bearing items (#34):
 _TARGET_REPONSE = 30
 _TARGET_CITATION_FORM = 4
 _TARGET_SANS_ARTICLE = 8
+# The 22 behavioural items (#44) — the composition table's third/fourth rows:
+_TARGET_REFUS_REGULATED = 12
+_TARGET_REFUS_HORS_CORPUS = 10
+# Cross-cutting across all 60 (#44) — "50 single-turn / 10 multi-turn":
+_TARGET_MULTI_TURN = 10
+_REFUS_REGULATED_STATES = frozenset({"refus:recommandation_produit", "refus:conseil_action"})
 _CITATION_FORM_TAG = "citation_form"
 _AI_ASSISTED_TAG = "ai_assisted"
+
+# SPEC §12.4 — `reponse_sans_article` and `refus:hors_corpus` both leave `gold_articles`
+# empty, and they mean opposite things ("no article clears the floor" vs. "nothing exists
+# to retrieve"). The closed-vocabulary <select> is where an annotator could conflate them,
+# so each option spells out which one it means instead of leaving two bare identifiers to
+# tell apart from memory.
+_EXPECTED_STATE_LABELS: dict[str, str] = {
+    "reponse": "reponse — le corpus répond, avec au moins un gold_article",
+    "reponse_sans_article": (
+        "reponse_sans_article — la réponse existe mais aucun article ne suffit "
+        "(gold_articles vide par construction ; gold_fiches renseigné)"
+    ),
+    "refus:recommandation_produit": (
+        "refus:recommandation_produit — refus d'acte régulé (recommander un produit) ; "
+        "gold_fiches et gold_articles restent renseignés, la retrieval réussit"
+    ),
+    "refus:conseil_action": (
+        "refus:conseil_action — refus d'acte régulé (conseiller une action) ; "
+        "gold_fiches et gold_articles restent renseignés, la retrieval réussit"
+    ),
+    "refus:hors_corpus": "refus:hors_corpus — rien n'existe dans le corpus (gold_fiches et gold_articles vides)",
+}
+
+
+def _expected_state_options() -> list[dict[str, Any]]:
+    # `regulated_refus`/`no_points` travel with the option instead of being re-derived
+    # (or re-hardcoded) client-side — `manual.html`'s state-change hints read them straight
+    # off the selected `<option>`'s `dataset`, so the regulated-refus pair and the
+    # hors_corpus/no-`expected_points` rule each have exactly one source of truth.
+    return [
+        {
+            "value": state,
+            "label": _EXPECTED_STATE_LABELS[state],
+            "regulated_refus": state in _REFUS_REGULATED_STATES,
+            "no_points": state == "refus:hors_corpus",
+        }
+        for state in sorted(EXPECTED_STATES)
+    ]
+
+
 # ADR-0020's shortlist size — large enough that a relevant off-`<dc:source>` article
 # usually surfaces, small enough that the LLM prompt stays a handful of articles, not the
 # full 2,377-article corpus.
@@ -138,6 +200,13 @@ def create_app(
                 "target_citation_form": _TARGET_CITATION_FORM,
                 "sans_article": sum(1 for item in items if item.expected_state == "reponse_sans_article"),
                 "target_sans_article": _TARGET_SANS_ARTICLE,
+                # #44's half of SPEC §12.1's composition table — the 22 behavioural items.
+                "refus_regulated": sum(1 for item in items if item.expected_state in _REFUS_REGULATED_STATES),
+                "target_refus_regulated": _TARGET_REFUS_REGULATED,
+                "refus_hors_corpus": sum(1 for item in items if item.expected_state == "refus:hors_corpus"),
+                "target_refus_hors_corpus": _TARGET_REFUS_HORS_CORPUS,
+                "multi_turn": sum(1 for item in items if MULTI_TURN_TAG in item.tags),
+                "target_multi_turn": _TARGET_MULTI_TURN,
             }
         )
 
@@ -220,6 +289,25 @@ def create_app(
         # client-side (SPEC §12.3's "just as easy to pick from outside the section").
         return JSONResponse(all_articles_by_cid, headers={"Cache-Control": "public, max-age=3600"})
 
+    @app.get("/api/fiches")
+    def api_fiches() -> JSONResponse:
+        # #44's no-fiche-anchor page needs a fiche *picker*, not a single anchor — same
+        # (id, title) pairs `index.html` already embeds, exposed as JSON so `/manual`
+        # can search them client-side instead of re-picking a page to start from.
+        summaries = fiche_summaries(fiches_dir)
+        return JSONResponse([{"id": s.fiche_id, "title": s.title} for s in summaries])
+
+    @app.get("/manual", response_class=HTMLResponse)
+    def manual(request: Request) -> HTMLResponse:
+        # #44 — the 22 behavioural items and the 10 multi-turn ones are handwritten, not
+        # fiche-anchored (SPEC §12.4): no LLM draft/propose buttons here, and gold_fiches /
+        # gold_articles are picked by search rather than read off one fiche's own text.
+        return templates.TemplateResponse(
+            request,
+            "manual.html",
+            {"expected_states": _expected_state_options()},
+        )
+
     @app.get("/fiche/{fiche_id}", response_class=HTMLResponse)
     def fiche_detail(request: Request, fiche_id: str) -> HTMLResponse:
         if fiche_id not in corpus_fiche_ids(fiches_dir):
@@ -239,7 +327,7 @@ def create_app(
                 "fiche_id": fiche_id,
                 "title": fiche_title((fiches_dir / f"{fiche_id}.xml").read_bytes()),
                 "chunks": list(enumerate(chunks)),
-                "expected_states": sorted(EXPECTED_STATES),
+                "expected_states": _expected_state_options(),
                 "sections_json": _safe_json(sections_json),
             },
         )
@@ -251,6 +339,14 @@ def create_app(
         tags = list(payload.tags)
         if payload.ai_assisted and _AI_ASSISTED_TAG not in tags:
             tags.append(_AI_ASSISTED_TAG)
+        # #44 — multi_turn is a cross-cutting *tag*, not a fifth state, derived from
+        # `history` in both directions rather than trusted from the client: an annotator
+        # can't forget it on a scripted follow-up, and a stray tag from a copy-pasted item
+        # can't survive turning history back to `[]`.
+        if payload.history and MULTI_TURN_TAG not in tags:
+            tags.append(MULTI_TURN_TAG)
+        elif not payload.history and MULTI_TURN_TAG in tags:
+            tags.remove(MULTI_TURN_TAG)
         item = GoldenItem(
             id=new_id,
             question=payload.question,

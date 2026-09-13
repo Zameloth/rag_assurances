@@ -23,7 +23,7 @@ from rag.eval.corpus import article_cids as corpus_article_cids
 from rag.eval.corpus import fiche_chunk_texts as corpus_fiche_chunk_texts
 from rag.eval.corpus import fiche_ids as corpus_fiche_ids
 from rag.eval.corpus import load_articles
-from rag.eval.schema import EXPECTED_STATES, GoldenItem
+from rag.eval.schema import EXPECTED_STATES, MULTI_TURN_TAG, GoldenItem
 
 __all__ = ["GoldenSetValidationError", "validate_golden_set", "validate_golden_set_against_corpus"]
 
@@ -61,6 +61,8 @@ def validate_golden_set(
         *_assert_gold_spans_verbatim(materialized, fiche_chunk_texts),
         *_assert_empty_cell_semantics(materialized),
         *_assert_expected_points_bounds(materialized),
+        *_assert_history_stripped(materialized),
+        *_assert_multi_turn_tag_matches_history(materialized),
     ]
     if violations:
         raise GoldenSetValidationError(f"{len(violations)} golden-set violation(s):\n" + "\n".join(violations))
@@ -190,3 +192,37 @@ def _points_within_bounds(item: GoldenItem) -> bool:
     if item.expected_state == "refus:hors_corpus":
         return len(item.expected_points) == 0
     return _MIN_EXPECTED_POINTS <= len(item.expected_points) <= _MAX_EXPECTED_POINTS
+
+
+def _assert_history_stripped(items: list[GoldenItem]) -> list[str]:
+    """SPEC §8.7 — history is authored **already in the stripped form the real pipeline
+    passes forward** (prose only, prior `fondement_juridique` removed). A turn that still
+    carries the literal field name is the un-stripped envelope, not merely a verbose
+    assistant turn — checked on assistant turns only, since a user typing the words back is
+    not the failure this guards against."""
+    offenders = sorted(
+        {
+            item.id
+            for item in items
+            for turn in item.history
+            if turn.get("role") == "assistant" and "fondement_juridique" in turn.get("content", "")
+        }
+    )
+    if not offenders:
+        return []
+    return [f"{len(offenders)} item(s) with an un-stripped fondement_juridique in an assistant turn: {offenders}"]
+
+
+def _assert_multi_turn_tag_matches_history(items: list[GoldenItem]) -> list[str]:
+    """SPEC §12.1 — multi-turn is a **cross-cutting tag, not a fifth state**: the tag must
+    track whether `history` is nonempty, not be set (or forgotten) independently by hand."""
+    missing_tag = sorted(item.id for item in items if item.history and MULTI_TURN_TAG not in item.tags)
+    stray_tag = sorted(item.id for item in items if not item.history and MULTI_TURN_TAG in item.tags)
+    violations = []
+    if missing_tag:
+        violations.append(f"{len(missing_tag)} item(s) with nonempty history missing the {MULTI_TURN_TAG!r} tag: {missing_tag}")
+    if stray_tag:
+        violations.append(
+            f"{len(stray_tag)} item(s) tagged {MULTI_TURN_TAG!r} with empty history: {stray_tag}"
+        )
+    return violations

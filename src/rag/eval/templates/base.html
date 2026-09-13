@@ -58,7 +58,10 @@ async function refreshProgress() {
     banner.textContent =
       `${p.total}/${p.target_total} items — reponse ${p.reponse}/${p.target_reponse} `
       + `(dont citation-form ${p.citation_form}/${p.target_citation_form}) · `
-      + `reponse_sans_article ${p.sans_article}/${p.target_sans_article}`;
+      + `reponse_sans_article ${p.sans_article}/${p.target_sans_article} · `
+      + `refus régulé ${p.refus_regulated}/${p.target_refus_regulated} · `
+      + `refus:hors_corpus ${p.refus_hors_corpus}/${p.target_refus_hors_corpus} · `
+      + `multi_turn ${p.multi_turn}/${p.target_multi_turn}`;
   } catch (err) {
     banner.textContent = "Progression indisponible.";
   }
