@@ -179,6 +179,77 @@ def test_every_violation_is_reported_together() -> None:
     assert "gold_fiches" in message
 
 
+def test_assistant_turn_with_fondement_juridique_rejected() -> None:
+    """SPEC §8.7 — history turns are already in the stripped form the real pipeline
+    passes forward (prose only, prior `fondement_juridique` removed); a turn that still
+    carries the raw envelope's field name is un-stripped, not merely verbose."""
+    with pytest.raises(GoldenSetValidationError, match="fondement_juridique"):
+        _validate(
+            [
+                _item(
+                    history=(
+                        {"role": "user", "content": "je loue un appartement"},
+                        {
+                            "role": "assistant",
+                            "content": '{"fondement_juridique": [{"article_id": "L127-1"}]}',
+                        },
+                    ),
+                    tags=("multi_turn",),
+                )
+            ]
+        )
+
+
+def test_assistant_turn_without_fondement_juridique_passes() -> None:
+    _validate(
+        [
+            _item(
+                history=(
+                    {"role": "user", "content": "je loue un appartement"},
+                    {"role": "assistant", "content": "oui, l'assurance est obligatoire."},
+                ),
+                tags=("multi_turn",),
+            )
+        ]
+    )
+
+
+def test_user_turn_may_mention_fondement_juridique_freely() -> None:
+    """The stripped-form rule is about what the *pipeline* would have produced on the
+    assistant side — a user typing the words back is not the failure this guards."""
+    _validate(
+        [
+            _item(
+                history=(
+                    {"role": "user", "content": "c'est quoi le fondement_juridique de cette réponse ?"},
+                    {"role": "assistant", "content": "oui, l'assurance est obligatoire."},
+                ),
+                tags=("multi_turn",),
+            )
+        ]
+    )
+
+
+def test_nonempty_history_requires_the_multi_turn_tag() -> None:
+    """SPEC §12.1 — multi-turn is a cross-cutting tag, not a fifth state; the tag must
+    actually track whether `history` is nonempty rather than being set (or forgotten) by
+    hand."""
+    with pytest.raises(GoldenSetValidationError, match="multi_turn"):
+        _validate(
+            [
+                _item(
+                    history=({"role": "user", "content": "je loue un appartement"},),
+                    tags=(),
+                )
+            ]
+        )
+
+
+def test_empty_history_rejects_the_multi_turn_tag() -> None:
+    with pytest.raises(GoldenSetValidationError, match="multi_turn"):
+        _validate([_item(history=(), tags=("multi_turn",))])
+
+
 def test_validate_against_the_committed_corpus() -> None:
     """Wires `validate_golden_set` to real fiche/article resolution and real chunk texts —
     the F1124 fixture already exercised in `test_eval_corpus.py`."""

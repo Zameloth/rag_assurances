@@ -13,7 +13,7 @@ import rag.eval.annotate_app as annotate_app_module
 from rag.config import Settings
 from rag.eval.annotate_app import create_app
 from rag.eval.corpus import fiche_chunk_texts
-from rag.eval.schema import load_golden_set
+from rag.eval.schema import EXPECTED_STATES, load_golden_set
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FICHES_DIR = REPO_ROOT / "data" / "corpus" / "fiches"
@@ -133,6 +133,178 @@ def test_api_articles_exposes_the_full_corpus(client: TestClient) -> None:
     assert VALID_ARTICLE_CID in body
     assert body[VALID_ARTICLE_CID]["citation_id"] == "L127-1"
     assert response.headers["cache-control"] == "public, max-age=3600"
+
+
+def test_api_fiches_exposes_id_and_title_for_client_side_search(client: TestClient) -> None:
+    response = client.get("/api/fiches")
+    assert response.status_code == 200
+    by_id = {row["id"]: row["title"] for row in response.json()}
+    assert FICHE_ID in by_id
+    assert by_id[FICHE_ID]  # a nonempty title, not just the id echoed back
+
+
+def test_api_progress_targets_the_full_sixty_item_composition(client: TestClient) -> None:
+    """#44 — once behavioural items land in the same golden-set.yaml, `total` counts all
+    of them (SPEC §12.1: 60 hand-annotated items), so its target must be 60, not just #34's
+    38-item retrieval-bearing slice."""
+    response = client.get("/api/progress")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["target_total"] == 60
+    assert body["target_refus_regulated"] == 12
+    assert body["target_refus_hors_corpus"] == 10
+    assert body["target_multi_turn"] == 10
+
+
+def test_manual_marks_regulated_refus_and_no_points_states_in_option_data(client: TestClient) -> None:
+    """The regulated-refus pair and the hors_corpus/no-expected_points rule are read by the
+    page's JS from the option's own data attributes — one source of truth with the server's
+    `_expected_state_options()`, not a second hardcoded list in the template's script."""
+    response = client.get("/manual")
+    assert response.status_code == 200
+    assert 'value="refus:recommandation_produit" data-regulated-refus="true" data-no-points="false"' in response.text
+    assert 'value="refus:conseil_action" data-regulated-refus="true" data-no-points="false"' in response.text
+    assert 'value="refus:hors_corpus" data-regulated-refus="false" data-no-points="true"' in response.text
+    assert 'value="reponse" data-regulated-refus="false" data-no-points="false"' in response.text
+
+
+def test_manual_renders_all_five_expected_states_with_distinguishing_labels(client: TestClient) -> None:
+    """#44 — the no-fiche-anchor authoring page must offer every EXPECTED_STATES value,
+    and the two empty-cell states must read as visibly different choices rather than two
+    bare identifiers an annotator could swap by mistake."""
+    response = client.get("/manual")
+    assert response.status_code == 200
+    for state in EXPECTED_STATES:
+        assert f'value="{state}"' in response.text
+    # reponse_sans_article ("empty is correct") and refus:hors_corpus ("nothing exists")
+    # must not read as the same kind of blank — each option's own label says which.
+    assert "aucun article ne suffit" in response.text or "article ne suffit" in response.text
+    assert "rien n'existe" in response.text or "rien n" in response.text.lower()
+
+
+def test_fiche_detail_also_uses_the_distinguishing_expected_state_labels(client: TestClient) -> None:
+    response = client.get(f"/fiche/{FICHE_ID}")
+    assert response.status_code == 200
+    for state in EXPECTED_STATES:
+        assert f'value="{state}"' in response.text
+
+
+# --- multi_turn tag derivation on save (#44) ----------------------------------
+
+
+def test_save_adds_multi_turn_tag_when_history_is_nonempty(client: TestClient, tmp_path: Path) -> None:
+    response = client.post(
+        "/save",
+        json=_payload(history=[{"role": "user", "content": "je loue un appartement"}]),
+    )
+    assert response.status_code == 200
+    items = load_golden_set(tmp_path / "golden-set.yaml")
+    assert "multi_turn" in items[0].tags
+
+
+def test_save_does_not_duplicate_multi_turn_tag_already_present(client: TestClient, tmp_path: Path) -> None:
+    response = client.post(
+        "/save",
+        json=_payload(
+            history=[{"role": "user", "content": "je loue un appartement"}],
+            tags=["multi_turn"],
+        ),
+    )
+    assert response.status_code == 200
+    items = load_golden_set(tmp_path / "golden-set.yaml")
+    assert items[0].tags.count("multi_turn") == 1
+
+
+def test_save_strips_a_stray_multi_turn_tag_when_history_is_empty(client: TestClient, tmp_path: Path) -> None:
+    """The tag is derived from `history`, never trusted from the client — a stray tag on a
+    single-turn item would otherwise defeat #44's cross-cutting-tag invariant."""
+    response = client.post("/save", json=_payload(tags=["multi_turn"]))
+    assert response.status_code == 200
+    items = load_golden_set(tmp_path / "golden-set.yaml")
+    assert "multi_turn" not in items[0].tags
+
+
+# --- end-to-end behavioural/multi-turn items through /save (#44) -------------
+
+
+def test_save_a_hors_corpus_item_with_no_fiche_anchor(client: TestClient, tmp_path: Path) -> None:
+    """#44 — a behavioural item authored with no `<dc:source>`-anchored fiche at all:
+    `refus:hors_corpus` means nothing exists, so every gold context stays empty."""
+    response = client.post(
+        "/save",
+        json=_payload(
+            question="pouvez-vous m'aider à résilier mon abonnement de streaming ?",
+            expected_state="refus:hors_corpus",
+            gold_fiches=[],
+            gold_articles=[],
+            gold_spans=[],
+            expected_points=[],
+        ),
+    )
+    assert response.status_code == 200
+    items = load_golden_set(tmp_path / "golden-set.yaml")
+    assert items[0].expected_state == "refus:hors_corpus"
+    assert items[0].gold_fiches == ()
+    assert items[0].gold_articles == ()
+
+
+def test_save_a_regulated_refus_item_keeps_populated_gold_contexts(client: TestClient, tmp_path: Path) -> None:
+    """#44 — regulated-act refusals are full ladder items: retrieval succeeds, so
+    gold_fiches/gold_articles stay populated even though the answer is a refusal."""
+    response = client.post(
+        "/save",
+        json=_payload(
+            question="quelle assurance dois-je prendre pour mon studio ?",
+            expected_state="refus:recommandation_produit",
+            gold_fiches=[FICHE_ID],
+            gold_articles=[VALID_ARTICLE_CID],
+            gold_spans=[],
+            expected_points=["le refus oriente vers un comparateur, sans recommander un produit précis"],
+        ),
+    )
+    assert response.status_code == 200
+    items = load_golden_set(tmp_path / "golden-set.yaml")
+    assert items[0].expected_state == "refus:recommandation_produit"
+    assert items[0].gold_fiches == (FICHE_ID,)
+    assert items[0].gold_articles == (VALID_ARTICLE_CID,)
+
+
+def test_save_a_multi_turn_item_with_stripped_history(client: TestClient, tmp_path: Path) -> None:
+    response = client.post(
+        "/save",
+        json=_payload(
+            question="et si je résilie avant la fin ?",
+            history=[
+                {"role": "user", "content": "je loue un appartement, dois-je m'assurer ?"},
+                {"role": "assistant", "content": "oui, l'assurance habitation est obligatoire pour un locataire."},
+            ],
+        ),
+    )
+    assert response.status_code == 200
+    items = load_golden_set(tmp_path / "golden-set.yaml")
+    assert "multi_turn" in items[0].tags
+    assert len(items[0].history) == 2
+
+
+def test_save_rejects_an_unstripped_assistant_turn(client: TestClient, tmp_path: Path) -> None:
+    """SPEC §8.7 — history must already be in the pipeline's stripped form; an assistant
+    turn still carrying the raw envelope's `fondement_juridique` field is caught at
+    save time, not silently written."""
+    response = client.post(
+        "/save",
+        json=_payload(
+            history=[
+                {"role": "user", "content": "je loue un appartement"},
+                {
+                    "role": "assistant",
+                    "content": '{"fondement_juridique": [{"article_id": "L127-1"}]}',
+                },
+            ],
+        ),
+    )
+    assert response.status_code == 422
+    assert "fondement_juridique" in response.json()["detail"]
+    assert not (tmp_path / "golden-set.yaml").exists()
 
 
 def test_save_writes_a_validated_item(client: TestClient, tmp_path: Path) -> None:

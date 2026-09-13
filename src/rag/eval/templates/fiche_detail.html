@@ -66,7 +66,7 @@
     <label for="expected_state">expected_state</label>
     <select id="expected_state">
       {% for state in expected_states %}
-      <option value="{{ state }}">{{ state }}</option>
+      <option value="{{ state.value }}">{{ state.label }}</option>
       {% endfor %}
     </select>
   </div>
@@ -87,8 +87,8 @@
   </div>
 
   <div class="field">
-    <label for="tags">tags <span class="muted">(séparés par des virgules)</span></label>
-    <input id="tags" type="text" placeholder="situationnel, multi_turn, …">
+    <label for="tags">tags <span class="muted">(séparés par des virgules ; multi_turn est géré automatiquement, inutile de le saisir)</span></label>
+    <input id="tags" type="text" placeholder="situationnel, …">
   </div>
 
   <div class="field">
