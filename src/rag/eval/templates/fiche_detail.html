@@ -5,6 +5,12 @@
 
 <h2>Texte de la fiche</h2>
 <p class="muted">Sélectionnez du texte <strong>à l'intérieur d'un seul paragraphe</strong> pour en faire un <code>gold_span</code> — la sélection doit rester dans un même bloc pour rester vérifiable mot pour mot (SPEC §12.2).</p>
+<div class="field">
+  <button type="button" id="copy-body">Copier le prompt pour le LLM</button>
+  <button type="button" id="draft-questions">Générer des questions (LLM)</button>
+  <span id="copy-status" class="muted"></span>
+</div>
+<div class="chip-list" id="question-drafts"></div>
 <div id="chunks">
   {% for index, text in chunks %}
   <div class="chunk" data-chunk-index="{{ index }}">{{ text }}</div>
@@ -16,8 +22,21 @@
 </div>
 <div class="chip-list" id="span-chips"></div>
 
+<div class="field">
+  <button type="button" id="propose-gold-spans">Proposer gold_spans (LLM)</button>
+  <span id="propose-spans-status" class="muted"></span>
+</div>
+<p class="muted" id="ai-span-candidates-hint" hidden>Suggestions IA — chaque extrait a été vérifié comme présent mot pour mot dans le texte ci-dessus ; cliquer pour l'accepter comme <code>gold_span</code>.</p>
+<div class="chip-list" id="ai-span-candidates"></div>
+
 <h2>Articles</h2>
 <p class="muted">Les sections ci-dessous viennent du <code>&lt;dc:source&gt;</code> de la fiche — une suggestion de lecture, jamais une source de label (SPEC §12.3). La recherche plein-corpus juste en dessous permet exactement les mêmes choix.</p>
+
+<div class="field">
+  <button type="button" id="propose-gold-articles">Proposer gold_articles (LLM)</button>
+  <span id="propose-articles-status" class="muted"></span>
+</div>
+<div id="ai-article-candidates"></div>
 
 <div class="row">
   <div class="col">
@@ -62,11 +81,21 @@
     <label>expected_points <span class="muted">(1 à 3)</span></label>
     <div id="points"></div>
     <button type="button" id="add-point">+ ajouter un point</button>
+    <button type="button" id="propose-expected-points">Proposer expected_points (LLM)</button>
+    <span id="propose-points-status" class="muted"></span>
+    <div class="chip-list" id="ai-point-candidates"></div>
   </div>
 
   <div class="field">
     <label for="tags">tags <span class="muted">(séparés par des virgules)</span></label>
     <input id="tags" type="text" placeholder="situationnel, multi_turn, …">
+  </div>
+
+  <div class="field">
+    <label style="display: inline-flex; align-items: center; gap: .4rem; font-weight: normal;">
+      <input type="checkbox" id="citation-form" style="width: auto;">
+      Item citation-form (double graphie <code>L113-2</code> / <code>L. 113-2</code> — quota de 4)
+    </label>
   </div>
 
   <div class="field">
@@ -85,6 +114,14 @@ const sections = JSON.parse(document.getElementById("sections-data").textContent
 // Fetched once per browser session and cached by the `Cache-Control` header `/api/articles`
 // sends back — not re-embedded per fiche page, since the full corpus is ~8 MB.
 let allArticles = {};
+// Populated the moment an AI-proposed candidate (article, span or point) is accepted —
+// never on a mere proposal, since "proposed" and "accepted" are different claims
+// (ADR-0020: "any item where at least one AI-proposed field was accepted"). Checked
+// against the item's *current* content at save time, not just "was ever accepted", so
+// removing an accepted AI candidate before saving correctly un-tags the item.
+const aiOriginArticleCids = new Set();
+const aiOriginSpans = new Set();
+const aiOriginPoints = new Set();
 
 // A removable "chip" — the one visual shape gold_spans, gold_articles and gold_fiches all
 // render their selection as, so there's one place to change how a chip looks or behaves.
@@ -148,11 +185,137 @@ function renderSpanChips() {
   });
 }
 
+// ---- gold_spans proposal (LLM, #70, ADR-0020) -------------------------------
+
+// The server already filtered these down to exact substrings of the fiche text
+// (`filter_verbatim_spans`) before they arrived here — a candidate that failed that
+// check never reaches this array, so there is nothing left to re-verify client-side.
+let aiSpanCandidates = [];
+
+function renderAiSpanCandidates() {
+  const container = document.getElementById("ai-span-candidates");
+  container.innerHTML = "";
+  document.getElementById("ai-span-candidates-hint").hidden = aiSpanCandidates.length === 0;
+  aiSpanCandidates.forEach((span) => {
+    const alreadyAdded = spans.includes(span);
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip";
+    chip.title = span;
+    chip.textContent = (alreadyAdded ? "✓ " : "") + (span.length > 80 ? span.slice(0, 80) + "…" : span);
+    chip.disabled = alreadyAdded;
+    chip.addEventListener("click", () => {
+      spans.push(span);
+      aiOriginSpans.add(span);
+      renderSpanChips();
+      renderAiSpanCandidates();
+    });
+    container.appendChild(chip);
+  });
+}
+
+document.getElementById("propose-gold-spans").addEventListener("click", async () => {
+  const question = document.getElementById("question").value.trim();
+  const status = document.getElementById("propose-spans-status");
+  if (!question) { status.textContent = "Renseignez la question d'abord."; return; }
+  const button = document.getElementById("propose-gold-spans");
+  button.disabled = true;
+  status.textContent = "Génération…";
+  try {
+    const response = await fetch("/api/propose-gold-spans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fiche_id: ficheId, question }),
+    });
+    const body = await response.json();
+    if (!response.ok || !body.ok) {
+      status.textContent = body.detail || "échec de la génération.";
+      return;
+    }
+    aiSpanCandidates = body.spans;
+    status.textContent = aiSpanCandidates.length === 0 ? "Aucune suggestion vérifiable mot pour mot." : "";
+    renderAiSpanCandidates();
+  } catch (err) {
+    status.textContent = "échec de la génération : " + err.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+// ---- copy body text for LLM question drafting --------------------------------
+
+// Only the four body tags (Introduction/Texte/Conclusion/ListeSituations, SPEC §4.1) ever
+// reach `.chunk` — navigation elements like <QuestionReponse> are never rendered here, so
+// copying every chunk can't leak DILA's own consumer questions into the LLM prompt (SPEC §12.4).
+document.getElementById("copy-body").addEventListener("click", async () => {
+  const bodyText = Array.from(document.querySelectorAll("#chunks .chunk"))
+    .map((el) => el.textContent.trim())
+    .join("\n\n");
+  const prompt = "Voici le texte d'une fiche service-public.fr sur l'assurance. Génère 2 à 3 questions "
+    + "qu'un consommateur (pas un juriste) poserait spontanément à un assistant, en te basant sur ce "
+    + "contenu. Utilise le vocabulaire d'un particulier, pas le vocabulaire juridique du texte.\n\n"
+    + bodyText;
+  const status = document.getElementById("copy-status");
+  try {
+    await navigator.clipboard.writeText(prompt);
+    status.textContent = "Copié.";
+  } catch (err) {
+    status.textContent = "Échec de la copie : " + err.message;
+  }
+  setTimeout(() => { status.textContent = ""; }, 2000);
+});
+
+// ---- LLM-drafted question candidates -----------------------------------------
+
+document.getElementById("draft-questions").addEventListener("click", async () => {
+  const button = document.getElementById("draft-questions");
+  const container = document.getElementById("question-drafts");
+  button.disabled = true;
+  container.innerHTML = '<span class="muted">Génération…</span>';
+  try {
+    const response = await fetch("/api/draft-questions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fiche_id: ficheId }),
+    });
+    const body = await response.json();
+    container.innerHTML = "";
+    if (!response.ok || !body.ok) {
+      container.innerHTML = '<span class="muted">' + (body.detail || "échec de la génération.") + "</span>";
+      return;
+    }
+    if (body.questions.length === 0) {
+      container.innerHTML = '<span class="muted">Aucune question renvoyée.</span>';
+      return;
+    }
+    // Each candidate is a starting point, not the item — clicking one only seeds the
+    // "question" field; the human rewrite step (SPEC §12.4) still happens by hand.
+    for (const q of body.questions) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip";
+      chip.textContent = q;
+      chip.addEventListener("click", () => {
+        document.getElementById("question").value = q;
+        document.getElementById("question").focus();
+      });
+      container.appendChild(chip);
+    }
+  } catch (err) {
+    container.innerHTML = '<span class="muted">échec de la génération : ' + err.message + "</span>";
+  } finally {
+    button.disabled = false;
+  }
+});
+
 // ---- gold_articles ----------------------------------------------------------
 
 const selectedArticleCids = new Set();
 
-function articleRow(cid) {
+// `options.justification`/`options.provenance` render an extra line and mark the accept
+// as AI-assisted (ADR-0020) — used only by `renderAiArticleCandidates` below; the
+// `<dc:source>` reading list and full-corpus search call this with no options, unchanged.
+function articleRow(cid, options = {}) {
   const article = allArticles[cid];
   const row = document.createElement("div");
   row.className = "article-row";
@@ -162,20 +325,89 @@ function articleRow(cid) {
   row.appendChild(meta);
   const excerpt = document.createElement("div");
   excerpt.className = "excerpt";
-  excerpt.textContent = article.text.length > 220 ? article.text.slice(0, 220) + "…" : article.text;
+  const truncated = article.text.length > 220;
+  let expanded = false;
+  const render = () => {
+    excerpt.textContent = !truncated || expanded ? article.text : article.text.slice(0, 220) + "…";
+  };
+  render();
+  if (truncated) {
+    excerpt.style.cursor = "pointer";
+    excerpt.title = "Cliquer pour afficher le texte complet";
+    excerpt.addEventListener("click", () => { expanded = !expanded; render(); });
+  }
   row.appendChild(excerpt);
+  if (options.justification) {
+    const justification = document.createElement("div");
+    justification.className = "muted";
+    justification.textContent = "IA (" + options.provenance.join(", ") + ") : " + options.justification;
+    row.appendChild(justification);
+  }
   const button = document.createElement("button");
   button.type = "button";
   const selected = selectedArticleCids.has(cid);
   button.textContent = selected ? "✓ ajouté comme gold_article" : "+ ajouter comme gold_article";
   button.addEventListener("click", () => {
-    if (selectedArticleCids.has(cid)) selectedArticleCids.delete(cid);
-    else selectedArticleCids.add(cid);
+    if (selectedArticleCids.has(cid)) {
+      selectedArticleCids.delete(cid);
+    } else {
+      selectedArticleCids.add(cid);
+      if (options.isAiCandidate) aiOriginArticleCids.add(cid);
+    }
     renderAll();
   });
   row.appendChild(button);
   return row;
 }
+
+// ---- gold_articles proposal (LLM shortlist, #70, ADR-0020) ------------------
+
+let aiArticleCandidates = [];
+
+function renderAiArticleCandidates() {
+  const container = document.getElementById("ai-article-candidates");
+  container.innerHTML = "";
+  if (aiArticleCandidates.length === 0) return;
+  const heading = document.createElement("h4");
+  heading.textContent = "Suggestions IA (shortlist dc:source ∪ recherche lexicale)";
+  container.appendChild(heading);
+  for (const candidate of aiArticleCandidates) {
+    if (!allArticles[candidate.cid]) continue; // corpus not loaded yet — race with /api/articles
+    container.appendChild(articleRow(candidate.cid, {
+      justification: candidate.justification,
+      provenance: candidate.provenance,
+      isAiCandidate: true,
+    }));
+  }
+}
+
+document.getElementById("propose-gold-articles").addEventListener("click", async () => {
+  const question = document.getElementById("question").value.trim();
+  const status = document.getElementById("propose-articles-status");
+  if (!question) { status.textContent = "Renseignez la question d'abord."; return; }
+  const button = document.getElementById("propose-gold-articles");
+  button.disabled = true;
+  status.textContent = "Génération…";
+  try {
+    const response = await fetch("/api/propose-gold-articles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fiche_id: ficheId, question }),
+    });
+    const body = await response.json();
+    if (!response.ok || !body.ok) {
+      status.textContent = body.detail || "échec de la génération.";
+      return;
+    }
+    aiArticleCandidates = body.candidates;
+    status.textContent = aiArticleCandidates.length === 0 ? "Aucune suggestion." : "";
+    renderAiArticleCandidates();
+  } catch (err) {
+    status.textContent = "échec de la génération : " + err.message;
+  } finally {
+    button.disabled = false;
+  }
+});
 
 function renderReadingList() {
   const container = document.getElementById("reading-list");
@@ -228,10 +460,25 @@ function renderArticleChips() {
   }
 }
 
+// SPEC §12.1's deterministic default (ADR-0020: "no LLM call") — empty gold_articles
+// defaults to reponse_sans_article, otherwise reponse. Applied on every gold_articles
+// change, but only until the annotator touches the dropdown by hand; from then on it's a
+// normal editable field the auto-default no longer overwrites.
+let expectedStateManuallySet = false;
+const expectedStateSelect = document.getElementById("expected_state");
+expectedStateSelect.addEventListener("change", () => { expectedStateManuallySet = true; });
+
+function applyDefaultExpectedState() {
+  if (expectedStateManuallySet) return;
+  expectedStateSelect.value = selectedArticleCids.size === 0 ? "reponse_sans_article" : "reponse";
+}
+
 function renderAll() {
   renderReadingList();
   renderSearchResults();
   renderArticleChips();
+  renderAiArticleCandidates();
+  applyDefaultExpectedState();
 }
 
 document.getElementById("article-search").addEventListener("input", renderSearchResults);
@@ -289,6 +536,57 @@ function addPointRow(value) {
 addPointRow("");
 document.getElementById("add-point").addEventListener("click", () => addPointRow(""));
 
+// ---- expected_points proposal (LLM, #70, ADR-0020) --------------------------
+
+let aiPointCandidates = [];
+
+function renderAiPointCandidates() {
+  const container = document.getElementById("ai-point-candidates");
+  container.innerHTML = "";
+  aiPointCandidates.forEach((point, i) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip";
+    chip.title = point;
+    chip.textContent = point.length > 80 ? point.slice(0, 80) + "…" : point;
+    chip.addEventListener("click", () => {
+      addPointRow(point);
+      aiOriginPoints.add(point);
+      aiPointCandidates.splice(i, 1);
+      renderAiPointCandidates();
+    });
+    container.appendChild(chip);
+  });
+}
+
+document.getElementById("propose-expected-points").addEventListener("click", async () => {
+  const question = document.getElementById("question").value.trim();
+  const status = document.getElementById("propose-points-status");
+  if (!question) { status.textContent = "Renseignez la question d'abord."; return; }
+  const button = document.getElementById("propose-expected-points");
+  button.disabled = true;
+  status.textContent = "Génération…";
+  try {
+    const response = await fetch("/api/propose-expected-points", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, gold_spans: spans, gold_articles: Array.from(selectedArticleCids) }),
+    });
+    const body = await response.json();
+    if (!response.ok || !body.ok) {
+      status.textContent = body.detail || "échec de la génération.";
+      return;
+    }
+    aiPointCandidates = body.points;
+    status.textContent = aiPointCandidates.length === 0 ? "Aucune suggestion." : "";
+    renderAiPointCandidates();
+  } catch (err) {
+    status.textContent = "échec de la génération : " + err.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
 // ---- save -------------------------------------------------------------------
 
 document.getElementById("save").addEventListener("click", async () => {
@@ -309,6 +607,15 @@ document.getElementById("save").addEventListener("click", async () => {
     .map((el) => el.value.trim())
     .filter(Boolean);
   const tags = document.getElementById("tags").value.split(",").map((t) => t.trim()).filter(Boolean);
+  if (document.getElementById("citation-form").checked && !tags.includes("citation_form")) {
+    tags.push("citation_form");
+  }
+
+  // Recomputed against the item's current content, not a one-way flag — accepting an AI
+  // candidate and then removing it again before saving must not leave the item tagged.
+  const aiAssisted = Array.from(selectedArticleCids).some((cid) => aiOriginArticleCids.has(cid))
+    || spans.some((span) => aiOriginSpans.has(span))
+    || points.some((point) => aiOriginPoints.has(point));
 
   const payload = {
     question: document.getElementById("question").value.trim(),
@@ -319,6 +626,7 @@ document.getElementById("save").addEventListener("click", async () => {
     expected_points: points,
     tags: tags,
     history: history,
+    ai_assisted: aiAssisted,
   };
 
   const response = await fetch("/save", {
@@ -330,6 +638,7 @@ document.getElementById("save").addEventListener("click", async () => {
   if (response.ok && body.ok) {
     status.className = "ok";
     status.textContent = "Enregistré sous " + body.id + ".";
+    refreshProgress();
   } else {
     status.className = "error";
     status.textContent = (body.id ? body.id + " — " : "") + (body.detail || "échec de l'enregistrement.");

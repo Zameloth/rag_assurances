@@ -114,6 +114,9 @@ and must be answered from both.
 | **`expected_points`** | 1–3 terse assertions per item, scored as **coverage, not similarity**. There are no reference answers. Refusal items carry them too. |
 | **the judge** | The LLM-as-judge for the two non-deterministic generation metrics. **Must be a different family from every generation arm.** |
 | **the calibration set** | 12 clean/faulted answer **pairs**, hand-authored and hand-labelled. **Built, not sampled** — a sampled set contains no failures and so cannot test a judge whose job is catching failures. Lives on as a **judge regression test**. |
+| **the shortlist** | The annotation helper's candidate pool for a `gold_articles` proposal: `<dc:source>` section articles ∪ top-N lexical-search matches (question + fiche body, no embedding model). Independent of every retrieval arm by construction — the LLM only picks from real shortlist text, never names an article from its own knowledge (ADR-0020). |
+| **`ai_assisted`** | Golden-set tag marking an item where at least one AI-proposed field (`gold_articles`, `gold_spans`, `expected_points`) was accepted, so AI-assisted items stay distinguishable from fully hand-researched ones (ADR-0020). |
+| **the disagreement-detector pass** | A **separate, later** pass over the finished golden set: a model independently picks articles, only disagreements are re-reviewed, **no authority to change a label**. Substitutes for inter-annotator agreement a solo annotator can't otherwise get (ADR-0010). Does not run during annotation — proposal-first assistance (`ai_assisted`) would make it redundant with itself, not independent. |
 | **`compare.py`** | The arbiter of the adoption rule. **Langfuse is the trace viewer and run log, not the comparison surface.** |
 | **per-item scores** | What gets persisted to git — not aggregates. The adoption rule counts items, and Langfuse's free tier drops traces at 30 days. |
 
