@@ -112,6 +112,7 @@ def run_retrieval_ladder(
     retrieval_config: dict[str, Any],
     dataset_name: str = RETRIEVAL_DATASET_NAME,
     pipeline_arm: str | None = None,
+    max_concurrency: int = MAX_CONCURRENCY,
 ) -> RetrievalRun:
     """Run `arm` against the synced `dataset_name` dataset and persist the result to
     `runs_dir` (SPEC §12.11's `eval/runs/<run-id>.json`).
@@ -134,6 +135,16 @@ def run_retrieval_ladder(
     A fresh, explicitly-constructed `Langfuse` client is used rather than the `get_client()`
     singleton — see the module docstring's "forcing tracing on" note — and it, not
     `get_client()`'s ambient instance, is what `dataset.run_experiment()` runs through.
+
+    **`max_concurrency` defaults to `MAX_CONCURRENCY`** (#35's original range, unchanged for
+    every existing caller), but is a real parameter — #41's rung 4 onward is the first arm
+    whose `task` does local, CPU-bound cross-encoder inference rather than an API call:
+    `MIN_CONCURRENCY`/`MAX_CONCURRENCY`'s own "the SDK default of 50 will rate-limit
+    OpenRouter" reasoning is about *API* concurrency, and running several reranker forward
+    passes at once competes for the same CPU/RAM a single process already needs for one
+    (SPEC §14.4's own "hundreds of MB" of transient activations per rerank call, times
+    however many run at once) — a caller doing that work asks for a lower number instead of
+    a code change here.
     """
     settings = load_settings()
     langfuse = Langfuse(
@@ -170,7 +181,7 @@ def run_retrieval_ladder(
         run_name=run_id,
         task=task,
         evaluators=[retrieval_evaluator],
-        max_concurrency=MAX_CONCURRENCY,
+        max_concurrency=max_concurrency,
     )
 
     items = tuple(
