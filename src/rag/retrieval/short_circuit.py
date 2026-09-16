@@ -30,6 +30,7 @@ __all__ = [
     "ShortCircuitResult",
     "resolve_short_circuit",
     "scan_article_reference",
+    "scan_article_references",
 ]
 
 # Unanchored: the same body as the field validator, word-boundary-terminated instead of
@@ -64,6 +65,23 @@ def scan_article_reference(raw_turn: str) -> str | None:
     """
     match = _SCAN_PATTERN.search(raw_turn)
     return match.group() if match else None
+
+
+def scan_article_references(text: str) -> frozenset[str]:
+    """Every article reference in `text`, normalized (SPEC §8.4's `refs(...)` set).
+
+    The condenser sanitizer's `refs(condensed) ⊆ refs(raw_turn)` check (ADR-0008,
+    `rag.condensation.sanitizer`) needs every reference a turn carries, not just the first
+    `scan_article_reference` returns — same unanchored, maximal-munch pattern, run with
+    `finditer` instead of `search`, each match normalized through
+    `rag.ingest.lookup_key.normalize_lookup_key` so `l113-15` and `L. 113-15` compare equal.
+    A match this pattern produces always fully satisfies the anchored field validator too,
+    so `normalize_lookup_key` never actually returns `None` here — filtered out anyway
+    rather than asserted, the same "a future regex gap degrades, it doesn't crash" posture
+    `resolve_short_circuit` already takes on a failed membership check.
+    """
+    matches = (m.group() for m in _SCAN_PATTERN.finditer(text))
+    return frozenset(key for m in matches if (key := normalize_lookup_key(m)) is not None)
 
 
 def resolve_short_circuit(raw_turn: str, lookup_keys: AbstractSet[str]) -> ShortCircuitResult:
