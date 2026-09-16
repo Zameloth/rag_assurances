@@ -1,0 +1,223 @@
+{
+  "incumbent_run_id": "rung2-20260916T181814Z",
+  "challenger_run_id": "rung3-20260916T181814Z",
+  "primary_metric": "article_recall_at_4",
+  "metrics": {
+    "fiche_recall_at_4": {
+      "n_paired": 40,
+      "improved": 0,
+      "regressed": 13,
+      "net_discordant": -13,
+      "sign_test_p": 0.000244140625,
+      "improved_items": [],
+      "regressed_items": [
+        "gs-063",
+        "gs-047",
+        "gs-040",
+        "gs-032",
+        "gs-029",
+        "gs-027",
+        "gs-026",
+        "gs-025",
+        "gs-019",
+        "gs-016",
+        "gs-015",
+        "gs-013",
+        "gs-012"
+      ],
+      "is_decision_metric": true
+    },
+    "fiche_recall_at_10": {
+      "n_paired": 40,
+      "improved": 0,
+      "regressed": 14,
+      "net_discordant": -14,
+      "sign_test_p": 0.0001220703125,
+      "improved_items": [],
+      "regressed_items": [
+        "gs-063",
+        "gs-047",
+        "gs-040",
+        "gs-032",
+        "gs-029",
+        "gs-027",
+        "gs-026",
+        "gs-025",
+        "gs-020",
+        "gs-019",
+        "gs-016",
+        "gs-015",
+        "gs-013",
+        "gs-012"
+      ],
+      "is_decision_metric": false
+    },
+    "fiche_recall_at_candidate": {
+      "n_paired": 36,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": false
+    },
+    "article_recall_at_4": {
+      "n_paired": 33,
+      "improved": 10,
+      "regressed": 0,
+      "net_discordant": 10,
+      "sign_test_p": 0.001953125,
+      "improved_items": [
+        "gs-053",
+        "gs-050",
+        "gs-048",
+        "gs-032",
+        "gs-023",
+        "gs-020",
+        "gs-019",
+        "gs-015",
+        "gs-013",
+        "gs-002"
+      ],
+      "regressed_items": [],
+      "is_decision_metric": true
+    },
+    "article_recall_at_10": {
+      "n_paired": 33,
+      "improved": 11,
+      "regressed": 0,
+      "net_discordant": 11,
+      "sign_test_p": 0.0009765625,
+      "improved_items": [
+        "gs-053",
+        "gs-050",
+        "gs-048",
+        "gs-032",
+        "gs-027",
+        "gs-023",
+        "gs-020",
+        "gs-019",
+        "gs-015",
+        "gs-013",
+        "gs-002"
+      ],
+      "regressed_items": [],
+      "is_decision_metric": false
+    },
+    "article_recall_at_candidate": {
+      "n_paired": 29,
+      "improved": 15,
+      "regressed": 0,
+      "net_discordant": 15,
+      "sign_test_p": 6.103515625e-05,
+      "improved_items": [
+        "gs-065",
+        "gs-063",
+        "gs-053",
+        "gs-051",
+        "gs-050",
+        "gs-048",
+        "gs-029",
+        "gs-027",
+        "gs-026",
+        "gs-023",
+        "gs-020",
+        "gs-019",
+        "gs-015",
+        "gs-008",
+        "gs-002"
+      ],
+      "regressed_items": [],
+      "is_decision_metric": false
+    },
+    "zero_articles": {
+      "n_paired": 33,
+      "improved": 29,
+      "regressed": 0,
+      "net_discordant": 29,
+      "sign_test_p": 3.725290298461914e-09,
+      "improved_items": [
+        "gs-065",
+        "gs-063",
+        "gs-053",
+        "gs-051",
+        "gs-050",
+        "gs-048",
+        "gs-047",
+        "gs-040",
+        "gs-039",
+        "gs-038",
+        "gs-037",
+        "gs-032",
+        "gs-029",
+        "gs-027",
+        "gs-026",
+        "gs-023",
+        "gs-022",
+        "gs-020",
+        "gs-019",
+        "gs-016",
+        "gs-015",
+        "gs-014",
+        "gs-013",
+        "gs-010",
+        "gs-009",
+        "gs-008",
+        "gs-007",
+        "gs-005",
+        "gs-002"
+      ],
+      "regressed_items": [],
+      "is_decision_metric": true
+    },
+    "floor_correct": {
+      "n_paired": 7,
+      "improved": 0,
+      "regressed": 7,
+      "net_discordant": -7,
+      "sign_test_p": 0.015625,
+      "improved_items": [],
+      "regressed_items": [
+        "gs-030",
+        "gs-028",
+        "gs-025",
+        "gs-021",
+        "gs-018",
+        "gs-012",
+        "gs-004"
+      ],
+      "is_decision_metric": true
+    },
+    "span_containment_at_4": {
+      "n_paired": 35,
+      "improved": 0,
+      "regressed": 9,
+      "net_discordant": -9,
+      "sign_test_p": 0.00390625,
+      "improved_items": [],
+      "regressed_items": [
+        "gs-063",
+        "gs-047",
+        "gs-029",
+        "gs-027",
+        "gs-026",
+        "gs-025",
+        "gs-019",
+        "gs-016",
+        "gs-012"
+      ],
+      "is_decision_metric": false
+    }
+  },
+  "verdict": {
+    "primary_metric": "article_recall_at_4",
+    "net_discordant_primary": 10,
+    "threshold_met": true,
+    "guard_violations": [
+      "fiche_recall_at_4",
+      "floor_correct"
+    ],
+    "adopt": false
+  }
+}
