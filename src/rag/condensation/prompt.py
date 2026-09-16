@@ -14,25 +14,62 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-__all__ = ["SYSTEM_PROMPT", "HistoryTurn", "Message", "build_messages"]
+__all__ = [
+    "MAX_HISTORY_TURNS",
+    "MAX_HISTORY_TURN_CHARS",
+    "SYSTEM_PROMPT",
+    "HistoryTurn",
+    "Message",
+    "build_messages",
+    "trim_history",
+]
 
 Message = tuple[Literal["system", "user", "assistant"], str]
+
+# SPEC §8.7: "last 3 exchanges (up to 6 messages), both roles". Both roles are kept
+# because the golden set scripts and freezes the prior assistant turn, so dropping
+# assistant turns would make those fixtures carry text the system never sees (ADR-0008).
+MAX_HISTORY_TURNS = 6
+
+# SPEC §8.7: "trim on both turn count and raw size, since either alone is bypassable" — a
+# turn-count-only trim still admits one 50k-character turn among the last 6; this bounds
+# each turn independently of how many there are. Generous relative to a real French
+# question/answer turn (low hundreds of characters) while still capping a hostile one.
+MAX_HISTORY_TURN_CHARS = 2000
 
 
 @dataclass(frozen=True)
 class HistoryTurn:
-    """One prior turn within the last-3-exchanges window (SPEC §8.7). `content` is the
-    full message for a `user` turn and stripped prose only for an `assistant` turn — the
-    same stripped shape `rag.generation.prompt.HistoryTurn` carries, defined again here
+    """One prior turn, already inside the last-3-exchanges window (SPEC §8.7). `content`
+    is the full message for a `user` turn and stripped prose only for an `assistant` turn —
+    the same stripped shape `rag.generation.prompt.HistoryTurn` carries, defined again here
     rather than imported: this package sits upstream of generation and must not depend on
     it (see the package docstring), even though the two types happen to agree structurally.
 
-    Trimming the raw, untrusted history down to this window and this shape — SPEC §8.7's
-    "server-side enforcement is not optional", on both turn count and raw size — is the
-    caller's job, not this module's."""
+    Assistant-turn stripping (dropping any prior `fondement_juridique`) happens by
+    construction — this type simply has no field to carry one in, the same reasoning
+    `rag.generation.prompt.HistoryTurn`'s own docstring gives. Turn-count and raw-size
+    trimming do not happen by construction — see `trim_history` below."""
 
     role: Literal["user", "assistant"]
     content: str
+
+
+def trim_history(history: Sequence[HistoryTurn]) -> tuple[HistoryTurn, ...]:
+    """SPEC §8.7's server-side enforcement: `history` is untrusted client input (the app is
+    stateless — `CODING_STANDARDS.md`: "History is client-side, posted back each turn... a
+    client can post 200 turns or one 50k-character turn"), so this is not optional and not
+    the caller's judgement call.
+
+    Keeps the last `MAX_HISTORY_TURNS`, then clamps each kept turn's `content` to
+    `MAX_HISTORY_TURN_CHARS` — count and size are independent caps, applied together
+    because either alone is bypassable (SPEC §8.7). Order is preserved; a `history` already
+    inside both bounds passes through unchanged.
+    """
+    return tuple(
+        HistoryTurn(role=turn.role, content=turn.content[:MAX_HISTORY_TURN_CHARS])
+        for turn in history[-MAX_HISTORY_TURNS:]
+    )
 
 
 # SPEC §8.6's hard rules, plus three hand-written few-shot examples a 24B model wants. Kept
@@ -93,13 +130,14 @@ Requête condensée : Est-ce qu'une assurance est obligatoire pour un chien de c
 
 
 def build_messages(raw_turn: str, history: Sequence[HistoryTurn] = ()) -> list[Message]:
-    """The condenser's message list: the system prompt, then `history` verbatim (already
-    trimmed and stripped by construction — see `HistoryTurn`), then `raw_turn` as the
-    final `user` message — the one the model reformulates.
+    """The condenser's message list: the system prompt, then `history` verbatim, then
+    `raw_turn` as the final `user` message — the one the model reformulates.
 
-    Never called with `history == []` in practice (`rag.condensation.pipeline.condense`
-    skips the call entirely in that case, SPEC §8.1), but takes no shortcut on that — the
-    assembly itself doesn't know or need to know why it was called.
+    Takes `history` as given rather than calling `trim_history` itself — trimming is
+    `condense()`'s job (`rag.condensation.pipeline`), applied once before either the
+    `history == []` check or this assembly, so this function stays a plain, trim-agnostic
+    "history then turn" composition, the same shape whether or not its caller happens to
+    enforce SPEC §8.7's window.
     """
     messages: list[Message] = [("system", SYSTEM_PROMPT)]
     messages.extend((turn.role, turn.content) for turn in history)

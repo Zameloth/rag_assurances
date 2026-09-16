@@ -14,7 +14,7 @@ from collections.abc import Callable, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 
-from rag.condensation.prompt import HistoryTurn, Message, build_messages
+from rag.condensation.prompt import HistoryTurn, Message, build_messages, trim_history
 from rag.condensation.sanitizer import sanitize_condensed
 from rag.condensation.schema import CondenserOutput
 from rag.retrieval.short_circuit import ShortCircuitPath, resolve_short_circuit
@@ -61,6 +61,12 @@ def condense(
 ) -> CondensationResult:
     """SPEC §8.1's two skips, then the condenser call and its sanitizer.
 
+    `history` is trimmed first (`rag.condensation.prompt.trim_history`, SPEC §8.7's
+    "server-side enforcement is not optional") — before either skip check, so a client
+    posting 200 turns still only ever costs this function a slice, never a 200-message
+    call. Trimming a non-empty `history` never produces an empty one, so trimming first
+    doesn't change which turns take the `SKIPPED_NO_HISTORY` branch below.
+
     `lookup_keys` is the same collection-loaded membership set
     `rag.retrieval.short_circuit.resolve_short_circuit` already takes
     (`rag.retrieval.lookup.load_lookup_keys`) — this function re-runs that same check on
@@ -68,6 +74,7 @@ def condense(
     second skip); it is not a second short-circuit, `rag.retrieval.pipeline.retrieve` still
     runs its own.
     """
+    history = trim_history(history)
     if not history:
         return CondensationResult(
             query=raw_turn, condensed_query=None, condense_status=CondenseStatus.SKIPPED_NO_HISTORY

@@ -4,7 +4,7 @@ seam and the sanitizer into the six-path `condense_status`."""
 from __future__ import annotations
 
 from rag.condensation.pipeline import CondenseFn, CondenseStatus, condense
-from rag.condensation.prompt import HistoryTurn, Message
+from rag.condensation.prompt import MAX_HISTORY_TURNS, HistoryTurn, Message
 from rag.condensation.schema import CondenserOutput
 
 _HISTORY = [
@@ -109,6 +109,28 @@ def test_fallback_error_when_the_condense_fn_raises() -> None:
     assert result.query == "Et si je suis locataire ?"
     assert result.condensed_query is None
     assert result.condense_status is CondenseStatus.FALLBACK_ERROR
+
+
+def test_history_is_trimmed_before_it_reaches_the_condenser_call() -> None:
+    """SPEC §8.7's server-side enforcement happens inside `condense()` itself, not only in
+    a caller a future app ticket might add — a client-supplied history longer than
+    `MAX_HISTORY_TURNS` must never reach `build_messages`/`condense_fn` untrimmed."""
+    oversized_history = [
+        HistoryTurn(role="user" if i % 2 == 0 else "assistant", content=f"turn {i}")
+        for i in range(30)
+    ]
+    captured: list[list[Message]] = []
+
+    def capturing_fn(messages: list[Message]) -> CondenserOutput:
+        captured.append(messages)
+        return CondenserOutput(requete="Une question ?")
+
+    condense("Et si je suis locataire ?", oversized_history, frozenset(), capturing_fn)
+
+    messages = captured[0]
+    # system + trimmed history + the raw turn itself
+    assert len(messages) == MAX_HISTORY_TURNS + 2
+    assert "turn 0" not in [content for (_, content) in messages]
 
 
 def test_build_messages_receives_the_raw_turn_and_the_history() -> None:

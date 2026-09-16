@@ -7,7 +7,14 @@ from pathlib import Path
 
 import yaml
 
-from rag.condensation.prompt import SYSTEM_PROMPT, HistoryTurn, build_messages
+from rag.condensation.prompt import (
+    MAX_HISTORY_TURN_CHARS,
+    MAX_HISTORY_TURNS,
+    SYSTEM_PROMPT,
+    HistoryTurn,
+    build_messages,
+    trim_history,
+)
 
 GOLDEN_SET_PATH = Path(__file__).resolve().parents[2] / "eval" / "golden" / "golden-set.yaml"
 
@@ -57,3 +64,56 @@ def test_few_shot_examples_are_not_drawn_from_the_golden_sets_multi_turn_items()
     assert multi_turn_questions, "expected at least one multi_turn golden item to compare against"
     for question in multi_turn_questions | multi_turn_history_content:
         assert question not in SYSTEM_PROMPT
+
+
+# --- trim_history: SPEC §8.7's server-side enforcement ------------------------
+
+
+def test_trim_history_passes_through_a_history_already_inside_both_bounds() -> None:
+    history = [
+        HistoryTurn(role="user", content="Une question ?"),
+        HistoryTurn(role="assistant", content="Une réponse."),
+    ]
+
+    assert trim_history(history) == tuple(history)
+
+
+def test_trim_history_keeps_only_the_last_max_history_turns() -> None:
+    history = [HistoryTurn(role="user", content=f"question {i}") for i in range(20)]
+
+    trimmed = trim_history(history)
+
+    assert len(trimmed) == MAX_HISTORY_TURNS
+    assert [t.content for t in trimmed] == [f"question {i}" for i in range(14, 20)]
+
+
+def test_trim_history_clamps_each_turns_raw_size() -> None:
+    runaway = "x" * (MAX_HISTORY_TURN_CHARS * 10)
+
+    trimmed = trim_history([HistoryTurn(role="user", content=runaway)])
+
+    assert len(trimmed[0].content) == MAX_HISTORY_TURN_CHARS
+
+
+def test_trim_history_applies_both_caps_together() -> None:
+    """Neither cap alone is enough (SPEC §8.7): a client posting many turns, each also
+    oversized, must be bounded on both axes at once."""
+    history = [
+        HistoryTurn(role="user", content="x" * (MAX_HISTORY_TURN_CHARS * 10))
+        for _ in range(50)
+    ]
+
+    trimmed = trim_history(history)
+
+    assert len(trimmed) == MAX_HISTORY_TURNS
+    assert all(len(t.content) == MAX_HISTORY_TURN_CHARS for t in trimmed)
+
+
+def test_trim_history_preserves_order() -> None:
+    history = [HistoryTurn(role="user", content=str(i)) for i in range(3)]
+
+    assert [t.content for t in trim_history(history)] == ["0", "1", "2"]
+
+
+def test_trim_history_of_empty_history_is_empty() -> None:
+    assert trim_history([]) == ()
