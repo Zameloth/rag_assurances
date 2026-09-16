@@ -3,25 +3,37 @@ Langfuse dataset (SPEC §12.5, #35).
 
 **`retrieval_dataset_items` is plain data-shaping** — no Langfuse import, no network call —
 so it is implemented and tested here like the rest of the harness. **`sync_retrieval_dataset`
-is paired with @Zameloth**, per the #35 issue comment and the precedent #28/#31 already set
-(`rag.retrieval.langchain_retriever`'s `_traced`): the actual SDK calls are for the two of
-us to write together, at the seam marked TODO below, rather than agent-authored end to end.
+was paired with @Zameloth**, per the #35 issue comment and the precedent #28/#31 already set
+(`rag.retrieval.langchain_retriever`'s `_traced`).
+
+Two calls into the SDK source (langfuse==4.15.1) settled what the docs don't say: `get_dataset`
+re-raises `langfuse.api.NotFoundError` on an unknown name (so get-or-create is a plain
+try/except, no need to risk `create_dataset`'s own idempotency on re-sync), and
+`create_dataset_item(id=...)` "upserts if an item with id already exists" per its own
+docstring — no fetch-then-update path needed. A removed golden-set item is left as a
+deliberate orphan (`rag.eval.ids`'s ids are never reused, so it can never collide with a
+future item) rather than archived — the simpler of the two options and a deliberate call,
+not a placeholder.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from langfuse import get_client
+from langfuse.api import NotFoundError
+
 from rag.eval.retrieval_metrics import working_set
-from rag.eval.schema import GoldenItem
+from rag.eval.schema import GoldenItem, load_golden_set
 
 __all__ = [
     "RETRIEVAL_DATASET_NAME",
     "RetrievalDatasetItem",
     "dataset_item_id",
+    "reconstruct_golden_item",
     "retrieval_dataset_items",
     "sync_retrieval_dataset",
 ]
@@ -84,29 +96,52 @@ def retrieval_dataset_items(golden_set: Sequence[GoldenItem]) -> list[RetrievalD
     ]
 
 
+def reconstruct_golden_item(*, golden_id: str, question: str, expected_output: Mapping[str, Any]) -> GoldenItem:
+    """The inverse of `retrieval_dataset_items`'s projection (#35/#46's `run_experiment`
+    evaluators need this: `dataset.run_experiment()` hands them a Langfuse `DatasetItem`,
+    not a `GoldenItem`, and `rag.eval.retrieval_metrics.score_item` only takes the latter).
+
+    Only reconstructs what `score_item` reads — `expected_state`, `gold_fiches`,
+    `gold_articles`, `gold_spans` — plus `id`/`question` for a well-formed `GoldenItem`.
+    `history` is always `()` (the working set is single-turn only, SPEC §12.1) and
+    `expected_points`/`tags` are always `()`/`()` — `retrieval_dataset_items` never carries
+    `expected_points` (SPEC §12.5's other, generation-dataset regime) and `score_item` never
+    reads tags, so there is nothing to round-trip them from.
+    """
+    return GoldenItem(
+        id=golden_id,
+        question=question,
+        history=(),
+        expected_state=str(expected_output["expected_state"]),
+        gold_fiches=tuple(expected_output["gold_fiches"]),
+        gold_spans=tuple(expected_output["gold_spans"]),
+        gold_articles=tuple(expected_output["gold_articles"]),
+        expected_points=(),
+        tags=(),
+    )
+
+
 def sync_retrieval_dataset(golden_set_path: Path, *, dataset_name: str = RETRIEVAL_DATASET_NAME) -> None:
     """Push `retrieval_dataset_items(load_golden_set(golden_set_path))` into Langfuse,
     one-directionally — the YAML is the source of truth; nothing reads back from Langfuse
     into the golden set, and an item's gold labels edited from the Langfuse UI would just be
     overwritten on the next sync (SPEC §12.5).
 
-    TODO (Langfuse-specific — pair on this rather than assume from the docs, the same
-    posture `docs/research/langfuse-rag-eval.md` already took for `run_experiment` and
-    `LANGFUSE_BASE_URL`):
-
-    1. Ensure the dataset exists: `langfuse.get_client().create_dataset(name=dataset_name, ...)`.
-       Confirm against the SDK source whether calling this against an already-existing
-       dataset name is a safe no-op or an error.
-    2. For each `RetrievalDatasetItem`, decide how "id-keyed" actually becomes an upsert:
-       does `create_dataset_item` take a caller-supplied `id` at all, and if so does calling
-       it again with the same id update the existing item in place, or does that need an
-       explicit fetch-then-update path (list the dataset's items, match on `id`, call
-       whatever update method exists)? This is the one real unknown in this whole file —
-       everything else here is fixed by the shape `retrieval_dataset_items` already returns.
-    3. Decide what a *removed* golden-set item does to Langfuse: SPEC §12.5 calls this sync
-       "one-directional", which fixes YAML-wins-over-Langfuse but not what happens to a
-       dataset item whose golden id no longer exists on this run (archive it? leave it
-       orphaned on purpose, since a deleted golden id is never reissued — `rag.eval.ids`'s
-       own "never reused" guarantee — and a stray dataset item is at worst clutter?).
+    No `flush()`/`shutdown()` at the end: unlike tracing (batched, needs an explicit flush in
+    a short-lived script), `create_dataset_item` is a plain synchronous HTTP call
+    (`dataset_items.create`), so there is nothing left buffered when this returns.
     """
-    raise NotImplementedError
+    langfuse = get_client()
+    try:
+        langfuse.get_dataset(dataset_name)
+    except NotFoundError:
+        langfuse.create_dataset(name=dataset_name)
+
+    for item in retrieval_dataset_items(load_golden_set(golden_set_path)):
+        langfuse.create_dataset_item(
+            dataset_name=dataset_name,
+            id=item.id,
+            input=item.input,
+            expected_output=item.expected_output,
+            metadata=item.metadata,
+        )
