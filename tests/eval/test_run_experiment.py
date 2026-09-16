@@ -365,6 +365,53 @@ class TestRunRetrievalLadder:
         assert call["run_name"] == "rung1-test-run"
         assert 5 <= call["max_concurrency"] <= MAX_CONCURRENCY
 
+    def test_pipeline_arm_overrides_which_retrieval_arm_runs_while_header_arm_keeps_its_own_label(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        qdrant: QdrantClient,
+        create_collection: CreateCollection,
+        fake_settings: Settings,
+    ) -> None:
+        """SPEC §12.8 / #38 — the pre-ladder A/Bs run a fixed pipeline (`pipeline_arm`)
+        under a header `arm` label ("incumbent"/"challenger") that names which collection
+        served the query, not which `RETRIEVAL_ARMS` entry ran."""
+        create_collection(qdrant, FICHES_ALIAS)
+        create_collection(qdrant, ARTICLES_ALIAS)
+        qdrant.upsert(FICHES_ALIAS, points=[raw_point(1, [1.0, 0.0, 0.0, 0.0], {"fiche_id": "F1"})])
+
+        item = golden_item("gs-001", gold_fiches=("F1",))
+        dataset = _FakeDataset([_fake_dataset_item(item)], updated_at=datetime(2026, 9, 1, tzinfo=UTC))
+
+        monkeypatch.setattr(run_experiment_module, "load_settings", lambda: fake_settings)
+        monkeypatch.setattr(run_experiment_module, "Langfuse", lambda **kwargs: _FakeLangfuseClient(dataset, **kwargs))
+
+        _init_git_repo(tmp_path)
+        golden_set_path = tmp_path / "golden-set.yaml"
+        dump_golden_set([item], golden_set_path)
+        _commit_all(tmp_path, "add golden set")
+
+        run = run_retrieval_ladder(
+            client=qdrant,
+            embed=stub_embed([1.0, 0.0, 0.0, 0.0]),
+            lookup_keys=set(),
+            arm="incumbent",
+            rung="ab_fiche_header",
+            pipeline_arm="rung1",
+            run_id="ab-fiche-header-incumbent",
+            repo_root=tmp_path,
+            golden_set_path=golden_set_path,
+            runs_dir=tmp_path / "runs",
+            retrieval_config={},
+        )
+
+        # `RETRIEVAL_ARMS` has no "incumbent" entry — had `arm` been passed straight to
+        # `retrieve()` this would have raised `KeyError` instead of running rung 1's pipeline.
+        assert run.header.arm == "incumbent"
+        assert run.header.rung == "ab_fiche_header"
+        [score] = run.items
+        assert score.fiche_recall_at_4 is not None
+
     def test_flushes_the_client_before_returning(
         self,
         tmp_path: Path,

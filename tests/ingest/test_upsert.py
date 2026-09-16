@@ -14,6 +14,8 @@ from conftest import CreateCollection
 from qdrant_client import QdrantClient, models
 
 import rag.ingest.upsert as upsert_module
+from rag.ingest.articles import ArticleChunk, ArticleRow
+from rag.ingest.fiches import FicheChunk, FicheMetadata
 from rag.ingest.payload import article_point_id, fiche_point_id
 from rag.ingest.upsert import Embedding, upsert_articles, upsert_fiches
 
@@ -166,3 +168,132 @@ def test_upsert_fiches_payload_round_trips(qdrant: QdrantClient, create_collecti
     assert payload["fiche_id"] == "F1"
     assert payload["title"] == "Titre de test"
     assert payload["section_ids"] == ["LEGISCTA000000000099"]
+
+
+# >= 32 tokens on its own (unlike `_SHORT_TEXT`, which the stub-floor pads with a citation
+# suffix — SPEC §4.2), so the article chunk's raw `text` below is exactly this string, with
+# nothing appended, and the enrichment assertions can compare against it literally.
+_LONG_ENOUGH_TEXT = (
+    "Le contrat d'assurance est régi par les dispositions du présent titre et les "
+    "stipulations particulières convenues entre les parties, sous réserve des règles "
+    "d'ordre public applicables à l'ensemble des assurances de dommages non maritimes."
+)
+
+
+class TestDenseTextEnrichment:
+    """SPEC §12.8 / #38 — the `dense_text` seam behind the two pre-ladder A/Bs: dense comes
+    from an enriched text, sparse always comes from the raw chunk, and the stored `text`
+    payload field is the raw chunk either way (SPEC §7's "text is always the raw chunk")."""
+
+    def test_article_dense_text_none_calls_embed_once_on_raw_text(
+        self, qdrant: QdrantClient, create_collection: CreateCollection
+    ) -> None:
+        create_collection(qdrant, "articles")
+        rows = [_article_row(texteHtml=f"<p>{_LONG_ENOUGH_TEXT}</p>")]
+        calls: list[list[str]] = []
+
+        def spying_embed(texts: Sequence[str]) -> list[Embedding]:
+            calls.append(list(texts))
+            return stub_embed(texts)
+
+        upsert_articles(qdrant, "articles", rows, spying_embed)
+
+        assert calls == [[_LONG_ENOUGH_TEXT]]
+
+    def test_article_dense_text_given_calls_embed_twice_enriched_then_raw(
+        self, qdrant: QdrantClient, create_collection: CreateCollection
+    ) -> None:
+        create_collection(qdrant, "articles")
+        rows = [_article_row(texteHtml=f"<p>{_LONG_ENOUGH_TEXT}</p>")]
+        calls: list[list[str]] = []
+
+        def spying_embed(texts: Sequence[str]) -> list[Embedding]:
+            calls.append(list(texts))
+            return stub_embed(texts)
+
+        def dense_text(row: ArticleRow, chunk: ArticleChunk) -> str:
+            return f"BREADCRUMB\n{chunk.text}"
+
+        upsert_articles(qdrant, "articles", rows, spying_embed, dense_text=dense_text)
+
+        assert calls == [[f"BREADCRUMB\n{_LONG_ENOUGH_TEXT}"], [_LONG_ENOUGH_TEXT]]
+
+    def test_article_dense_text_takes_dense_half_from_enriched_and_sparse_half_from_raw(
+        self, qdrant: QdrantClient, create_collection: CreateCollection
+    ) -> None:
+        create_collection(qdrant, "articles")
+        rows = [_article_row(texteHtml=f"<p>{_LONG_ENOUGH_TEXT}</p>")]
+
+        def embed_by_text(texts: Sequence[str]) -> list[Embedding]:
+            return [
+                (
+                    [1.0, 0.0, 0.0, 0.0] if text.startswith("BREADCRUMB") else [0.0, 1.0, 0.0, 0.0],
+                    models.SparseVector(
+                        indices=[1 if text.startswith("BREADCRUMB") else 2], values=[1.0]
+                    ),
+                )
+                for text in texts
+            ]
+
+        def dense_text(row: ArticleRow, chunk: ArticleChunk) -> str:
+            return f"BREADCRUMB\n{chunk.text}"
+
+        upsert_articles(qdrant, "articles", rows, embed_by_text, dense_text=dense_text)
+
+        point_id = article_point_id(str(rows[0]["cid"]), 0)
+        [point] = qdrant.retrieve("articles", ids=[point_id], with_payload=True, with_vectors=True)
+        vectors = point.vector
+        assert isinstance(vectors, dict)
+        assert vectors["dense"] == [1.0, 0.0, 0.0, 0.0]  # from the enriched-text call
+        sparse_vector = vectors["sparse"]
+        assert isinstance(sparse_vector, models.SparseVector)
+        assert sparse_vector.indices == [2]  # from the raw-text call
+
+    def test_article_dense_text_never_changes_the_stored_raw_text_payload(
+        self, qdrant: QdrantClient, create_collection: CreateCollection
+    ) -> None:
+        create_collection(qdrant, "articles")
+        rows = [_article_row(texteHtml=f"<p>{_LONG_ENOUGH_TEXT}</p>")]
+
+        def dense_text(row: ArticleRow, chunk: ArticleChunk) -> str:
+            return f"BREADCRUMB\n{chunk.text}"
+
+        upsert_articles(qdrant, "articles", rows, stub_embed, dense_text=dense_text)
+
+        point_id = article_point_id(str(rows[0]["cid"]), 0)
+        [point] = qdrant.retrieve("articles", ids=[point_id], with_payload=True)
+        assert _payload(point)["text"] == _LONG_ENOUGH_TEXT
+
+    def test_fiche_dense_text_given_calls_embed_twice_enriched_then_raw(
+        self, qdrant: QdrantClient, create_collection: CreateCollection
+    ) -> None:
+        create_collection(qdrant, "fiches")
+        calls: list[list[str]] = []
+
+        def spying_embed(texts: Sequence[str]) -> list[Embedding]:
+            calls.append(list(texts))
+            return stub_embed(texts)
+
+        def dense_text(meta: FicheMetadata, chunk: FicheChunk) -> str:
+            return f"HEADER\n{chunk.text}"
+
+        upsert_fiches(qdrant, "fiches", [_FICHE_XML], spying_embed, dense_text=dense_text)
+
+        assert len(calls) == 2
+        assert calls[0][0].startswith("HEADER\n")
+        assert not calls[1][0].startswith("HEADER\n")
+
+    def test_fiche_dense_text_never_changes_the_stored_raw_text_payload(
+        self, qdrant: QdrantClient, create_collection: CreateCollection
+    ) -> None:
+        create_collection(qdrant, "fiches")
+
+        def dense_text(meta: FicheMetadata, chunk: FicheChunk) -> str:
+            return f"HEADER\n{chunk.text}"
+
+        upsert_fiches(qdrant, "fiches", [_FICHE_XML], stub_embed, dense_text=dense_text)
+
+        point_id = fiche_point_id("F1", 0)
+        [point] = qdrant.retrieve("fiches", ids=[point_id], with_payload=True)
+        payload = _payload(point)
+        assert not str(payload["text"]).startswith("HEADER")

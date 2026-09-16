@@ -1,0 +1,112 @@
+{
+  "incumbent_run_id": "ab_article_breadcrumb-incumbent-20260916T151205Z",
+  "challenger_run_id": "ab_article_breadcrumb-challenger-20260916T151205Z",
+  "primary_metric": "article_recall_at_4",
+  "metrics": {
+    "fiche_recall_at_4": {
+      "n_paired": 40,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": true
+    },
+    "fiche_recall_at_10": {
+      "n_paired": 40,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": false
+    },
+    "fiche_recall_at_candidate": {
+      "n_paired": 36,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": false
+    },
+    "article_recall_at_4": {
+      "n_paired": 33,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": true
+    },
+    "article_recall_at_10": {
+      "n_paired": 33,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": false
+    },
+    "article_recall_at_candidate": {
+      "n_paired": 29,
+      "improved": 3,
+      "regressed": 3,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [
+        "gs-053",
+        "gs-020",
+        "gs-019"
+      ],
+      "regressed_items": [
+        "gs-050",
+        "gs-039",
+        "gs-013"
+      ],
+      "is_decision_metric": false
+    },
+    "zero_articles": {
+      "n_paired": 33,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": true
+    },
+    "floor_correct": {
+      "n_paired": 7,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": true
+    },
+    "span_containment_at_4": {
+      "n_paired": 35,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": false
+    }
+  },
+  "verdict": {
+    "primary_metric": "article_recall_at_4",
+    "net_discordant_primary": 0,
+    "threshold_met": false,
+    "guard_violations": [],
+    "adopt": false
+  }
+}
