@@ -1,0 +1,10 @@
+{
+  "measured_at": "2026-09-16T18:01:10.512933+00:00",
+  "rss_mb": 4574.4921875,
+  "models": [
+    "BAAI/bge-m3",
+    "intfloat/multilingual-e5-large-instruct"
+  ],
+  "code_git_sha": "1e43479cfb8976aaf4f1cfea405477154698b7c9",
+  "note": "peak RSS (ru_maxrss) after one query-sized (batch-of-1) embed call through rag.ingest.e5_embedder.query_embed_batch, i.e. with BGE-M3 and e5-large-instruct both resident and warmed the way a query-serving process would be — SPEC §15.7's rung-6-wins worst case for the ~4.5 GB prod budget"
+}
