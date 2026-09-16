@@ -26,6 +26,13 @@ decision" and #36's "sign-test p is computed and persisted alongside" both read 
 a stdout report: `write_comparison` writes the same JSON shape `rag.eval.retrieval_run`
 writes for a single run, so a rung's adoption call survives past its Langfuse traces'
 30-day retention exactly like the per-item scores it was computed from.
+
+**`compare_registered_runs`/`compare_registered_run_files` (#37) resolve the primary metric
+from `rag.eval.ladder_registry` instead of taking one as an argument.** `compare_runs`
+itself still accepts an explicit `primary_metric` — the ADR-0011 math doesn't care where the
+metric name came from — but the registered entry points are the ones every rung and
+pre-ladder A/B should run through, since they refuse to report a verdict for a rung with no
+pre-registered primary rather than accept one typed in after seeing the numbers.
 """
 
 from __future__ import annotations
@@ -36,6 +43,7 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Literal
 
+from rag.eval.ladder_registry import primary_metric_for
 from rag.eval.retrieval_metrics import ItemRetrievalScore
 from rag.eval.retrieval_run import RetrievalRun, load_run
 
@@ -47,6 +55,8 @@ __all__ = [
     "ItemDelta",
     "MetricComparison",
     "Verdict",
+    "compare_registered_run_files",
+    "compare_registered_runs",
     "compare_run_files",
     "compare_runs",
     "metric_names",
@@ -246,6 +256,30 @@ def compare_run_files(incumbent_path: Path, challenger_path: Path, primary_metri
     """`compare_runs` from the two persisted `eval/runs/<run-id>.json` files SPEC §12.11
     writes, rather than already-loaded `RetrievalRun`s — the seam the CLI runs through."""
     return compare_runs(load_run(incumbent_path), load_run(challenger_path), primary_metric)
+
+
+def compare_registered_runs(incumbent: RetrievalRun, challenger: RetrievalRun) -> ComparisonReport:
+    """`compare_runs`, with the primary metric resolved from `rag.eval.ladder_registry`
+    instead of taken as an argument — #37: the pre-registered table is only protective if
+    nothing downstream still lets a human name the primary after seeing the numbers.
+
+    Raises `ValueError` if the two runs' headers disagree on which rung they belong to (a
+    paired comparison has no single rung to resolve a primary for), or if `rag.eval.
+    ladder_registry.primary_metric_for` refuses the rung — unregistered, or registered with
+    no primary (rung1's "reference floor, not a comparison").
+    """
+    if incumbent.header.rung != challenger.header.rung:
+        raise ValueError(
+            "runs disagree on rung — "
+            f"incumbent is {incumbent.header.rung!r}, challenger is {challenger.header.rung!r}"
+        )
+    return compare_runs(incumbent, challenger, primary_metric_for(incumbent.header.rung))
+
+
+def compare_registered_run_files(incumbent_path: Path, challenger_path: Path) -> ComparisonReport:
+    """`compare_registered_runs` from the two persisted `eval/runs/<run-id>.json` files, the
+    seam `scripts/compare_runs.py` runs through."""
+    return compare_registered_runs(load_run(incumbent_path), load_run(challenger_path))
 
 
 def report_to_dict(report: ComparisonReport) -> dict[str, Any]:

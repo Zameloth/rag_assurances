@@ -11,6 +11,8 @@ from rag.eval.compare import (
     DECISION_METRICS,
     DISCORDANT_ADOPTION_THRESHOLD,
     GUARD_MAX_NET_REGRESSION,
+    compare_registered_run_files,
+    compare_registered_runs,
     compare_run_files,
     compare_runs,
     metric_names,
@@ -21,10 +23,10 @@ from rag.eval.retrieval_metrics import ItemRetrievalScore
 from rag.eval.retrieval_run import RetrievalRun, RunHeader, write_run
 
 
-def header(run_id: str) -> RunHeader:
+def header(run_id: str, *, rung: str = "rung3") -> RunHeader:
     return RunHeader(
         run_id=run_id,
-        rung="rung3",
+        rung=rung,
         arm=run_id,
         golden_set_git_sha="a" * 40,
         langfuse_dataset_version="2026-09-16T00:00:00Z",
@@ -53,8 +55,8 @@ def score(item_id: str, **overrides: object) -> ItemRetrievalScore:
     return ItemRetrievalScore(**defaults)  # type: ignore[arg-type]
 
 
-def run(run_id: str, items: tuple[ItemRetrievalScore, ...]) -> RetrievalRun:
-    return RetrievalRun(header=header(run_id), items=items)
+def run(run_id: str, items: tuple[ItemRetrievalScore, ...], *, rung: str = "rung3") -> RetrievalRun:
+    return RetrievalRun(header=header(run_id, rung=rung), items=items)
 
 
 class TestMetricNames:
@@ -320,6 +322,79 @@ class TestCompareRunFiles:
         assert report.incumbent_run_id == "incumbent"
         assert report.challenger_run_id == "challenger"
         assert report.metrics["article_recall_at_4"].improved == 1
+
+
+class TestCompareRegisteredRuns:
+    """`compare_registered_runs` resolves the primary metric from `rag.eval.ladder_registry`
+    instead of accepting one as an argument — #37's "refuses to report a verdict for a rung
+    with no pre-registered primary"."""
+
+    def test_resolves_primary_from_the_registered_rung(self) -> None:
+        incumbent = run(
+            "incumbent",
+            tuple(score(f"gs-{i}", article_recall_at_4=0.0) for i in range(4)),
+            rung="rung2",
+        )
+        challenger = run(
+            "challenger",
+            tuple(score(f"gs-{i}", article_recall_at_4=1.0) for i in range(4)),
+            rung="rung2",
+        )
+        report = compare_registered_runs(incumbent, challenger)
+        assert report.primary_metric == "article_recall_at_4"
+        assert report.verdict.adopt is True
+
+    def test_resolves_fiche_primary_for_rung_four(self) -> None:
+        incumbent = run(
+            "incumbent",
+            tuple(score(f"gs-{i}", fiche_recall_at_4=0.0) for i in range(4)),
+            rung="rung4",
+        )
+        challenger = run(
+            "challenger",
+            tuple(score(f"gs-{i}", fiche_recall_at_4=1.0) for i in range(4)),
+            rung="rung4",
+        )
+        report = compare_registered_runs(incumbent, challenger)
+        assert report.primary_metric == "fiche_recall_at_4"
+
+    def test_raises_for_rung_one_which_has_no_pre_registered_primary(self) -> None:
+        incumbent = run("incumbent", (score("gs-001"),), rung="rung1")
+        challenger = run("challenger", (score("gs-001"),), rung="rung1")
+        with pytest.raises(ValueError, match="rung1"):
+            compare_registered_runs(incumbent, challenger)
+
+    def test_raises_for_a_rung_not_in_the_registry(self) -> None:
+        incumbent = run("incumbent", (score("gs-001"),), rung="rung7")
+        challenger = run("challenger", (score("gs-001"),), rung="rung7")
+        with pytest.raises(ValueError, match="rung7"):
+            compare_registered_runs(incumbent, challenger)
+
+    def test_raises_when_the_two_headers_disagree_on_rung(self) -> None:
+        incumbent = run("incumbent", (score("gs-001"),), rung="rung2")
+        challenger = run("challenger", (score("gs-001"),), rung="rung3")
+        with pytest.raises(ValueError, match="rung"):
+            compare_registered_runs(incumbent, challenger)
+
+
+class TestCompareRegisteredRunFiles:
+    def test_reads_two_persisted_run_files_and_resolves_the_registered_primary(self, tmp_path: Path) -> None:
+        incumbent = run(
+            "incumbent",
+            tuple(score(f"gs-{i}", article_recall_at_4=0.0) for i in range(4)),
+            rung="rung3",
+        )
+        challenger = run(
+            "challenger",
+            tuple(score(f"gs-{i}", article_recall_at_4=1.0) for i in range(4)),
+            rung="rung3",
+        )
+        incumbent_path = write_run(incumbent, tmp_path)
+        challenger_path = write_run(challenger, tmp_path)
+
+        report = compare_registered_run_files(incumbent_path, challenger_path)
+        assert report.primary_metric == "article_recall_at_4"
+        assert report.verdict.adopt is True
 
 
 class TestPersistence:
