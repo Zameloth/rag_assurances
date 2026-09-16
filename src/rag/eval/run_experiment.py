@@ -111,6 +111,7 @@ def run_retrieval_ladder(
     runs_dir: Path,
     retrieval_config: dict[str, Any],
     dataset_name: str = RETRIEVAL_DATASET_NAME,
+    pipeline_arm: str | None = None,
 ) -> RetrievalRun:
     """Run `arm` against the synced `dataset_name` dataset and persist the result to
     `runs_dir` (SPEC §12.11's `eval/runs/<run-id>.json`).
@@ -119,6 +120,16 @@ def run_retrieval_ladder(
     runs (embedder id, chunker params, per-leg top-k, fusion weights, rerank on/off — SPEC
     §12.11) — pulled from `rag.retrieval.pipeline`'s named constants for whichever rung this
     is, not reconstructed here, since only the caller knows which rung it asked for.
+
+    **`pipeline_arm` decouples "which `rag.retrieval.pipeline.RETRIEVAL_ARMS` entry runs"
+    from "what `RunHeader.arm` records" (SPEC §12.8, #38).** For rungs 1-5 the two are the
+    same thing and `pipeline_arm` stays `None` (falling back to `arm`) — unchanged from #35.
+    The two pre-ladder A/Bs need them to differ: both `ab_article_breadcrumb`'s incumbent and
+    challenger runs exercise the *same* fixed hybrid pipeline (`pipeline_arm="rung2"`, the
+    earliest config that actually uses both vector kinds — SPEC §9.3), while `arm` records
+    which collection served the query (`"incumbent"`/`"challenger"`, flipped in by the
+    caller before each run) — a fact `RETRIEVAL_ARMS` has no entry for, since it is a
+    property of which Qdrant collection the stable alias points at, not of the pipeline.
 
     A fresh, explicitly-constructed `Langfuse` client is used rather than the `get_client()`
     singleton — see the module docstring's "forcing tracing on" note — and it, not
@@ -132,6 +143,7 @@ def run_retrieval_ladder(
         tracing_enabled=True,
     )
     dataset = langfuse.get_dataset(dataset_name)
+    resolved_pipeline_arm = pipeline_arm if pipeline_arm is not None else arm
 
     def task(*, item: ExperimentItem, **kwargs: Any) -> RetrievalResult:
         # `dataset.run_experiment()` only ever hands the task a `DatasetItem` (the
@@ -139,7 +151,7 @@ def run_retrieval_ladder(
         # own local-data path, never this dataset-bound one) — asserted, not just cast, so a
         # future SDK change surfaces here rather than as a silent `AttributeError` downstream.
         assert isinstance(item, DatasetItem)
-        return retrieve(client, embed, str(item.input), lookup_keys, arm=arm)
+        return retrieve(client, embed, str(item.input), lookup_keys, arm=resolved_pipeline_arm)
 
     def retrieval_evaluator(
         *, input: Any, output: RetrievalResult, expected_output: Any, metadata: Any, **kwargs: Any
