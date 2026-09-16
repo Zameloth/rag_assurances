@@ -7,6 +7,7 @@ from rag.retrieval.short_circuit import (
     ShortCircuitPath,
     resolve_short_circuit,
     scan_article_reference,
+    scan_article_references,
 )
 
 
@@ -138,3 +139,26 @@ def test_path_2_and_path_3_are_distinguishable_even_though_both_fall_through() -
     membership_failed = resolve_short_circuit("L999-9 ?", {"L113-2"})
     no_reference = resolve_short_circuit("La franchise ?", {"L113-2"})
     assert membership_failed.path is not no_reference.path
+
+
+# --- scan_article_references: SPEC §8.4's `refs(...)`, all matches, normalized -----------
+
+
+def test_scan_article_references_returns_every_match_normalized() -> None:
+    text = "Ça concerne L113-2 ou plutôt L. 113-15-2, je ne sais plus."
+    assert scan_article_references(text) == {"L113-2", "L113-15-2"}
+
+
+def test_scan_article_references_deduplicates_repeated_mentions() -> None:
+    text = "L113-2, encore L113-2, toujours L113-2."
+    assert scan_article_references(text) == {"L113-2"}
+
+
+def test_scan_article_references_is_empty_when_nothing_matches() -> None:
+    assert scan_article_references("Quelle est la franchise pour un dégât des eaux ?") == frozenset()
+
+
+def test_scan_article_references_normalizes_the_dot_spaced_spelling_to_match_search() -> None:
+    """The same normalizer as the field validator: `L. 113-2` and `L113-2` must compare
+    equal for SPEC §8.4's set-containment check to mean anything."""
+    assert scan_article_references("Voir L. 113-2.") == {normalize_lookup_key("L113-2")}

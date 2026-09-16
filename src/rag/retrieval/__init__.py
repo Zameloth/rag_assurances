@@ -1,6 +1,10 @@
-"""Question → candidates: condenser · short-circuit · legs · expansion · fusion · rerank · quota (SPEC §8–§9).
+"""Question → candidates: short-circuit · legs · expansion · fusion · rerank · quota (SPEC §8–§9).
 
-`short_circuit.py` (#27) decides whether the condenser (§8, still to come) runs at all.
+`short_circuit.py` (#27) decides whether `rag.condensation` (§8, #43) runs at all, and
+exposes the article-reference scanner that package's sanitizer reuses for reference
+monotonicity (SPEC §8.4) — the condenser itself lives one package over, not here, since it
+is the one LangChain call in this whole path and this package stays plain `qdrant-client`/
+dataclasses (see `rag.condensation`'s own docstring for why).
 `candidates.py`, `legs.py`, `lookup.py` and `pipeline.py` (#28) are the rung-1 arm; `fusion.py`
 (#29) adds rung 2's per-leg-weighted dense+sparse fusion on top of the same seam, and
 `expansion.py` (#30) adds rung 3's `<dc:source>` expansion — the headline experiment — as a
