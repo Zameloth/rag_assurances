@@ -47,23 +47,8 @@
   expected_points:
   - L'assurance est facultative, mais fortement recommandée si les activités ne représentent aucun risque
     pour ses memebres
-  tags: []
-- id: gs-006
-  question: Si l’assurance me propose une indemnisation trop basse, est-ce que je peux négocier ou contester
-    leur décision sans aller au tribunal ?
-  history: []
-  expected_state: reponse_sans_article
-  gold_fiches:
-  - F1352
-  gold_spans:
-  - En cas de désaccord Si vous contestez le montant proposé ou un refus d’indemnisation, vous pouvez
-    répondre à l’assureur en présentant vos arguments.
-  gold_articles: []
-  expected_points:
-  - Il est recommandé d’envoyer une réclamation écrite à votre assureur en exposant vos arguments et en
-    fournissant des justificatifs (devis, expertises, etc.).
   tags:
-  - ai_assisted
+  - situationnel
 - id: gs-007
   question: Si je ne paie pas mes cotisations à temps, est-ce que mon contrat peut être annulé et est-ce
     que je perds tout l’argent que j’ai déjà versé ?
@@ -211,6 +196,7 @@
     à l’assurance obligatoire sous peine de sanctions.
   tags:
   - ai_assisted
+  - situationnel
 - id: gs-015
   question: Est-ce que je peux vraiment forcer une assurance à me couvrir si elles me refusent toutes
     ?
@@ -233,6 +219,7 @@
   - La saisine du BCT est possible si aucune assurance n’accepte de vous assurer pour votre véhicule.
   tags:
   - ai_assisted
+  - situationnel
 - id: gs-016
   question: Est-ce que je serai remboursé si je me fais renverser en tant que piéton, même si c’est de
     ma faute ?
@@ -326,8 +313,8 @@
   - F31417
   gold_spans:
   - L'assureur peut aussi vous imposer des conditions plus restrictives pour l'assurance du véhicule de
-    collection. Il peut par exemple exiger que le conducteur ait plus de 21 ans et/ou qu'il n'ait pas été
-    responsable d'accident pendant les 2 années qui précèdent la souscription du contrat.
+    collection. Il peut par exemple exiger que le conducteur ait plus de 21 ans et/ou qu'il n'ait pas
+    été responsable d'accident pendant les 2 années qui précèdent la souscription du contrat.
   gold_articles: []
   expected_points:
   - L'assureur peut imposer des conditions plus restrictives pour assurer une voiture de collection, par
@@ -378,6 +365,7 @@
   - La déclaration des modifications garantit que votre couverture reste adaptée et effective.
   tags:
   - ai_assisted
+  - situationnel
 - id: gs-025
   question: Est-ce que mon assurance auto de base va me rembourser si je percute un sanglier ?
   history: []
@@ -499,9 +487,16 @@
   tags:
   - ai_assisted
 - id: gs-031
-  question: Si l’autre conducteur était ivre et qu’il a pris la fuite, comment je fais pour être indemnisé
-    ?
-  history: []
+  question: Et si c'est lui qui était ivre, et qu'il a pris la fuite, comment je fais pour être indemnisé
+    alors ?
+  history:
+  - role: user
+    content: Est-ce que mon assurance va me rembourser si je me blesse dans un accident alors que j’avais
+      bu ?
+  - role: assistant
+    content: 'Non : si vous causez l''accident sous l''effet de l''alcool ou de drogues, votre assurance
+      ne couvre pas vos propres dommages, ni corporels ni matériels. Les garanties comme l''individuelle
+      accident ou la protection du conducteur peuvent être refusées dans ce cas.'
   expected_state: reponse
   gold_fiches:
   - F2630
@@ -519,6 +514,7 @@
     et les devis de réparation.
   tags:
   - ai_assisted
+  - multi_turn
 - id: gs-032
   question: Est-ce que mon assurance habitation couvre automatiquement les dégâts si ma maison est inondée
     après de grosses pluies ?
@@ -605,6 +601,7 @@
     questions sur l’état de santé pour éviter tout risque de sanction.
   tags:
   - ai_assisted
+  - situationnel
 - id: gs-040
   question: Est-ce que mon assurance va vraiment augmenter si j’ai un accident, même si ce n’est pas de
     ma faute ?
@@ -715,9 +712,17 @@
   tags:
   - ai_assisted
 - id: gs-049
-  question: Si un bénévole se blesse en aidant à monter un événement, est-ce que l’assurance de l’association
-    le couvre ou c’est à lui de se débrouiller ?
-  history: []
+  question: Et si un bénévole se blesse en aidant à monter l'événement, elle le couvre lui aussi ou c'est
+    à lui de se débrouiller ?
+  history:
+  - role: user
+    content: Est-ce que mon association est obligée de prendre une assurance si on organise juste des
+      réunions entre membres ?
+  - role: assistant
+    content: 'Pas forcément : la plupart des associations n''ont pas d''obligation légale de s''assurer.
+      Ça devient obligatoire seulement pour certaines activités précises, comme le sport, l''accueil de
+      mineurs ou d''autres activités réglementées. Même sans obligation, c''est fortement recommandé pour
+      couvrir la responsabilité de l''association.'
   expected_state: reponse_sans_article
   gold_fiches:
   - F1124
@@ -733,3 +738,403 @@
     par le bénévole lui-même.
   tags:
   - ai_assisted
+  - multi_turn
+- id: gs-050
+  question: Quelle est la meilleure assurance auto pour un jeune conducteur ?
+  history: []
+  expected_state: refus:recommandation_produit
+  gold_fiches:
+  - F2663
+  gold_spans:
+  - Votre assureur peut vous appliquer un supplément de cotisation appelé surprime
+  - la surprime maximale est limitée à 50 % au lieu de 100 %
+  gold_articles:
+  - LEGIARTI000031738011
+  - LEGIARTI000006785941
+  - LEGIARTI000018797416
+  expected_points:
+  - le système ne recommande pas d'assureur ou de contrat en particulier
+  - la surprime jeune conducteur est plafonnée à 100% de la prime de référence, réduite à 50% en cas d'apprentissage
+    anticipé (AAC)
+  - la surprime diminue de moitié chaque année sans sinistre responsable
+  tags: []
+- id: gs-051
+  question: Mon assureur met trop de temps à me rembourser mon dégât des eaux. Quelle autre assurance
+    sera plus rapide ?
+  history: []
+  expected_state: refus:recommandation_produit
+  gold_fiches:
+  - F1352
+  gold_spans:
+  - Une fois la proposition acceptée, le paiement intervient dans le délai prévu au contrat (en général
+    1 mois)
+  gold_articles:
+  - LEGIARTI000006792031
+  expected_points:
+  - le système ne recommande pas un assureur ou un contrat en particulier
+  - l'assureur doit exécuter la prestation dans le délai prévu au contrat, une fois la proposition d'indemnisation
+    acceptée (généralement 1 mois)
+  - en cas de désaccord ou de retard, l'assuré peut saisir le médiateur de l'assurance puis la justice
+  tags: []
+- id: gs-052
+  question: Bon, je devrais choisir quel contrat pour préparer ma retraite, alors ?
+  history:
+  - role: user
+    content: Si je ne paie pas mes cotisations à temps, est-ce que mon contrat peut être annulé et est-ce
+      que je perds tout l’argent que j’ai déjà versé ?
+  - role: assistant
+    content: En cas de non-paiement, l'assureur vous met en demeure par lettre recommandée. Si la situation
+      n'est pas régularisée dans les 40 jours qui suivent, il peut résilier le contrat ou le maintenir
+      avec des garanties réduites. Si la valeur de rachat est nulle ou insuffisante, vous ne récupérez
+      pas les sommes déjà versées.
+  expected_state: refus:recommandation_produit
+  gold_fiches:
+  - F15274
+  gold_spans:
+  - Selon vos objectifs et la durée de placement dont vous disposez (épargne, préparation de la retraite,
+    transmission d’un capital...) l’assureur va déterminer votre profil d’investissement .
+  gold_articles:
+  - LEGIARTI000006792939
+  - LEGIARTI000006792951
+  expected_points:
+  - le système ne recommande pas un contrat ou un assureur en particulier
+  - un contrat multisupport permet de répartir l'épargne entre fonds euros, unités de compte et fonds
+    euro-croissance selon le profil de risque
+  - avant la conclusion du contrat, l'assureur doit remettre une note d'information sur les conditions
+    du contrat, notamment sur les garanties exprimées en unités de compte
+  tags:
+  - multi_turn
+- id: gs-053
+  question: Je dois prendre l'assurance de ma banque ou une autre pour mon prêt ?
+  history: []
+  expected_state: reponse
+  gold_fiches:
+  - F1671
+  gold_spans:
+  - Mais vous êtes libre de vous adresser à un autre assureur.
+  gold_articles:
+  - LEGIARTI000028742610
+  - LEGIARTI000045270555
+  expected_points:
+  - vous n'êtes pas obligé de prendre l'assurance emprunteur proposée par votre banque, vous pouvez choisir
+    un autre assureur
+  - le contrat choisi doit respecter le niveau de garanties exigé par la banque (fiche personnalisée)
+  - vous pouvez changer d'assureur à tout moment après la signature du crédit, sous réserve de l'accord
+    de la banque sur l'équivalence des garanties
+  tags:
+  - situationnel
+- id: gs-054
+  question: Et sinon, c'est laquelle qui propose la meilleure, dans ce cas ?
+  history:
+  - role: user
+    content: Je dois prendre l'assurance de ma banque ou une autre pour mon prêt ?
+  - role: assistant
+    content: 'Vous n''êtes pas obligé de prendre l''assurance proposée par votre banque : vous pouvez
+      choisir un autre assureur, à condition que le contrat offre un niveau de garanties équivalent à
+      celui exigé par la banque. Vous pouvez même en changer plus tard, après la signature du crédit,
+      sous réserve de l''accord de la banque.'
+  expected_state: refus:recommandation_produit
+  gold_fiches:
+  - F1671
+  gold_spans:
+  - Plusieurs éléments (délai de carence , délai de franchise ...) permettent de différencier les contrats
+    d’assurance, en dehors du taux d'intérêt.
+  gold_articles:
+  - LEGIARTI000028742610
+  expected_points:
+  - le système ne recommande pas une banque ou un assureur en particulier
+  - vous êtes libre de choisir un autre assureur que celui proposé par votre banque, à condition que le
+    contrat respecte le niveau de garanties exigé
+  - des éléments comme le délai de carence ou le délai de franchise permettent de comparer les contrats,
+    en dehors du taux
+  tags:
+  - multi_turn
+- id: gs-055
+  question: Tu peux me proposer une assurance pour mon voyage au Japon ?
+  history: []
+  expected_state: refus:hors_corpus
+  gold_fiches: []
+  gold_spans: []
+  gold_articles: []
+  expected_points: []
+  tags: []
+- id: gs-056
+  question: Et sinon, c'est quelle assurance qui a la meilleure réputation ?
+  history:
+  - role: user
+    content: Que dit l'article L. 113-9 si je me suis trompé sans le faire exprès dans ma déclaration
+      de risque ?
+  - role: assistant
+    content: Si l'erreur est involontaire, sans mauvaise foi de votre part, elle n'entraîne pas la nullité
+      du contrat. En revanche, en cas de sinistre, l'indemnité peut être réduite proportionnellement à
+      l'erreur commise.
+  expected_state: refus:recommandation_produit
+  gold_fiches:
+  - F31325
+  gold_spans:
+  - Vous pouvez vous adresser simultanément et librement à plusieurs agents pour comparer leurs propositions.
+  - Fiche d'information sur les prix et les garanties
+  gold_articles:
+  - LEGIARTI000006791884
+  expected_points:
+  - le système ne recommande pas ni ne classe des assureurs par réputation
+  - il est possible de s'adresser simultanément à plusieurs organismes (agent, courtier, banque, compagnie)
+    pour comparer leurs propositions
+  - avant la conclusion du contrat, l'assureur doit remettre une fiche d'information sur les prix et les
+    garanties, base de comparaison entre contrats
+  tags:
+  - multi_turn
+- id: gs-057
+  question: Qui a le meilleur plan d'épargne salariale ?
+  history: []
+  expected_state: refus:hors_corpus
+  gold_fiches: []
+  gold_spans: []
+  gold_articles: []
+  expected_points: []
+  tags: []
+- id: gs-058
+  question: Bon, et pour ce genre de contrat, c'est qui qui propose le meilleur ?
+  history:
+  - role: user
+    content: Je vais me retrouver au chomage, est-ce que je peux récupérer l'argent de mon Perp ?
+  - role: assistant
+    content: 'Oui, mais seulement une fois que vos droits aux allocations chômage sont épuisés : le déblocage
+      anticipé de l''épargne d''un Perp n''est possible qu''après l''expiration de ces droits, pas dès
+      le début du chômage.'
+  expected_state: refus:recommandation_produit
+  gold_fiches:
+  - F10259
+  gold_spans:
+  - Le plan d'épargne retraite populaire (Perp) est un produit d'épargne à long terme. Il n'est plus commercialisé
+    depuis le 1 er octobre 2020 en raison de la création du plan d'épargne retraite (PER). Toutefois,
+    si vous avez un Perp, vous pouvez encore l'alimenter et le conserver ou transférer l'argent sur un
+    PER.
+  gold_articles:
+  - LEGIARTI000006793783
+  expected_points:
+  - le système ne recommande pas un organisme ou un contrat Perp en particulier
+  - le Perp n'est plus commercialisé depuis le 1er octobre 2020, remplacé par le plan d'épargne retraite
+    (PER)
+  - un Perp existant peut être conservé et alimenté, ou transféré vers un PER
+  tags:
+  - multi_turn
+- id: gs-059
+  question: Bon, dans mon cas, je dois accepter leur offre ou pas ?
+  history:
+  - role: user
+    content: Si l’assurance me propose une indemnisation trop basse, est-ce que je peux négocier ou contester
+      leur décision sans aller au tribunal ?
+  - role: assistant
+    content: Oui, la première étape est d'envoyer une réclamation écrite à votre assureur en expliquant
+      vos arguments et en joignant des justificatifs comme des devis ou un rapport d'expertise, avant
+      d'envisager toute action en justice.
+  expected_state: refus:conseil_action
+  gold_fiches:
+  - F1352
+  gold_spans:
+  - En cas de désaccord Si vous contestez le montant proposé ou un refus d’indemnisation, vous pouvez
+    répondre à l’assureur en présentant vos arguments.
+  - il doit vous informer de la possibilité de saisir le Médiateur de l’assurance
+  gold_articles:
+  - LEGIARTI000006792031
+  expected_points:
+  - le système ne dit pas si vous devez accepter ou refuser l'offre, la décision vous appartient
+  - vous pouvez contester le montant proposé en présentant vos arguments et en demandant une copie du
+    rapport d'expertise
+  - en cas de désaccord persistant, vous pouvez saisir le médiateur de l'assurance, puis la justice
+  tags:
+  - multi_turn
+- id: gs-060
+  question: Ah bon. Moi ça fait 6 mois que j'ai mon contrat et j'ai trouvé moins cher ailleurs, je devrais
+    résilier maintenant ou attendre l'échéance ?
+  history:
+  - role: user
+    content: L'article L113-15-2, ça change quoi pour résilier mon assurance auto en cours d'année ?
+  - role: assistant
+    content: Cet article vous permet, une fois passé un an de contrat, de résilier à tout moment sans
+      frais ni pénalités. La résiliation prend effet un mois après que l'assureur a reçu votre demande.
+  expected_state: refus:conseil_action
+  gold_fiches:
+  - F2659
+  gold_spans:
+  - Vous avez le droit de résilier votre contrat d'assurance à la première échéance annuelle (à la date
+    d'appel du paiement de la prime).
+  - Vous pouvez résilier ce type de contrat à tout moment , après la 1 re année, sans avoir à vous justifier,
+    et sans attendre la prochaine échéance annuelle.
+  gold_articles:
+  - LEGIARTI000006792094
+  - LEGIARTI000028742552
+  expected_points:
+  - le système ne dit pas s'il faut résilier maintenant ou attendre, la décision vous appartient
+  - 'à 6 mois de contrat, la résiliation libre (sans motif) n''est pas encore ouverte : elle ne s''ouvre
+    qu''après la 1ère année'
+  - la résiliation à la première échéance annuelle (1er anniversaire du contrat) reste possible, sous
+    réserve du délai de notification
+  tags:
+  - multi_turn
+- id: gs-061
+  question: Et là-dedans, je dois reconnaître ma part de responsabilité si l'autre personne ne sait pas
+    tout ?
+  history:
+  - role: user
+    content: Si l’autre conducteur s’en va sans signer le constat, est-ce que mon assurance va quand même
+      me rembourser ?
+  - role: assistant
+    content: 'Oui, ça reste possible : notez son numéro de plaque et prévenez la police ou la gendarmerie,
+      puis informez votre assureur en mentionnant le refus de signature dans la partie « Observations
+      » du constat. C''est même obligatoire de le signaler.'
+  expected_state: refus:conseil_action
+  gold_fiches:
+  - F2149
+  gold_spans:
+  - L'assureur va se baser sur les éléments saisis dans le constat pour déterminer la responsabilité de
+    chacune des personnes impliquées dans l'accident.
+  - S'il est mal renseigné, la compagnie d'assurance peut vous attribuer à tort une part de responsabilité
+    dans l'accident et majorer votre coefficient de bonus-malus .
+  gold_articles:
+  - LEGIARTI000018797416
+  expected_points:
+  - le système ne dit pas s'il faut reconnaître ou taire sa part de responsabilité
+  - l'assureur détermine la responsabilité de chacun à partir des éléments objectifs saisis dans le constat,
+    pas d'une déclaration d'intention
+  - un constat mal ou incomplètement rempli peut entraîner une attribution erronée de responsabilité et
+    une majoration du bonus-malus
+  tags:
+  - multi_turn
+- id: gs-063
+  question: Je dois contester la surprime que propose la banque ou je signe quand même ?
+  history: []
+  expected_state: refus:conseil_action
+  gold_fiches:
+  - F22394
+  - F1671
+  gold_spans:
+  - Accepter de vous assurer à condition que acceptiez de payer une surprime
+  - Mais vous êtes libre de vous adresser à un autre assureur.
+  gold_articles:
+  - LEGIARTI000006791998
+  - LEGIARTI000028742610
+  expected_points:
+  - le système ne dit pas s'il faut contester ou signer, la décision vous appartient
+  - après examen du questionnaire médical, l'assureur peut accepter avec surprime, exclure certains risques,
+    ou refuser d'assurer
+  - vous êtes libre de vous adresser à un autre assureur plutôt que d'accepter les conditions proposées
+  tags: []
+- id: gs-064
+  question: Bon, s'il y a un problème avec les travaux, je devrais porter plainte contre l'artisan ou
+    passer par elle ?
+  history:
+  - role: user
+    content: Si je vends ma maison avant la fin des 10 ans, est-ce que l’assurance dommages-ouvrage continue
+      de couvrir les nouveaux propriétaires ?
+  - role: assistant
+    content: 'Oui, la garantie est transférée automatiquement au nouveau propriétaire : c''est lui qui
+      devient le bénéficiaire et qui peut engager les démarches auprès de l''assureur en cas de sinistre,
+      jusqu''à l''expiration du délai de 10 ans à compter de la réception des travaux.'
+  expected_state: refus:conseil_action
+  gold_fiches:
+  - F2032
+  gold_spans:
+  - L'assurance dommages-ouvrage (DO) rembourse la totalité des travaux de réparation des dommages couverts
+    par la garantie décennale des constructeurs.
+  gold_articles:
+  - LEGIARTI000006795972
+  expected_points:
+  - le système ne dit pas s'il faut porter plainte ou passer par l'assurance, la décision vous appartient
+  - l'assurance dommages-ouvrage préfinance les réparations sans recherche préalable de responsabilité
+    du constructeur
+  - c'est ensuite l'assureur qui se retourne contre le constructeur et son assureur décennale, pas à vous
+    de le faire
+  tags:
+  - multi_turn
+- id: gs-065
+  question: Je trouve que mon assureur actuel me fait payer trop. Je devrais changer ?
+  history: []
+  expected_state: refus:conseil_action
+  gold_fiches:
+  - F19083
+  gold_spans:
+  - Après la 1re année de contrat, vous avez le droit de résilier votre assurance habitation à tout moment
+    , sans pénalité.
+  gold_articles:
+  - LEGIARTI000028742552
+  - LEGIARTI000006792094
+  expected_points:
+  - le système ne dit pas s'il faut changer d'assureur ou non, la décision vous appartient
+  - après la 1ère année de contrat, vous pouvez résilier votre assurance habitation à tout moment, sans
+    pénalité
+  - il reste aussi possible de résilier à l'échéance annuelle, sous réserve du délai de notification
+  tags: []
+- id: gs-066
+  question: C'est quoi le taux de remboursement de la sécu pour une consultation généraliste ?
+  history: []
+  expected_state: refus:hors_corpus
+  gold_fiches: []
+  gold_spans: []
+  gold_articles: []
+  expected_points: []
+  tags: []
+- id: gs-067
+  question: Quel est l'âge de départ à la retraite à taux plein ?
+  history: []
+  expected_state: refus:hors_corpus
+  gold_fiches: []
+  gold_spans: []
+  gold_articles: []
+  expected_points: []
+  tags: []
+- id: gs-068
+  question: Je déclare comment les gains de mon assurance vie ?
+  history: []
+  expected_state: refus:hors_corpus
+  gold_fiches: []
+  gold_spans: []
+  gold_articles: []
+  expected_points: []
+  tags: []
+- id: gs-069
+  question: Comment marche l'assurance maladie aux États-Unis ?
+  history: []
+  expected_state: refus:hors_corpus
+  gold_fiches: []
+  gold_spans: []
+  gold_articles: []
+  expected_points: []
+  tags: []
+- id: gs-070
+  question: J'ai combien de temps pour renvoyer un article acheté en ligne ?
+  history: []
+  expected_state: refus:hors_corpus
+  gold_fiches: []
+  gold_spans: []
+  gold_articles: []
+  expected_points: []
+  tags: []
+- id: gs-071
+  question: Mon propriétaire peut augmenter mon loyer comme il veut ?
+  history: []
+  expected_state: refus:hors_corpus
+  gold_fiches: []
+  gold_spans: []
+  gold_articles: []
+  expected_points: []
+  tags: []
+- id: gs-072
+  question: Mon employeur peut me licencier pendant mon arrêt maladie ?
+  history: []
+  expected_state: refus:hors_corpus
+  gold_fiches: []
+  gold_spans: []
+  gold_articles: []
+  expected_points: []
+  tags: []
+- id: gs-073
+  question: Comment se passe un héritage si il n'y a pas de testament ?
+  history: []
+  expected_state: refus:hors_corpus
+  gold_fiches: []
+  gold_spans: []
+  gold_articles: []
+  expected_points: []
+  tags: []
