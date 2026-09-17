@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from rag.eval.schema import GoldenItem
 from rag.retrieval.candidates import Candidate, Register, merge_candidates
 from rag.retrieval.pipeline import ARTICLE_LEG, EXPANSION_POOL, FICHE_LEG, RetrievalResult
+from rag.retrieval.quota import NO_ARTICLE_MARKER_ID
 
 __all__ = [
     "ARTICLE_DIAGNOSTIC_DEPTH",
@@ -93,12 +94,19 @@ def ranked_ids(candidates: Sequence[Candidate], register: Register) -> list[str]
     """The distinct natural ids (`fiche_id` / `legiarti_cid`) of `register`'s candidates, in
     first-occurrence rank order — recall is measured in documents, not chunks (ADR-0010:
     gold labels are document-level), so a document repeated across several chunks must not
-    inflate a `k`-deep cut."""
+    inflate a `k`-deep cut.
+
+    Skips `rag.retrieval.quota`'s no-article marker (#41): it carries `register is
+    Register.ARTICLE` so the quota's floor-not-met outcome still occupies the article slot
+    shape `RetrievalResult.contexts` expects, but it names no real document — its payload
+    has no `legiarti_cid` to key on, and counting it here would both crash and, if patched
+    over some other way, silently turn "zero articles cleared the floor" into "one article
+    found."""
     field = _NATURAL_ID_FIELD[register]
     seen: set[str] = set()
     ordered: list[str] = []
     for candidate in candidates:
-        if candidate.register is not register:
+        if candidate.register is not register or candidate.id == NO_ARTICLE_MARKER_ID:
             continue
         natural_id = str(candidate.payload[field])
         if natural_id not in seen:
@@ -135,7 +143,14 @@ def _recall_at_candidate(
 
 
 def _zero_articles(contexts: Sequence[Candidate]) -> bool:
-    return not any(candidate.register is Register.ARTICLE for candidate in contexts)
+    """True iff no *real* article is present — the no-article marker (#41, rung 5's own
+    floor-not-met outcome) is itself `register is Register.ARTICLE`, so it has to be
+    excluded explicitly here or this would read "zero articles" as false on the exact rung
+    whose primary metric (SPEC §12.7's zero-article rate) this function exists to feed."""
+    return not any(
+        candidate.register is Register.ARTICLE and candidate.id != NO_ARTICLE_MARKER_ID
+        for candidate in contexts
+    )
 
 
 def _floor_correct(contexts: Sequence[Candidate], expected_state: str) -> bool | None:
