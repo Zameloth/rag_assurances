@@ -166,7 +166,11 @@ def _load_onnx_int8(model_id: str) -> _ScoringModel:
     model = ORTModelForSequenceClassification.from_pretrained(
         quantized_dir, file_name=_ONNX_QUANTIZED_FILE
     )
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    # #41 — `transformers`' own `AutoTokenizer.from_pretrained` is itself untyped (unlike
+    # FlagEmbedding/optimum, `transformers.*` isn't blanket-silenced above since the rest of
+    # this module never imports it), so this one call needs its own ignore rather than a
+    # module-wide override that would hide a real typing gap anywhere else it might appear.
+    tokenizer = AutoTokenizer.from_pretrained(model_id)  # type: ignore[no-untyped-call]
     return _OnnxScoringModel(model=model, tokenizer=tokenizer)
 
 

@@ -267,6 +267,27 @@ class TestZeroArticlesAndFloor:
         r = result([article_candidate("CID1")])
         assert score_item(item, r).floor_correct is None
 
+    def test_no_article_marker_scores_as_zero_articles_without_crashing(self) -> None:
+        """`rag.retrieval.quota.assemble_quota`'s own floor-not-met outcome (#41 rung 5) is
+        a synthetic `register is Register.ARTICLE` candidate with no `legiarti_cid` in its
+        payload — a live rung-5 run crashed on exactly this (`KeyError: 'legiarti_cid'`
+        from `ranked_ids`'s naive payload lookup) before `ranked_ids`/`_zero_articles`
+        learned to skip it. Built through the real `assemble_quota`, not a hand-rolled
+        marker, so this exercises the actual integration rather than a synthetic stand-in."""
+        from rag.retrieval.quota import ARTICLE_RELEVANCE_FLOOR, assemble_quota
+
+        below_floor = article_candidate("CID9", score=ARTICLE_RELEVANCE_FLOOR - 0.1)
+        quota_result = assemble_quota([fiche_candidate("F1"), below_floor])
+        assert quota_result.floor_met is False
+
+        r = result(quota_result.contexts)
+        scores = score_item(golden_item(gold_fiches=("F1",), gold_articles=("CID1",)), r)
+        assert scores.zero_articles is True
+        assert scores.article_recall_at_4 == 0.0
+
+        floor_item = golden_item(expected_state="reponse_sans_article", gold_fiches=("F1",))
+        assert score_item(floor_item, r).floor_correct is True
+
 
 # --- score_item: span containment@4 ------------------------------------------
 

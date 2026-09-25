@@ -1,0 +1,136 @@
+{
+  "incumbent_run_id": "rung4-20260917T132523Z",
+  "challenger_run_id": "rung5-20260917T154321Z",
+  "primary_metric": "zero_articles",
+  "metrics": {
+    "fiche_recall_at_4": {
+      "n_paired": 40,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": true
+    },
+    "fiche_recall_at_10": {
+      "n_paired": 40,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": false
+    },
+    "fiche_recall_at_candidate": {
+      "n_paired": 36,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": false
+    },
+    "article_recall_at_4": {
+      "n_paired": 33,
+      "improved": 0,
+      "regressed": 3,
+      "net_discordant": -3,
+      "sign_test_p": 0.25,
+      "improved_items": [],
+      "regressed_items": [
+        "gs-026",
+        "gs-023",
+        "gs-016"
+      ],
+      "is_decision_metric": true
+    },
+    "article_recall_at_10": {
+      "n_paired": 33,
+      "improved": 0,
+      "regressed": 3,
+      "net_discordant": -3,
+      "sign_test_p": 0.25,
+      "improved_items": [],
+      "regressed_items": [
+        "gs-026",
+        "gs-023",
+        "gs-016"
+      ],
+      "is_decision_metric": false
+    },
+    "article_recall_at_candidate": {
+      "n_paired": 29,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": false
+    },
+    "zero_articles": {
+      "n_paired": 33,
+      "improved": 1,
+      "regressed": 14,
+      "net_discordant": -13,
+      "sign_test_p": 0.0009765625,
+      "improved_items": [
+        "gs-009"
+      ],
+      "regressed_items": [
+        "gs-065",
+        "gs-063",
+        "gs-040",
+        "gs-038",
+        "gs-027",
+        "gs-026",
+        "gs-023",
+        "gs-020",
+        "gs-019",
+        "gs-016",
+        "gs-015",
+        "gs-013",
+        "gs-007",
+        "gs-005"
+      ],
+      "is_decision_metric": true
+    },
+    "floor_correct": {
+      "n_paired": 7,
+      "improved": 4,
+      "regressed": 0,
+      "net_discordant": 4,
+      "sign_test_p": 0.125,
+      "improved_items": [
+        "gs-025",
+        "gs-021",
+        "gs-012",
+        "gs-004"
+      ],
+      "regressed_items": [],
+      "is_decision_metric": true
+    },
+    "span_containment_at_4": {
+      "n_paired": 35,
+      "improved": 0,
+      "regressed": 0,
+      "net_discordant": 0,
+      "sign_test_p": 1.0,
+      "improved_items": [],
+      "regressed_items": [],
+      "is_decision_metric": false
+    }
+  },
+  "verdict": {
+    "primary_metric": "zero_articles",
+    "net_discordant_primary": -13,
+    "threshold_met": false,
+    "guard_violations": [
+      "article_recall_at_4"
+    ],
+    "adopt": false
+  }
+}

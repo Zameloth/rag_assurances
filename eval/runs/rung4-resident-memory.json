@@ -1,0 +1,10 @@
+{
+  "measured_at": "2026-09-16T18:40:31.919026+00:00",
+  "rss_mb": 3581.03515625,
+  "models": [
+    "BAAI/bge-m3",
+    "BAAI/bge-reranker-v2-m3"
+  ],
+  "code_git_sha": "085bfdc3ef7b74e867769e067a55e6017d1ab01d",
+  "note": "peak RSS (ru_maxrss) after one query-sized (batch-of-1) embed call through rag.ingest.embedder.embed_batch and one query-sized rerank call through rag.retrieval.rerank.rerank (fp32 backend, SPEC §9.4's default rung-4 arm), i.e. with BGE-M3 and bge-reranker-v2-m3 both resident and warmed the way a query-serving process would be — SPEC §14.4/§17.2's missing measured number for the ~4.5 GB prod budget rule"
+}
