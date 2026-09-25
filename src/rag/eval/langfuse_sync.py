@@ -1,10 +1,13 @@
-"""One-directional sync: `eval/golden/golden-set.yaml` -> the `rag-assurances-retrieval`
-Langfuse dataset (SPEC §12.5, #35).
+"""One-directional sync: `eval/golden/golden-set.yaml` -> two Langfuse datasets,
+`rag-assurances-retrieval` (SPEC §12.5, #35) and `rag-assurances-generation` (SPEC §12.5,
+§12.9, #46), by the same id-keyed script.
 
-**`retrieval_dataset_items` is plain data-shaping** — no Langfuse import, no network call —
-so it is implemented and tested here like the rest of the harness. **`sync_retrieval_dataset`
-was paired with @Zameloth**, per the #35 issue comment and the precedent #28/#31 already set
-(`rag.retrieval.langchain_retriever`'s `_traced`).
+**Everything in this module is plain data-shaping** — no Langfuse import, no network call —
+so it is implemented and tested here like the rest of the harness. `sync_retrieval_dataset`
+was originally paired with @Zameloth (#35 issue comment, the precedent #28/#31 already set for
+`rag.retrieval.langchain_retriever`'s `_traced`); `sync_generation_dataset` below reuses the
+same two SDK findings that pairing settled (next paragraph) rather than re-deriving them, per
+#46's own issue comment choosing agent-authored over paired for this ticket.
 
 Two calls into the SDK source (langfuse==4.15.1) settled what the docs don't say: `get_dataset`
 re-raises `langfuse.api.NotFoundError` on an unknown name (so get-or-create is a plain
@@ -14,6 +17,16 @@ docstring — no fetch-then-update path needed. A removed golden-set item is lef
 deliberate orphan (`rag.eval.ids`'s ids are never reused, so it can never collide with a
 future item) rather than archived — the simpler of the two options and a deliberate call,
 not a placeholder.
+
+**The generation dataset carries the full 60 items, not the working set** — SPEC §12.5's
+"two datasets, two regimes": the ladder runs the `history == []` retrieval-bearing subset
+only, but generation eval scores every terminal state (refusals and `hors_corpus` included)
+and both single- and multi-turn items, since the ten `multi_turn` items are the only ones
+that measure the condenser at all (SPEC §12.1). `history` travels in `metadata` rather than
+`input` — `rag.eval.run_generation_experiment`'s task needs it to run condensation before
+retrieval, and `dataset.run_experiment()` only ever hands a task/evaluator the four fields
+`retrieval_dataset_items` already established the shape for (`input`, `output`,
+`expected_output`, `metadata`).
 """
 
 from __future__ import annotations
@@ -30,15 +43,21 @@ from rag.eval.retrieval_metrics import working_set
 from rag.eval.schema import GoldenItem, load_golden_set
 
 __all__ = [
+    "GENERATION_DATASET_NAME",
     "RETRIEVAL_DATASET_NAME",
+    "GenerationDatasetItem",
     "RetrievalDatasetItem",
     "dataset_item_id",
+    "generation_dataset_items",
+    "reconstruct_generation_item",
     "reconstruct_golden_item",
     "retrieval_dataset_items",
+    "sync_generation_dataset",
     "sync_retrieval_dataset",
 ]
 
 RETRIEVAL_DATASET_NAME = "rag-assurances-retrieval"
+GENERATION_DATASET_NAME = "rag-assurances-generation"
 
 
 def dataset_item_id(golden_id: str) -> str:
@@ -138,6 +157,98 @@ def sync_retrieval_dataset(golden_set_path: Path, *, dataset_name: str = RETRIEV
         langfuse.create_dataset(name=dataset_name)
 
     for item in retrieval_dataset_items(load_golden_set(golden_set_path)):
+        langfuse.create_dataset_item(
+            dataset_name=dataset_name,
+            id=item.id,
+            input=item.input,
+            expected_output=item.expected_output,
+            metadata=item.metadata,
+        )
+
+
+@dataclass(frozen=True)
+class GenerationDatasetItem:
+    """One Langfuse dataset item's worth of content for the generation regime — same
+    `input`/`expected_output`/`metadata` shape as `RetrievalDatasetItem`, a distinct type
+    only because the two carry different fields (SPEC §12.5's "two regimes")."""
+
+    id: str
+    input: str
+    expected_output: dict[str, Any]
+    metadata: dict[str, Any]
+
+
+def generation_dataset_items(golden_set: Sequence[GoldenItem]) -> list[GenerationDatasetItem]:
+    """Project the full 60-item golden set into generation dataset-item shape — no
+    `working_set` filter, unlike `retrieval_dataset_items`: generation eval scores every
+    terminal state (refusals and `hors_corpus` included, SPEC §12.4's "the two empty cells
+    mean opposite things") and both single- and multi-turn items (SPEC §12.1, §12.5).
+
+    `input` is the bare current-turn question, same as retrieval's — `history` cannot live
+    there too without conflating "the text to condense/generate from" with "prior turns",
+    so it travels in `metadata` instead, alongside `golden_id`/`tags`. `expected_output`
+    carries exactly what `rag.eval.generation_metrics.score_item` reads off a `GoldenItem`
+    for the three deterministic metrics (#46): `expected_state` and `gold_articles`. Not
+    `gold_fiches`/`gold_spans` (retrieval-regime fields with no deterministic-generation
+    reader) and not `expected_points` (SPEC §12.9's two *judged* metrics, a later ticket's
+    concern — added here if and when that evaluator needs it, not speculatively now).
+    """
+    return [
+        GenerationDatasetItem(
+            id=dataset_item_id(item.id),
+            input=item.question,
+            expected_output={
+                "expected_state": item.expected_state,
+                "gold_articles": list(item.gold_articles),
+            },
+            metadata={
+                "golden_id": item.id,
+                "tags": list(item.tags),
+                "history": [dict(turn) for turn in item.history],
+            },
+        )
+        for item in golden_set
+    ]
+
+
+def reconstruct_generation_item(
+    *, golden_id: str, question: str, expected_output: Mapping[str, Any], metadata: Mapping[str, Any]
+) -> GoldenItem:
+    """The inverse of `generation_dataset_items`'s projection — `rag.eval.run_generation_experiment`'s
+    task/evaluators need this the same way `reconstruct_golden_item` serves the retrieval
+    harness: `dataset.run_experiment()` hands them a Langfuse `DatasetItem`, not a
+    `GoldenItem`, and both `rag.condensation.pipeline.condense` (via `history`) and
+    `rag.eval.generation_metrics.score_item` (via `expected_state`/`gold_articles`) need one.
+
+    Only reconstructs what those two callers read. `gold_fiches`/`gold_spans` are always
+    `()` — `generation_dataset_items` never carries them (they are the retrieval regime's own
+    fields) — and `expected_points`/`tags` are always `()`, same reasoning
+    `reconstruct_golden_item` already gives for its own unreconstructed fields.
+    """
+    return GoldenItem(
+        id=golden_id,
+        question=question,
+        history=tuple(dict(turn) for turn in metadata.get("history", [])),
+        expected_state=str(expected_output["expected_state"]),
+        gold_fiches=(),
+        gold_spans=(),
+        gold_articles=tuple(expected_output["gold_articles"]),
+        expected_points=(),
+        tags=(),
+    )
+
+
+def sync_generation_dataset(golden_set_path: Path, *, dataset_name: str = GENERATION_DATASET_NAME) -> None:
+    """Push `generation_dataset_items(load_golden_set(golden_set_path))` into Langfuse,
+    one-directionally — same get-or-create-then-upsert shape as `sync_retrieval_dataset`,
+    over the full golden set rather than the working set (SPEC §12.5)."""
+    langfuse = get_client()
+    try:
+        langfuse.get_dataset(dataset_name)
+    except NotFoundError:
+        langfuse.create_dataset(name=dataset_name)
+
+    for item in generation_dataset_items(load_golden_set(golden_set_path)):
         langfuse.create_dataset_item(
             dataset_name=dataset_name,
             id=item.id,

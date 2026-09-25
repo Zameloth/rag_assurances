@@ -36,9 +36,23 @@ __all__ = [
 class RunHeader:
     """SPEC §12.11: "the run header pins everything that could move a score." `judge_model`
     and `judge_provider` default empty — a pure retrieval run has no judge in the loop at
-    all (ADR-0011: "the ladder is fully deterministic and API-free"); they exist on this
-    header only so the generation-eval harness (#46) can reuse the same shape rather than
-    inventing a second one for a single pair of fields."""
+    all (ADR-0011: "the ladder is fully deterministic and API-free"); they stay empty on
+    #46's generation runs too, since the three deterministic metrics need no judge — they
+    are reserved for the point-coverage/faithfulness evaluators a later ticket adds.
+
+    `generation_model`/`generation_provider` are the #46 counterpart for the generation arm
+    itself: "the generation model is an ablatable arm" (SPEC §10.1) is exactly the fact a
+    retrieval run has nothing to pin (it never calls a generation model), so those two
+    default empty there and are filled by `rag.eval.run_generation_experiment`.
+
+    `generation_provider` pins the *requested* `provider.order[0]` (SPEC §10.1's pinned
+    routing), not a value read back from the response — see
+    `rag.eval.run_generation_experiment.run_generation_eval`'s own docstring for why: the
+    installed `langchain_openai` never surfaces OpenRouter's own `provider` response field
+    through `with_structured_output()`, so an independently-resolved value isn't available
+    to pin here yet. `allow_fallbacks: false` is what makes the requested value trustworthy
+    for a *successful* call — OpenRouter has nowhere else to have routed it.
+    """
 
     run_id: str
     rung: str
@@ -51,6 +65,8 @@ class RunHeader:
     langfuse_run_name: str
     judge_model: str = ""
     judge_provider: str = ""
+    generation_model: str = ""
+    generation_provider: str = ""
 
 
 @dataclass(frozen=True)

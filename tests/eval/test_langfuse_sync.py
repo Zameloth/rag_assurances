@@ -17,8 +17,11 @@ from langfuse.api import NotFoundError
 
 import rag.eval.langfuse_sync as langfuse_sync
 from rag.eval.langfuse_sync import (
+    GENERATION_DATASET_NAME,
     RETRIEVAL_DATASET_NAME,
     dataset_item_id,
+    generation_dataset_items,
+    reconstruct_generation_item,
     reconstruct_golden_item,
     retrieval_dataset_items,
 )
@@ -34,6 +37,7 @@ def golden_item(
     gold_fiches: tuple[str, ...] = (),
     gold_spans: tuple[str, ...] = (),
     gold_articles: tuple[str, ...] = (),
+    expected_points: tuple[str, ...] = (),
     tags: tuple[str, ...] = (),
 ) -> GoldenItem:
     return GoldenItem(
@@ -44,7 +48,7 @@ def golden_item(
         gold_fiches=gold_fiches,
         gold_spans=gold_spans,
         gold_articles=gold_articles,
-        expected_points=(),
+        expected_points=expected_points,
         tags=tags,
     )
 
@@ -255,6 +259,173 @@ class TestSyncRetrievalDataset:
         dump_golden_set([golden_item("gs-001", gold_fiches=("F1",))], golden_set_path)
 
         langfuse_sync.sync_retrieval_dataset(golden_set_path, dataset_name="some-other-dataset")
+
+        assert fake.get_dataset_calls == ["some-other-dataset"]
+        assert fake.create_dataset_item_calls[0]["dataset_name"] == "some-other-dataset"
+
+
+class TestGenerationDatasetItems:
+    def test_projects_every_item_no_working_set_filter(self) -> None:
+        """Unlike `retrieval_dataset_items`, the generation projection keeps
+        `hors_corpus`-shaped and multi-turn items — SPEC §12.5: generation eval scores
+        every terminal state and both single- and multi-turn questions."""
+        items = [
+            golden_item("gs-001", gold_fiches=("F1",)),
+            golden_item("gs-002", expected_state="refus:hors_corpus"),  # empty gold contexts
+            golden_item(
+                "gs-003", history=({"role": "user", "content": "hi"}, {"role": "assistant", "content": "there"})
+            ),
+        ]
+        projected = generation_dataset_items(items)
+        assert [d.id for d in projected] == [dataset_item_id(i) for i in ("gs-001", "gs-002", "gs-003")]
+
+    def test_input_is_the_bare_current_turn_question(self) -> None:
+        items = [golden_item("gs-031", question="et si c'était lui l'ivre ?")]
+        [item] = generation_dataset_items(items)
+        assert item.input == "et si c'était lui l'ivre ?"
+
+    def test_expected_output_carries_only_what_the_three_deterministic_metrics_read(self) -> None:
+        items = [
+            golden_item(
+                "gs-001",
+                expected_state="reponse",
+                gold_fiches=("F1",),
+                gold_articles=("CID1",),
+                gold_spans=("un extrait",),
+                expected_points=("un point",),
+            )
+        ]
+        [item] = generation_dataset_items(items)
+        assert item.expected_output == {"expected_state": "reponse", "gold_articles": ["CID1"]}
+
+    def test_metadata_carries_golden_id_tags_and_history(self) -> None:
+        items = [
+            golden_item(
+                "gs-031",
+                history=({"role": "user", "content": "il était ivre"}, {"role": "assistant", "content": "non couvert"}),
+                tags=("multi_turn",),
+            )
+        ]
+        [item] = generation_dataset_items(items)
+        assert item.metadata == {
+            "golden_id": "gs-031",
+            "tags": ["multi_turn"],
+            "history": [
+                {"role": "user", "content": "il était ivre"},
+                {"role": "assistant", "content": "non couvert"},
+            ],
+        }
+
+    def test_id_is_the_deterministic_dataset_item_id(self) -> None:
+        items = [golden_item("gs-014")]
+        [item] = generation_dataset_items(items)
+        assert item.id == dataset_item_id("gs-014")
+
+
+class TestReconstructGenerationItem:
+    def test_round_trips_every_field_score_item_and_condense_need(self) -> None:
+        original = golden_item(
+            "gs-031",
+            expected_state="reponse",
+            gold_articles=("CID1",),
+            history=({"role": "user", "content": "il était ivre"},),
+        )
+        [projected] = generation_dataset_items([original])
+
+        reconstructed = reconstruct_generation_item(
+            golden_id=projected.id,
+            question=projected.input,
+            expected_output=projected.expected_output,
+            metadata=projected.metadata,
+        )
+
+        assert reconstructed.id == original.id
+        assert reconstructed.question == original.question
+        assert reconstructed.expected_state == original.expected_state
+        assert reconstructed.gold_articles == original.gold_articles
+        assert reconstructed.history == original.history
+
+    def test_never_reconstructs_gold_fiches_gold_spans_expected_points_or_tags(self) -> None:
+        reconstructed = reconstruct_generation_item(
+            golden_id="gs-001",
+            question="une question",
+            expected_output={"expected_state": "reponse", "gold_articles": []},
+            metadata={"golden_id": "gs-001", "tags": ["situationnel"], "history": []},
+        )
+
+        assert reconstructed.gold_fiches == ()
+        assert reconstructed.gold_spans == ()
+        assert reconstructed.expected_points == ()
+        assert reconstructed.tags == ()
+
+    def test_defaults_history_to_empty_when_metadata_omits_it(self) -> None:
+        reconstructed = reconstruct_generation_item(
+            golden_id="gs-001",
+            question="une question",
+            expected_output={"expected_state": "reponse", "gold_articles": []},
+            metadata={"golden_id": "gs-001", "tags": []},
+        )
+
+        assert reconstructed.history == ()
+
+
+class TestSyncGenerationDataset:
+    def test_creates_the_dataset_when_it_does_not_exist_yet(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake = _FakeLangfuseClient(dataset_exists=False)
+        monkeypatch.setattr(langfuse_sync, "get_client", lambda: fake)
+        golden_set_path = tmp_path / "golden-set.yaml"
+        dump_golden_set([], golden_set_path)
+
+        langfuse_sync.sync_generation_dataset(golden_set_path)
+
+        assert fake.get_dataset_calls == [GENERATION_DATASET_NAME]
+        assert fake.create_dataset_calls == [GENERATION_DATASET_NAME]
+
+    def test_does_not_recreate_an_existing_dataset(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake = _FakeLangfuseClient(dataset_exists=True)
+        monkeypatch.setattr(langfuse_sync, "get_client", lambda: fake)
+        golden_set_path = tmp_path / "golden-set.yaml"
+        dump_golden_set([], golden_set_path)
+
+        langfuse_sync.sync_generation_dataset(golden_set_path)
+
+        assert fake.create_dataset_calls == []
+
+    def test_pushes_one_create_dataset_item_call_per_item_hors_corpus_and_multi_turn_included(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake = _FakeLangfuseClient(dataset_exists=True)
+        monkeypatch.setattr(langfuse_sync, "get_client", lambda: fake)
+        golden_set_path = tmp_path / "golden-set.yaml"
+        dump_golden_set(
+            [
+                golden_item("gs-001", gold_fiches=("F1",)),
+                golden_item("gs-002", expected_state="refus:hors_corpus"),
+                golden_item("gs-003", history=({"role": "user", "content": "hi"},)),
+            ],
+            golden_set_path,
+        )
+
+        langfuse_sync.sync_generation_dataset(golden_set_path)
+
+        assert [call["id"] for call in fake.create_dataset_item_calls] == [
+            dataset_item_id(i) for i in ("gs-001", "gs-002", "gs-003")
+        ]
+        assert all(call["dataset_name"] == GENERATION_DATASET_NAME for call in fake.create_dataset_item_calls)
+
+    def test_pushes_to_a_caller_supplied_dataset_name(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fake = _FakeLangfuseClient(dataset_exists=True)
+        monkeypatch.setattr(langfuse_sync, "get_client", lambda: fake)
+        golden_set_path = tmp_path / "golden-set.yaml"
+        dump_golden_set([golden_item("gs-001")], golden_set_path)
+
+        langfuse_sync.sync_generation_dataset(golden_set_path, dataset_name="some-other-dataset")
 
         assert fake.get_dataset_calls == ["some-other-dataset"]
         assert fake.create_dataset_item_calls[0]["dataset_name"] == "some-other-dataset"
