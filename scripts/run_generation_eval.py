@@ -37,7 +37,7 @@ from rag.condensation.chain import make_condense_fn
 from rag.config import load_settings
 from rag.eval.generation_run import GenerationRun
 from rag.eval.langfuse_sync import sync_generation_dataset
-from rag.eval.run_generation_experiment import run_generation_eval
+from rag.eval.run_generation_experiment import MAX_CONCURRENCY, run_generation_eval
 from rag.generation.chain import make_generate_fn
 from rag.ingest.embedder import MODEL_ID as EMBEDDER_MODEL_ID
 from rag.retrieval.lookup import load_lookup_keys
@@ -93,6 +93,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--no-sync", action="store_true", help="skip syncing the golden set to Langfuse first"
     )
+    parser.add_argument(
+        "--max-concurrency",
+        type=int,
+        default=MAX_CONCURRENCY,
+        help=(
+            f"items to run at once (default {MAX_CONCURRENCY}); `dataset.run_experiment()` "
+            "drops rather than retries an item that hits a transient upstream error (e.g. "
+            "OpenRouter's shared per-model rate limit), so a lower value trades run time for "
+            "a better shot at a clean, complete-item run"
+        ),
+    )
     args = parser.parse_args(argv)
 
     settings = load_settings()  # also loads .env into the process environment
@@ -122,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
             generation_provider=settings.generation_provider,
             retrieval_config=_retrieval_config(settings.condenser_model, settings.condenser_provider),
             retrieval_arm=RETRIEVAL_ARM,
+            max_concurrency=args.max_concurrency,
         )
     finally:
         client.close()

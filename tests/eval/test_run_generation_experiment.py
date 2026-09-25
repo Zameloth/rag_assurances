@@ -290,6 +290,56 @@ class TestRunGenerationEval:
         # Actually persisted, not just returned.
         assert load_generation_run(runs_dir / "generation-test-run.json") == run
 
+    def test_persisted_item_id_is_the_bare_golden_id_not_the_langfuse_dataset_item_id(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        qdrant: QdrantClient,
+        create_collection: CreateCollection,
+        fake_settings: Settings,
+    ) -> None:
+        """#46, confirmed against a live Langfuse project: `generation_dataset_item_id`
+        prefixes the golden id (item ids are unique per project, not per dataset, so this
+        dataset can't reuse the retrieval dataset's bare-id namespace) — `run.items[].item_id`
+        must still come out as the plain `gs-XXX` golden id, read from `metadata["golden_id"]`,
+        not from the prefixed `DatasetItem.id`."""
+        create_collection(qdrant, FICHES_ALIAS)
+        create_collection(qdrant, ARTICLES_ALIAS)
+
+        item = golden_item("gs-042")
+        dataset_item = _fake_dataset_item(item)
+        assert dataset_item.id != "gs-042"  # the Langfuse-specific id really is prefixed
+        dataset = _FakeDataset([dataset_item], updated_at=datetime(2026, 9, 25, tzinfo=UTC))
+
+        monkeypatch.setattr(run_generation_experiment_module, "load_settings", lambda: fake_settings)
+        monkeypatch.setattr(
+            run_generation_experiment_module, "Langfuse", lambda **kwargs: _FakeLangfuseClient(dataset, **kwargs)
+        )
+
+        _init_git_repo(tmp_path)
+        golden_set_path = tmp_path / "golden-set.yaml"
+        dump_golden_set([item], golden_set_path)
+        _commit_all(tmp_path, "add golden set")
+
+        run = run_generation_eval(
+            client=qdrant,
+            embed=stub_embed([1.0, 0.0, 0.0, 0.0]),
+            lookup_keys=set(),
+            condense_fn=_fake_condense_fn("ignored"),
+            generate_fn=_fake_generate_fn(Reponse(explanation="...", fondement_juridique=[])),
+            arm="mistral-large-2512",
+            run_id="generation-test-run",
+            repo_root=tmp_path,
+            golden_set_path=golden_set_path,
+            runs_dir=tmp_path / "runs",
+            generation_model="mistralai/mistral-large-2512",
+            generation_provider="mistral",
+            retrieval_config={},
+        )
+
+        [score] = run.items
+        assert score.item_id == "gs-042"
+
     def test_condenses_before_retrieving_when_history_is_non_empty(
         self,
         tmp_path: Path,

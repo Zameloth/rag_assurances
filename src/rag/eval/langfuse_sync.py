@@ -18,6 +18,13 @@ deliberate orphan (`rag.eval.ids`'s ids are never reused, so it can never collid
 future item) rather than archived — the simpler of the two options and a deliberate call,
 not a placeholder.
 
+**A third finding, from an actual live sync (#46): item ids are unique per Langfuse project,
+not per dataset.** Pushing the generation dataset under bare golden ids (`dataset_item_id`,
+already live in `rag-assurances-retrieval`) failed with `LangfuseConflictError` — "item ids
+are unique per project across datasets". `generation_dataset_item_id` exists because of
+exactly this: a second, disjoint id namespace for the generation dataset, even though the two
+datasets share every golden id as ground truth.
+
 **The generation dataset carries the full 60 items, not the working set** — SPEC §12.5's
 "two datasets, two regimes": the ladder runs the `history == []` retrieval-bearing subset
 only, but generation eval scores every terminal state (refusals and `hors_corpus` included)
@@ -48,6 +55,7 @@ __all__ = [
     "GenerationDatasetItem",
     "RetrievalDatasetItem",
     "dataset_item_id",
+    "generation_dataset_item_id",
     "generation_dataset_items",
     "reconstruct_generation_item",
     "reconstruct_golden_item",
@@ -61,18 +69,36 @@ GENERATION_DATASET_NAME = "rag-assurances-generation"
 
 
 def dataset_item_id(golden_id: str) -> str:
-    """The Langfuse dataset item id for a golden-set item — golden ids are already SPEC
-    §12.1's stable, hand-assigned, never-renumbered natural key, so reusing one verbatim is
-    the simplest deterministic derivation and is what makes this sync idempotent (#35: "an
-    id-keyed sync script"): re-running it against an unchanged item updates the same dataset
-    item instead of minting a duplicate, and every arm's `run_experiment` run joins its
-    `DatasetRunItem` back to the same item regardless of which rung produced it.
+    """The Langfuse dataset item id for a golden-set item in the **retrieval** dataset —
+    golden ids are already SPEC §12.1's stable, hand-assigned, never-renumbered natural key,
+    so reusing one verbatim is the simplest deterministic derivation and is what makes this
+    sync idempotent (#35: "an id-keyed sync script"): re-running it against an unchanged
+    item updates the same dataset item instead of minting a duplicate, and every arm's
+    `run_experiment` run joins its `DatasetRunItem` back to the same item regardless of
+    which rung produced it.
 
-    If the Langfuse SDK's own item-identity rules turn out to need something other than a
-    bare golden id (e.g. a UUID-shaped id), this is the one place to change — everything
-    upstream only ever calls this function, never repeats the derivation.
+    **Confirmed live, #46**: dataset item ids are unique *per Langfuse project*, not per
+    dataset — pushing a bare golden id already used here into `rag-assurances-generation`
+    fails with `LangfuseConflictError` ("item ids are unique per project across datasets").
+    That is exactly why `generation_dataset_item_id` below exists as a second, distinct
+    derivation rather than reusing this one: the two datasets share golden ids as ground
+    truth (SPEC §12.5), but cannot share a Langfuse item-id namespace.
     """
     return golden_id
+
+
+def generation_dataset_item_id(golden_id: str) -> str:
+    """The Langfuse dataset item id for a golden-set item in the **generation** dataset —
+    `dataset_item_id`'s own docstring explains why this can't just be `dataset_item_id`
+    verbatim: the same bare golden id is already live in `rag-assurances-retrieval`, and
+    Langfuse rejects a second dataset item claiming it project-wide. The golden id itself
+    still travels through, in full, as `metadata["golden_id"]` (`generation_dataset_items`)
+    — every reader that needs the *golden-set* id back (`rag.eval.run_generation_experiment`'s
+    task, evaluator and per-item persistence) reads that field, never this Langfuse-specific
+    id, so the prefix below is free to be whatever keeps it unique without disturbing
+    anything downstream.
+    """
+    return f"generation-{golden_id}"
 
 
 @dataclass(frozen=True)
@@ -195,7 +221,7 @@ def generation_dataset_items(golden_set: Sequence[GoldenItem]) -> list[Generatio
     """
     return [
         GenerationDatasetItem(
-            id=dataset_item_id(item.id),
+            id=generation_dataset_item_id(item.id),
             input=item.question,
             expected_output={
                 "expected_state": item.expected_state,

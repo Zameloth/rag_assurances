@@ -20,6 +20,7 @@ from rag.eval.langfuse_sync import (
     GENERATION_DATASET_NAME,
     RETRIEVAL_DATASET_NAME,
     dataset_item_id,
+    generation_dataset_item_id,
     generation_dataset_items,
     reconstruct_generation_item,
     reconstruct_golden_item,
@@ -277,7 +278,7 @@ class TestGenerationDatasetItems:
             ),
         ]
         projected = generation_dataset_items(items)
-        assert [d.id for d in projected] == [dataset_item_id(i) for i in ("gs-001", "gs-002", "gs-003")]
+        assert [d.id for d in projected] == [generation_dataset_item_id(i) for i in ("gs-001", "gs-002", "gs-003")]
 
     def test_input_is_the_bare_current_turn_question(self) -> None:
         items = [golden_item("gs-031", question="et si c'était lui l'ivre ?")]
@@ -316,10 +317,17 @@ class TestGenerationDatasetItems:
             ],
         }
 
-    def test_id_is_the_deterministic_dataset_item_id(self) -> None:
+    def test_id_is_the_deterministic_generation_dataset_item_id(self) -> None:
         items = [golden_item("gs-014")]
         [item] = generation_dataset_items(items)
-        assert item.id == dataset_item_id("gs-014")
+        assert item.id == generation_dataset_item_id("gs-014")
+
+    def test_id_never_collides_with_the_retrieval_dataset_s_id_for_the_same_golden_id(self) -> None:
+        """#46, confirmed against a live Langfuse project: item ids are unique per project,
+        not per dataset — a generation item id equal to its retrieval sibling's would 409."""
+        items = [golden_item("gs-014")]
+        [item] = generation_dataset_items(items)
+        assert item.id != dataset_item_id("gs-014")
 
 
 class TestReconstructGenerationItem:
@@ -332,8 +340,12 @@ class TestReconstructGenerationItem:
         )
         [projected] = generation_dataset_items([original])
 
+        # The caller's real golden id, not `projected.id` — `generation_dataset_item_id`
+        # prefixes that one (#46: item ids are unique per Langfuse project, not per
+        # dataset), so every real caller reads the golden id back from
+        # `metadata["golden_id"]` instead, exactly as `run_generation_experiment.py` does.
         reconstructed = reconstruct_generation_item(
-            golden_id=projected.id,
+            golden_id=str(projected.metadata["golden_id"]),
             question=projected.input,
             expected_output=projected.expected_output,
             metadata=projected.metadata,
@@ -413,7 +425,7 @@ class TestSyncGenerationDataset:
         langfuse_sync.sync_generation_dataset(golden_set_path)
 
         assert [call["id"] for call in fake.create_dataset_item_calls] == [
-            dataset_item_id(i) for i in ("gs-001", "gs-002", "gs-003")
+            generation_dataset_item_id(i) for i in ("gs-001", "gs-002", "gs-003")
         ]
         assert all(call["dataset_name"] == GENERATION_DATASET_NAME for call in fake.create_dataset_item_calls)
 

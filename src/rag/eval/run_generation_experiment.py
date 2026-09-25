@@ -91,8 +91,16 @@ def _history_from_metadata(metadata: Any) -> tuple[CondensationHistoryTurn, ...]
 
 
 def _golden_item_from(item: DatasetItem) -> GoldenItem:
+    # `item.id` is `generation_dataset_item_id`'s Langfuse-specific id, not the golden-set
+    # id (#46, confirmed live: the generation dataset can't reuse the retrieval dataset's
+    # bare-golden-id namespace, since Langfuse enforces item-id uniqueness per project, not
+    # per dataset) — the real golden id travels in `metadata["golden_id"]` instead, the same
+    # field `generation_evaluator` below reads it from.
     return reconstruct_generation_item(
-        golden_id=item.id, question=str(item.input), expected_output=item.expected_output, metadata=item.metadata
+        golden_id=item.metadata["golden_id"],
+        question=str(item.input),
+        expected_output=item.expected_output,
+        metadata=item.metadata,
     )
 
 
