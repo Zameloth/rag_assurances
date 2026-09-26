@@ -67,3 +67,34 @@ class TestWriteGenerationRun:
         run = GenerationRun(header=make_header(), items=())
         write_generation_run(run, runs_dir)
         assert (runs_dir / "generation-2026-09-25.json").exists()
+
+
+class TestJudgedFields:
+    """#47 — the two judged metrics and the judge's pinned configuration."""
+
+    def test_judged_scores_round_trip(self, tmp_path: Path) -> None:
+        from dataclasses import replace
+
+        item = replace(make_item(), faithfulness=0.75, point_coverage=None)
+        header = make_header(
+            judge_model="anthropic/claude-sonnet-5",
+            judge_provider="Anthropic",
+            judge_prompt_languages={"faithfulness": "en", "point_coverage": "fr"},
+        )
+        run = GenerationRun(header=header, items=(item,))
+
+        assert load_generation_run(write_generation_run(run, tmp_path)) == run
+
+    def test_a_run_written_before_the_judge_existed_still_loads(self, tmp_path: Path) -> None:
+        """`eval/runs/generation-*.json` from #46 carries neither judged field."""
+        run = GenerationRun(header=make_header(), items=(make_item(),))
+        path = write_generation_run(run, tmp_path)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        for item in payload["items"]:
+            del item["faithfulness"], item["point_coverage"]
+        del payload["header"]["judge_prompt_languages"]
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        [reloaded] = load_generation_run(path).items
+        assert reloaded.faithfulness is None
+        assert reloaded.point_coverage is None

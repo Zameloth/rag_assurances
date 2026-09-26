@@ -82,9 +82,15 @@ def citation_correctness(cited_cids: frozenset[str], gold_articles: frozenset[st
 
 @dataclass(frozen=True)
 class ItemGenerationScore:
-    """One golden-set item's row of SPEC §12.9's deterministic third of the table, plus the
-    golden id and the actual state reached — everything `eval/runs/<run-id>.json` needs per
-    item for the generation regime (SPEC §12.11)."""
+    """One golden-set item's row of SPEC §12.9's table, plus the golden id and the actual
+    state reached — everything `eval/runs/<run-id>.json` needs per item for the generation
+    regime (SPEC §12.11).
+
+    `score_item` fills the three deterministic metrics; `faithfulness`/`point_coverage` are
+    the judged two (#47), filled by `rag.eval.run_generation_experiment` from the judge's
+    evaluations and `None` when no judge ran — or, for `point_coverage`, when the item has
+    no `expected_points` to cover (`hors_corpus`, SPEC §12.9).
+    """
 
     item_id: str
     expected_state: str
@@ -93,6 +99,8 @@ class ItemGenerationScore:
     citation_valid: bool
     fabricated_ids: tuple[str, ...]
     citation_correctness: float | None
+    faithfulness: float | None = None
+    point_coverage: float | None = None
 
 
 def score_item(item: GoldenItem, result: GenerationResult) -> ItemGenerationScore:

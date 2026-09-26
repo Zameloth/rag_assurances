@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -36,9 +36,12 @@ __all__ = [
 class RunHeader:
     """SPEC §12.11: "the run header pins everything that could move a score." `judge_model`
     and `judge_provider` default empty — a pure retrieval run has no judge in the loop at
-    all (ADR-0011: "the ladder is fully deterministic and API-free"); they stay empty on
-    #46's generation runs too, since the three deterministic metrics need no judge — they
-    are reserved for the point-coverage/faithfulness evaluators a later ticket adds.
+    all (ADR-0011: "the ladder is fully deterministic and API-free"), and neither does a
+    generation run made without one (#46's). #47's judged runs fill them, `judge_provider`
+    with the provider OpenRouter *resolved* — read off each judge response
+    (`rag.eval.judge_chain`), not the one requested — plus `judge_prompt_languages`, the
+    per-metric prompt language (SPEC §12.10's FR/EN question), since the same judge model
+    behind a different prompt is a different instrument.
 
     `generation_model`/`generation_provider` are the #46 counterpart for the generation arm
     itself: "the generation model is an ablatable arm" (SPEC §10.1) is exactly the fact a
@@ -67,6 +70,7 @@ class RunHeader:
     judge_provider: str = ""
     generation_model: str = ""
     generation_provider: str = ""
+    judge_prompt_languages: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
