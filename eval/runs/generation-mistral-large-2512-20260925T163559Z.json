@@ -1,0 +1,609 @@
+{
+  "header": {
+    "run_id": "generation-mistral-large-2512-20260925T163559Z",
+    "rung": "generation",
+    "arm": "mistralai/mistral-large-2512",
+    "golden_set_git_sha": "6c03aa7ed75d1b35ad93a0df13e02382e6c48e14",
+    "langfuse_dataset_version": "2026-09-25T16:17:06.717000+00:00",
+    "retrieval_config": {
+      "retrieval_arm": "rung1",
+      "embedder": "BAAI/bge-m3",
+      "leg_candidate_limit": 20,
+      "top_k": 8,
+      "condenser_model": "mistralai/mistral-small-3.2-24b-instruct",
+      "condenser_provider": "mistral/eu"
+    },
+    "code_git_sha": "2bd6e8206a3844975850740b775951edf8bc368f",
+    "timestamp": "2026-09-25T16:43:28.002278+00:00",
+    "langfuse_run_name": "generation-mistral-large-2512-20260925T163559Z",
+    "judge_model": "",
+    "judge_provider": "",
+    "generation_model": "mistralai/mistral-large-2512",
+    "generation_provider": "mistral/eu"
+  },
+  "items": [
+    {
+      "item_id": "gs-073",
+      "expected_state": "refus:hors_corpus",
+      "actual_state": "refus:hors_corpus",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-072",
+      "expected_state": "refus:hors_corpus",
+      "actual_state": "refus:hors_corpus",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-071",
+      "expected_state": "refus:hors_corpus",
+      "actual_state": "reponse_sans_article",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-070",
+      "expected_state": "refus:hors_corpus",
+      "actual_state": "refus:hors_corpus",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-069",
+      "expected_state": "refus:hors_corpus",
+      "actual_state": "refus:hors_corpus",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-068",
+      "expected_state": "refus:hors_corpus",
+      "actual_state": "reponse",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-067",
+      "expected_state": "refus:hors_corpus",
+      "actual_state": "reponse_sans_article",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-066",
+      "expected_state": "refus:hors_corpus",
+      "actual_state": "reponse_sans_article",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-065",
+      "expected_state": "refus:conseil_action",
+      "actual_state": "refus:conseil_action",
+      "state_correct": true,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L113-15-2",
+        "L113-4"
+      ],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-064",
+      "expected_state": "refus:conseil_action",
+      "actual_state": "reponse",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 1.0
+    },
+    {
+      "item_id": "gs-063",
+      "expected_state": "refus:conseil_action",
+      "actual_state": "refus:conseil_action",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-061",
+      "expected_state": "refus:conseil_action",
+      "actual_state": "reponse",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-060",
+      "expected_state": "refus:conseil_action",
+      "actual_state": "refus:conseil_action",
+      "state_correct": true,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L113-15-2"
+      ],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-059",
+      "expected_state": "refus:conseil_action",
+      "actual_state": "reponse",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-058",
+      "expected_state": "refus:recommandation_produit",
+      "actual_state": "refus:recommandation_produit",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-057",
+      "expected_state": "refus:hors_corpus",
+      "actual_state": "refus:conseil_action",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-056",
+      "expected_state": "refus:recommandation_produit",
+      "actual_state": "refus:recommandation_produit",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-055",
+      "expected_state": "refus:hors_corpus",
+      "actual_state": "refus:recommandation_produit",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-054",
+      "expected_state": "refus:recommandation_produit",
+      "actual_state": "refus:conseil_action",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-053",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L113-15-2"
+      ],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-052",
+      "expected_state": "refus:recommandation_produit",
+      "actual_state": "refus:recommandation_produit",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-051",
+      "expected_state": "refus:recommandation_produit",
+      "actual_state": "refus:recommandation_produit",
+      "state_correct": true,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L113-5"
+      ],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-050",
+      "expected_state": "refus:recommandation_produit",
+      "actual_state": "refus:recommandation_produit",
+      "state_correct": true,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L113-15-2"
+      ],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-049",
+      "expected_state": "reponse_sans_article",
+      "actual_state": "reponse_sans_article",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-048",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-047",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "Fiche service-public.fr (Garantie responsabilité civile habitation)"
+      ],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-046",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 1.0
+    },
+    {
+      "item_id": "gs-045",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 1.0
+    },
+    {
+      "item_id": "gs-044",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 1.0
+    },
+    {
+      "item_id": "gs-043",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 1.0
+    },
+    {
+      "item_id": "gs-040",
+      "expected_state": "reponse",
+      "actual_state": "reponse_sans_article",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-039",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L113-2",
+        "L113-8"
+      ],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-038",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-037",
+      "expected_state": "reponse",
+      "actual_state": "reponse_sans_article",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-032",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.3333333333333333
+    },
+    {
+      "item_id": "gs-031",
+      "expected_state": "reponse",
+      "actual_state": "reponse_sans_article",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-030",
+      "expected_state": "reponse_sans_article",
+      "actual_state": "reponse",
+      "state_correct": false,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L113-1"
+      ],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-029",
+      "expected_state": "reponse",
+      "actual_state": "reponse_sans_article",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-028",
+      "expected_state": "reponse_sans_article",
+      "actual_state": "reponse",
+      "state_correct": false,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "A121-1",
+        "L113-2"
+      ],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-027",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-026",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-025",
+      "expected_state": "reponse_sans_article",
+      "actual_state": "reponse_sans_article",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-023",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-022",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L113-1"
+      ],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-021",
+      "expected_state": "reponse_sans_article",
+      "actual_state": "reponse",
+      "state_correct": false,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L211-1"
+      ],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-020",
+      "expected_state": "reponse",
+      "actual_state": "reponse_sans_article",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-019",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L113-2",
+        "L113-9"
+      ],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-018",
+      "expected_state": "reponse_sans_article",
+      "actual_state": "reponse",
+      "state_correct": false,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L113-1",
+        "L124-3"
+      ],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-016",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 1.0
+    },
+    {
+      "item_id": "gs-015",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-014",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L211-1"
+      ],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-013",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-012",
+      "expected_state": "reponse_sans_article",
+      "actual_state": "reponse_sans_article",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-010",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 1.0
+    },
+    {
+      "item_id": "gs-009",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L124-1"
+      ],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-008",
+      "expected_state": "reponse",
+      "actual_state": "reponse_sans_article",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-007",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L113-15-2",
+        "L113-3"
+      ],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-005",
+      "expected_state": "reponse",
+      "actual_state": "reponse_sans_article",
+      "state_correct": false,
+      "citation_valid": true,
+      "fabricated_ids": [],
+      "citation_correctness": 0.0
+    },
+    {
+      "item_id": "gs-004",
+      "expected_state": "reponse_sans_article",
+      "actual_state": "reponse",
+      "state_correct": false,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L113-16",
+        "L113-2"
+      ],
+      "citation_correctness": null
+    },
+    {
+      "item_id": "gs-002",
+      "expected_state": "reponse",
+      "actual_state": "reponse",
+      "state_correct": true,
+      "citation_valid": false,
+      "fabricated_ids": [
+        "L144-2"
+      ],
+      "citation_correctness": 0.0
+    }
+  ]
+}
