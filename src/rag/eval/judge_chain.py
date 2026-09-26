@@ -89,7 +89,12 @@ def _judge_llm(settings: Settings) -> ProviderReportingChatOpenAI:
         api_key=SecretStr(settings.openrouter_api_key),
         model=settings.judge_model,
         base_url=OPENROUTER_BASE_URL,
-        temperature=0,
+        # No `temperature` (so no pinning it to 0) and no `parallel_tool_calls`: measured
+        # live against OpenRouter's endpoint listing, no Claude Sonnet 5 endpoint supports
+        # either, and `require_parameters` turns an unsupported parameter into a 404 rather
+        # than a silent drop. `with_structured_output`'s function-calling path adds
+        # `parallel_tool_calls` itself, hence disabling it here rather than just not passing it.
+        disabled_params={"parallel_tool_calls": None},
         extra_body={
             "provider": {
                 "require_parameters": True,

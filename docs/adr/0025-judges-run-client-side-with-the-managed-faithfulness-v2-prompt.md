@@ -31,8 +31,13 @@ harness scoring hand-authored answers (which have no pipeline trace) even worse.
 and directly in `rag.eval.calibration` for calibration runs. They share one `Judge`
 (`rag.eval.judge`) behind one `JudgeCall` seam (`rag.eval.judge_chain`):
 
-- `ChatOpenAI` on OpenRouter with `require_parameters`, `allow_fallbacks: false`, a
-  one-element `order` from `JUDGE_PROVIDER`, and `temperature=0`.
+- `ChatOpenAI` on OpenRouter with `require_parameters`, `allow_fallbacks: false` and a
+  one-element `order` from `JUDGE_PROVIDER`.
+- **No `temperature` and no `parallel_tool_calls` in the request.** The first live call showed
+  that no Claude Sonnet 5 endpoint supports either, and `require_parameters` turns an
+  unsupported parameter into a 404, not a silent drop. The judge can't be pinned to
+  temperature 0. The calibration set is what shows its scores are stable enough, which is one
+  more reason re-running it is the regression test.
 - `ProviderReportingChatOpenAI` keeps OpenRouter's `provider` response field, which
   `ChatOpenAI` otherwise drops. `with_structured_output(include_raw=True)` hands it through.
   **A response without a provider raises**; it is never pinned as an empty string.

@@ -89,8 +89,20 @@ class TestJudgeLlm:
             "provider": {"require_parameters": True, "allow_fallbacks": False, "order": ["anthropic"]}
         }
 
-    def test_is_deterministic_as_far_as_the_api_allows(self) -> None:
-        assert _judge_llm(_settings()).temperature == 0
+    def test_request_carries_only_parameters_the_judge_endpoints_support(self) -> None:
+        """`require_parameters: true` makes OpenRouter refuse — rather than silently drop —
+        any parameter the pinned endpoint can't honour. Checked live (#47): no Claude
+        Sonnet 5 endpoint supports `temperature` or `parallel_tool_calls`, and
+        `with_structured_output(method="function_calling")` adds the latter on its own,
+        so both must be absent or every judge call 404s."""
+        llm = _judge_llm(_settings())
+        structured = llm.with_structured_output(FaithfulnessOutput, method="function_calling", include_raw=True)
+        binding = structured.first.steps__["raw"]  # type: ignore[attr-defined]
+
+        payload = llm._get_request_payload([HumanMessage("p")], **binding.kwargs)
+
+        sent = set(payload) - {"messages", "model", "stream", "extra_body", "ls_structured_output_format"}
+        assert sent == {"tools", "tool_choice"}
 
     @pytest.mark.parametrize("missing", ["judge_model", "judge_provider", "openrouter_api_key"])
     def test_refuses_to_build_without_what_it_pins(self, missing: str) -> None:
