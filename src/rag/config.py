@@ -13,6 +13,7 @@ empty here, and the consumer that reads a value it needs is the one that fails o
 
 from __future__ import annotations
 
+import enum
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -20,20 +21,28 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-__all__ = ["ConfigurationError", "Settings", "load_settings"]
+__all__ = ["ConfigurationError", "PromptLanguage", "Settings", "load_settings"]
 
 # The two defaults that are spec constants rather than choices: §11.3 fixes the Langfuse
 # URL, and §16.1's dev compose fixes where Qdrant answers. Neither identifies a run.
 DEFAULT_LANGFUSE_BASE_URL = "https://cloud.langfuse.com"
 DEFAULT_QDRANT_URL = "http://localhost:6333"
 
+
+
+class PromptLanguage(enum.StrEnum):
+    """A judge prompt language — one prompt per member per judged metric (`rag.eval.judge`)."""
+
+    EN = "en"
+    FR = "fr"
+
+
 # SPEC §12.10 — the judge prompt languages the spec starts from: managed Faithfulness v2 is
 # written in English, and point coverage (no managed equivalent) is French-prompted. Unlike
 # the model ids these are not run identities left open; both are recorded in every run
 # header that uses them (`rag.eval.judge`), so a default cannot hide which one ran.
-JUDGE_PROMPT_LANGUAGES = frozenset({"en", "fr"})
-DEFAULT_JUDGE_FAITHFULNESS_LANGUAGE = "en"
-DEFAULT_JUDGE_POINT_COVERAGE_LANGUAGE = "fr"
+DEFAULT_JUDGE_FAITHFULNESS_LANGUAGE = PromptLanguage.EN
+DEFAULT_JUDGE_POINT_COVERAGE_LANGUAGE = PromptLanguage.FR
 
 TRUTHY = frozenset({"true", "1", "yes", "on"})
 FALSY = frozenset({"false", "0", "no", "off", ""})
@@ -65,8 +74,8 @@ class Settings:
     langfuse_base_url: str
     langfuse_tracing: bool
     qdrant_url: str
-    judge_faithfulness_language: str = DEFAULT_JUDGE_FAITHFULNESS_LANGUAGE
-    judge_point_coverage_language: str = DEFAULT_JUDGE_POINT_COVERAGE_LANGUAGE
+    judge_faithfulness_language: PromptLanguage = DEFAULT_JUDGE_FAITHFULNESS_LANGUAGE
+    judge_point_coverage_language: PromptLanguage = DEFAULT_JUDGE_POINT_COVERAGE_LANGUAGE
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> Settings:
@@ -127,16 +136,16 @@ def _parse_bool(raw: str | None, *, name: str) -> bool:
     )
 
 
-def _parse_judge_language(env: Mapping[str, str], name: str, default: str) -> str:
+def _parse_judge_language(env: Mapping[str, str], name: str, default: PromptLanguage) -> PromptLanguage:
     """A language with no prompt behind it must fail here, not fall back to the default —
     the whole point of the setting is to know which prompt scored a run."""
-    value = (env.get(name) or default).strip().lower()
-    if value not in JUDGE_PROMPT_LANGUAGES:
+    try:
+        return PromptLanguage((env.get(name) or default).strip().lower())
+    except ValueError:
         raise ConfigurationError(
             f"{name}={env.get(name)!r} has no judge prompt. Use one of: "
-            + ", ".join(sorted(JUDGE_PROMPT_LANGUAGES))
-        )
-    return value
+            + ", ".join(language.value for language in PromptLanguage)
+        ) from None
 
 
 def _reject_dead_sdk_v3_name(env: Mapping[str, str]) -> None:

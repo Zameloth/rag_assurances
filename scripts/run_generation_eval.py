@@ -15,8 +15,8 @@ languages, same resolved provider.
 
 **Runs on top of the ladder-winning arm** (ADR-0024: rung 1 stands — reranking and the quota
 guard both failed their adoption bar, and the e5 embedder A/B was a wash), not whichever rung
-happened to run most recently — `RETRIEVAL_ARM` below is a named constant for exactly that
-reason.
+happened to run most recently — `GENERATION_RETRIEVAL_ARM` is a named constant for exactly that
+reason, shared with the calibration authoring helper.
 
 **Citation correctness is a distinct number from article recall@4, read together, not summed**
 (SPEC §12.9): recall says the gold article reached the prompt (a fact from `run_ladder.py`'s
@@ -35,7 +35,6 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import UTC, datetime
-from pathlib import Path
 
 from qdrant_client import QdrantClient
 
@@ -44,19 +43,17 @@ from rag.config import load_settings
 from rag.eval.generation_run import GenerationRun
 from rag.eval.judge_chain import make_judge
 from rag.eval.langfuse_sync import sync_generation_dataset
-from rag.eval.run_generation_experiment import MAX_CONCURRENCY, JudgeRunError, run_generation_eval
+from rag.eval.paths import GOLDEN_SET_PATH, REPO_ROOT, RUNS_DIR
+from rag.eval.run_generation_experiment import (
+    GENERATION_RETRIEVAL_ARM,
+    MAX_CONCURRENCY,
+    JudgeRunError,
+    run_generation_eval,
+)
 from rag.generation.chain import make_generate_fn
 from rag.ingest.embedder import MODEL_ID as EMBEDDER_MODEL_ID
 from rag.retrieval.lookup import load_lookup_keys
 from rag.retrieval.pipeline import LEG_CANDIDATE_LIMIT, TOP_K
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-GOLDEN_SET_PATH = REPO_ROOT / "eval" / "golden" / "golden-set.yaml"
-RUNS_DIR = REPO_ROOT / "eval" / "runs"
-
-# ADR-0024 — rung 1 stands; this is what a generation run should sit on top of, not
-# whichever rung a ladder script happened to run last.
-RETRIEVAL_ARM = "rung1"
 
 
 def _retrieval_config(settings_condenser_model: str, settings_condenser_provider: str) -> dict[str, object]:
@@ -65,7 +62,7 @@ def _retrieval_config(settings_condenser_model: str, settings_condenser_provider
     §8.2: "a controlled constant"), since `RunHeader` has no dedicated field for it and this
     dict is the caller's free-form record of everything else that could move a score."""
     return {
-        "retrieval_arm": RETRIEVAL_ARM,
+        "retrieval_arm": GENERATION_RETRIEVAL_ARM,
         "embedder": EMBEDDER_MODEL_ID,
         "leg_candidate_limit": LEG_CANDIDATE_LIMIT,
         "top_k": TOP_K,
@@ -98,7 +95,7 @@ def _print_summary(run: GenerationRun) -> None:
         if judged:
             print(f"{name}: {sum(judged) / len(judged):.3f} (mean over {len(judged)} judged item(s))")
     if run.header.judge_model:
-        print(f"judge: {run.header.judge_model} via {run.header.judge_provider or '(no call succeeded)'}")
+        print(f"judge: {run.header.judge_model} via {', '.join(run.header.judge_providers) or '(no call succeeded)'}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -152,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
             generation_model=settings.generation_model,
             generation_provider=settings.generation_provider,
             retrieval_config=_retrieval_config(settings.condenser_model, settings.condenser_provider),
-            retrieval_arm=RETRIEVAL_ARM,
+            retrieval_arm=GENERATION_RETRIEVAL_ARM,
             max_concurrency=args.max_concurrency,
             judge=judge,
         )

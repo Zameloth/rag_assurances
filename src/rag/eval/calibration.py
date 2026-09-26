@@ -38,6 +38,7 @@ from typing import Any
 import yaml
 from pydantic import TypeAdapter, ValidationError
 
+from rag.config import PromptLanguage
 from rag.eval.judge import Judge, JudgedMetric, JudgeScore, render_answer
 from rag.eval.retrieval_run import resolve_git_sha
 from rag.eval.schema import GoldenItem
@@ -47,7 +48,6 @@ __all__ = [
     "DEFAULT_PASS_THRESHOLD",
     "DETECTION_BAR",
     "ENVELOPE_ADAPTER",
-    "BlockStyleDumper",
     "TARGET_METRIC",
     "CalibrationAnswer",
     "CalibrationHeader",
@@ -57,16 +57,16 @@ __all__ = [
     "ErrorDirection",
     "FaultArchetype",
     "HumanLabel",
-    "JudgeSetError",
+    "CalibrationSetError",
     "PairResult",
-    "dump_judge_set",
-    "load_calibration_run",
-    "load_judge_set",
+    "block_yaml",
+    "dump_calibration_set",
+    "load_calibration_set",
     "pair_violations",
     "run_calibration",
     "score_pair",
     "summarize",
-    "validate_judge_set",
+    "validate_calibration_set",
 ]
 
 # SPEC §12.10 — "the judge scores the faulted twin strictly lower on ≥ 10 of 12 pairs".
@@ -112,7 +112,7 @@ class ErrorDirection(enum.StrEnum):
     FALSE_FAIL = "false_fail"
 
 
-class JudgeSetError(Exception):
+class CalibrationSetError(Exception):
     """`judge-set.yaml` doesn't shape into `CalibrationPair`s, or a pair breaks its
     archetype's rules. Raised with every violation found, not just the first."""
 
@@ -198,7 +198,7 @@ def _parse_pair(raw: Any) -> CalibrationPair:
     )
 
 
-def load_judge_set(path: Path) -> list[CalibrationPair]:
+def load_calibration_set(path: Path) -> list[CalibrationPair]:
     """Parse `eval/calibration/judge-set.yaml`. A missing or empty file is zero pairs —
     the state of the repo before the first pair is authored, not an error."""
     if not path.exists():
@@ -207,7 +207,7 @@ def load_judge_set(path: Path) -> list[CalibrationPair]:
     if raw is None:
         return []
     if not isinstance(raw, list):
-        raise JudgeSetError(f"{path}: expected a YAML list of pairs, got {type(raw).__name__}")
+        raise CalibrationSetError(f"{path}: expected a YAML list of pairs, got {type(raw).__name__}")
 
     pairs: list[CalibrationPair] = []
     violations: list[str] = []
@@ -218,11 +218,11 @@ def load_judge_set(path: Path) -> list[CalibrationPair]:
         except ValueError as error:
             violations.append(f"{ref or f'index {index}'}: {error}")
     if violations:
-        raise JudgeSetError(f"{len(violations)} judge-set schema violation(s):\n" + "\n".join(violations))
+        raise CalibrationSetError(f"{len(violations)} calibration-set schema violation(s):\n" + "\n".join(violations))
     return pairs
 
 
-class BlockStyleDumper(yaml.SafeDumper):
+class _BlockStyleDumper(yaml.SafeDumper):
     """Multi-line strings (the rendered context, long explanations) as `|` blocks, so the
     file diffs line by line like the golden set does."""
 
@@ -232,22 +232,20 @@ def _represent_str(dumper: yaml.SafeDumper, value: str) -> yaml.Node:
     return dumper.represent_scalar("tag:yaml.org,2002:str", value, style=style)
 
 
-BlockStyleDumper.add_representer(str, _represent_str)
+_BlockStyleDumper.add_representer(str, _represent_str)
 
 
-def dump_judge_set(pairs: Sequence[CalibrationPair], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        yaml.dump(
-            [pair.as_dict() for pair in pairs],
-            Dumper=BlockStyleDumper,
-            allow_unicode=True,
-            sort_keys=False,
-            default_flow_style=False,
-            width=100,
-        ),
-        encoding="utf-8",
+def block_yaml(data: Any) -> str:
+    """Reviewable YAML — block style, key order kept, multi-line strings as `|` blocks.
+    The one YAML form this module writes, whether the whole set or one envelope."""
+    return yaml.dump(
+        data, Dumper=_BlockStyleDumper, allow_unicode=True, sort_keys=False, default_flow_style=False, width=100
     )
+
+
+def dump_calibration_set(pairs: Sequence[CalibrationPair], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(block_yaml([pair.as_dict() for pair in pairs]), encoding="utf-8")
 
 
 # --- validation ------------------------------------------------------------------------
@@ -288,7 +286,7 @@ def pair_violations(pair: CalibrationPair) -> list[str]:
     return violations
 
 
-def validate_judge_set(pairs: Sequence[CalibrationPair], golden_set: Sequence[GoldenItem]) -> list[str]:
+def validate_calibration_set(pairs: Sequence[CalibrationPair], golden_set: Sequence[GoldenItem]) -> list[str]:
     """Every violation in `pairs`, checked against the golden set they are drawn from: one
     pair per golden item, and the pair's question/points are that item's own."""
     golden_by_id = {item.id: item for item in golden_set}
@@ -328,16 +326,19 @@ class PairResult:
 
 
 def _judge_answer(judge: Judge, pair: CalibrationPair, answer: CalibrationAnswer, metric: JudgedMetric) -> JudgeScore:
-    rendered = render_answer(answer.envelope)
-    if metric is JudgedMetric.FAITHFULNESS:
-        return judge.faithfulness(context=pair.context, answer=rendered)
-    score = judge.point_coverage(question=pair.question, answer=rendered, expected_points=pair.expected_points)
+    score = judge.score(
+        metric,
+        question=pair.question,
+        context=pair.context,
+        answer=render_answer(answer.envelope),
+        expected_points=pair.expected_points,
+    )
     if score is None:
-        raise JudgeSetError(f"{pair.golden_id}: point coverage needs expected_points")
+        raise CalibrationSetError(f"{pair.golden_id}: point coverage needs expected_points")
     return score
 
 
-def _error(score: float, label: HumanLabel, pass_threshold: float) -> ErrorDirection | None:
+def _error_direction(score: float, label: HumanLabel, pass_threshold: float) -> ErrorDirection | None:
     judge_passes = score >= pass_threshold
     if judge_passes and label is HumanLabel.FAIL:
         return ErrorDirection.FALSE_PASS
@@ -358,8 +359,8 @@ def score_pair(judge: Judge, pair: CalibrationPair, *, pass_threshold: float = D
         clean_score=clean.value,
         faulted_score=faulted.value,
         detected=faulted.value < clean.value,
-        clean_error=_error(clean.value, pair.clean.human_label, pass_threshold),
-        faulted_error=_error(faulted.value, pair.faulted.human_label, pass_threshold),
+        clean_error=_error_direction(clean.value, pair.clean.human_label, pass_threshold),
+        faulted_error=_error_direction(faulted.value, pair.faulted.human_label, pass_threshold),
         clean_reasoning=clean.reasoning,
         faulted_reasoning=faulted.reasoning,
         providers=tuple(sorted({clean.provider, faulted.provider})),
@@ -422,10 +423,10 @@ class CalibrationHeader:
 
     run_id: str
     judge_model: str
-    judge_provider: str
-    judge_prompt_languages: dict[str, str]
+    judge_providers: tuple[str, ...]
+    judge_prompt_languages: dict[JudgedMetric, PromptLanguage]
     pass_threshold: float
-    judge_set_git_sha: str
+    calibration_set_git_sha: str
     code_git_sha: str
     timestamp: str
 
@@ -443,7 +444,7 @@ def run_calibration(
     *,
     run_id: str,
     repo_root: Path,
-    judge_set_path: Path,
+    calibration_set_path: Path,
     runs_dir: Path,
     pass_threshold: float = DEFAULT_PASS_THRESHOLD,
 ) -> CalibrationRun:
@@ -454,10 +455,10 @@ def run_calibration(
     header = CalibrationHeader(
         run_id=run_id,
         judge_model=judge.model,
-        judge_provider=",".join(sorted({p for result in results for p in result.providers})),
+        judge_providers=tuple(sorted({p for result in results for p in result.providers})),
         judge_prompt_languages=judge.languages(),
         pass_threshold=pass_threshold,
-        judge_set_git_sha=resolve_git_sha(repo_root, path=judge_set_path),
+        calibration_set_git_sha=resolve_git_sha(repo_root, path=calibration_set_path),
         code_git_sha=resolve_git_sha(repo_root),
         timestamp=datetime.now(UTC).isoformat(),
     )
@@ -467,25 +468,3 @@ def run_calibration(
         json.dumps(asdict(run), indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     return run
-
-
-def load_calibration_run(path: Path) -> CalibrationRun:
-    raw = json.loads(path.read_text(encoding="utf-8"))
-
-    def pair_result(row: dict[str, Any]) -> PairResult:
-        return PairResult(
-            **{
-                **row,
-                "archetype": FaultArchetype(row["archetype"]),
-                "metric": JudgedMetric(row["metric"]),
-                "clean_error": ErrorDirection(row["clean_error"]) if row["clean_error"] else None,
-                "faulted_error": ErrorDirection(row["faulted_error"]) if row["faulted_error"] else None,
-                "providers": tuple(row["providers"]),
-            }
-        )
-
-    return CalibrationRun(
-        header=CalibrationHeader(**raw["header"]),
-        pairs=tuple(pair_result(row) for row in raw["pairs"]),
-        summary=CalibrationSummary(**raw["summary"]),
-    )

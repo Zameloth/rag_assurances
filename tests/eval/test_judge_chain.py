@@ -166,7 +166,9 @@ class TestJudgeFamily:
 
 class TestMakeJudge:
     def test_carries_the_model_and_both_configured_languages(self) -> None:
-        judge = make_judge(_settings(judge_faithfulness_language="fr", judge_point_coverage_language="en"))
+        judge = make_judge(
+            _settings(judge_faithfulness_language=PromptLanguage.FR, judge_point_coverage_language=PromptLanguage.EN)
+        )
 
         assert judge.model == "anthropic/claude-sonnet-5"
         assert judge.faithfulness_language is PromptLanguage.FR

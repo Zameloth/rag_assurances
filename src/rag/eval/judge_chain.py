@@ -34,7 +34,7 @@ from langfuse.api import LlmAdapter
 from pydantic import BaseModel, SecretStr
 
 from rag.config import ConfigurationError, Settings
-from rag.eval.judge import Judge, JudgeCall, JudgeOutputError, PromptLanguage
+from rag.eval.judge import Judge, JudgeCall, JudgeOutputError
 from rag.generation.chain import OPENROUTER_BASE_URL
 
 __all__ = [
@@ -43,7 +43,6 @@ __all__ = [
     "check_judge_family",
     "judge_llm_connection",
     "make_judge",
-    "make_judge_call",
 ]
 
 # The connection's name in Langfuse — its upsert key, so re-running the setup script
@@ -120,19 +119,15 @@ def _call_with(llm: ChatOpenAI) -> JudgeCall:
     return call
 
 
-def make_judge_call(settings: Settings) -> JudgeCall:
-    return _call_with(_judge_llm(settings))
-
-
 def make_judge(settings: Settings) -> Judge:
     """The configured judge: `JUDGE_MODEL` on its pinned provider, prompt language per
     metric from `JUDGE_*_LANGUAGE`. Rejects a same-family judge before any call is made."""
     check_judge_family(settings.judge_model, settings.generation_model)
     return Judge(
-        call=make_judge_call(settings),
+        call=_call_with(_judge_llm(settings)),
         model=settings.judge_model,
-        faithfulness_language=PromptLanguage(settings.judge_faithfulness_language),
-        point_coverage_language=PromptLanguage(settings.judge_point_coverage_language),
+        faithfulness_language=settings.judge_faithfulness_language,
+        point_coverage_language=settings.judge_point_coverage_language,
     )
 
 

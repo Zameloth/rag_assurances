@@ -199,3 +199,35 @@ def test_languages_are_reported_per_metric() -> None:
     judge = _judge(_FakeCall(), faithfulness_language=PromptLanguage.FR, point_coverage_language=PromptLanguage.EN)
 
     assert judge.languages() == {"faithfulness": "fr", "point_coverage": "en"}
+
+
+class TestScore:
+    """One dispatch on `JudgedMetric` — callers ask for a metric, not a method."""
+
+    def test_faithfulness_is_judged_against_the_context(self) -> None:
+        call = _FakeCall(FaithfulnessOutput(score=0.5, reasoning="r"))
+
+        score = _judge(call).score(
+            JudgedMetric.FAITHFULNESS, question="Q", context="LE CONTEXTE", answer="A", expected_points=("p",)
+        )
+
+        assert score is not None and score.metric is JudgedMetric.FAITHFULNESS
+        [(prompt, _)] = call.calls
+        assert "LE CONTEXTE" in prompt
+
+    def test_point_coverage_is_judged_against_the_points(self) -> None:
+        call = _FakeCall(PointCoverageOutput(verdicts=[PointVerdict(index=1, asserted=True, reasoning="")]))
+
+        score = _judge(call).score(
+            JudgedMetric.POINT_COVERAGE, question="Q", context="C", answer="A", expected_points=("LE POINT",)
+        )
+
+        assert score is not None and score.value == 1.0
+        [(prompt, _)] = call.calls
+        assert "LE POINT" in prompt
+
+    def test_point_coverage_without_points_stays_undefined(self) -> None:
+        assert (
+            _judge(_FakeCall()).score(JudgedMetric.POINT_COVERAGE, question="Q", context="C", answer="A", expected_points=())
+            is None
+        )

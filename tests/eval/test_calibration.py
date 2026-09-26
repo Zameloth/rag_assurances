@@ -4,6 +4,7 @@ report — detection and the direction of every error — against a fake judge."
 
 from __future__ import annotations
 
+import json
 import subprocess
 from dataclasses import replace
 from pathlib import Path
@@ -15,17 +16,16 @@ from rag.eval.calibration import (
     TARGET_METRIC,
     CalibrationAnswer,
     CalibrationPair,
+    CalibrationSetError,
     ErrorDirection,
     FaultArchetype,
     HumanLabel,
-    JudgeSetError,
-    dump_judge_set,
-    load_calibration_run,
-    load_judge_set,
+    dump_calibration_set,
+    load_calibration_set,
     run_calibration,
     score_pair,
     summarize,
-    validate_judge_set,
+    validate_calibration_set,
 )
 from rag.eval.judge import (
     FaithfulnessOutput,
@@ -97,13 +97,13 @@ class TestJudgeSetRoundTrip:
         pairs = [_pair(), refusal_pair]
         path = tmp_path / "judge-set.yaml"
 
-        dump_judge_set(pairs, path)
+        dump_calibration_set(pairs, path)
 
-        assert load_judge_set(path) == pairs
+        assert load_calibration_set(path) == pairs
 
     def test_is_written_as_reviewable_block_yaml(self, tmp_path: Path) -> None:
         path = tmp_path / "judge-set.yaml"
-        dump_judge_set([_pair()], path)
+        dump_calibration_set([_pair()], path)
 
         text = path.read_text(encoding="utf-8")
         assert text.startswith("- golden_id: gs-002\n")
@@ -111,7 +111,7 @@ class TestJudgeSetRoundTrip:
         assert "{" not in text
 
     def test_missing_file_is_an_empty_set(self, tmp_path: Path) -> None:
-        assert load_judge_set(tmp_path / "absent.yaml") == []
+        assert load_calibration_set(tmp_path / "absent.yaml") == []
 
     def test_shape_errors_are_all_reported_at_once(self, tmp_path: Path) -> None:
         path = tmp_path / "judge-set.yaml"
@@ -119,8 +119,8 @@ class TestJudgeSetRoundTrip:
             "- golden_id: gs-001\n  archetype: nonsense\n- golden_id: gs-002\n", encoding="utf-8"
         )
 
-        with pytest.raises(JudgeSetError) as excinfo:
-            load_judge_set(path)
+        with pytest.raises(CalibrationSetError) as excinfo:
+            load_calibration_set(path)
 
         message = str(excinfo.value)
         assert "gs-001" in message
@@ -129,24 +129,24 @@ class TestJudgeSetRoundTrip:
 
 class TestValidateJudgeSet:
     def test_a_well_formed_pair_passes(self) -> None:
-        assert validate_judge_set([_pair()], [_golden()]) == []
+        assert validate_calibration_set([_pair()], [_golden()]) == []
 
     def test_golden_id_must_exist_in_the_golden_set(self) -> None:
-        [violation] = validate_judge_set([_pair(golden_id="gs-999")], [_golden()])
+        [violation] = validate_calibration_set([_pair(golden_id="gs-999")], [_golden()])
         assert "gs-999" in violation
 
     def test_one_pair_per_golden_item(self) -> None:
-        violations = validate_judge_set([_pair(), _pair()], [_golden()])
+        violations = validate_calibration_set([_pair(), _pair()], [_golden()])
         assert any("more than one pair" in v for v in violations)
 
     def test_question_and_points_must_match_the_golden_item(self) -> None:
-        violations = validate_judge_set([_pair(question="autre", expected_points=("x",))], [_golden()])
+        violations = validate_calibration_set([_pair(question="autre", expected_points=("x",))], [_golden()])
         assert any("question" in v for v in violations)
         assert any("expected_points" in v for v in violations)
 
     def test_the_twin_must_differ_from_its_clean_sibling(self) -> None:
         pair = _pair(faulted=CalibrationAnswer(_reponse(), HumanLabel.FAIL))
-        [violation] = validate_judge_set([pair], [_golden()])
+        [violation] = validate_calibration_set([pair], [_golden()])
         assert "identical" in violation
 
     def test_fabricated_citation_must_cite_something_outside_the_retrieved_context(self) -> None:
@@ -154,10 +154,10 @@ class TestValidateJudgeSet:
             FaultArchetype.FABRICATED_CITATION,
             faulted=CalibrationAnswer(_reponse(cited=("L113-2", "L113-3")), HumanLabel.FAIL),
         )
-        assert validate_judge_set([pair], [_golden()]) == []
+        assert validate_calibration_set([pair], [_golden()]) == []
 
         not_fabricated = replace(pair, retrieved_citation_ids=("L113-2", "L113-3"))
-        [violation] = validate_judge_set([not_fabricated], [_golden()])
+        [violation] = validate_calibration_set([not_fabricated], [_golden()])
         assert "fabricated" in violation
 
     def test_fabricated_citation_needs_a_clean_sibling_that_cites_validly(self) -> None:
@@ -166,17 +166,17 @@ class TestValidateJudgeSet:
             clean=CalibrationAnswer(_reponse(cited=("L999",)), HumanLabel.PASS),
             faulted=CalibrationAnswer(_reponse(cited=("L999", "L998")), HumanLabel.FAIL),
         )
-        violations = validate_judge_set([pair], [_golden()])
+        violations = validate_calibration_set([pair], [_golden()])
         assert any("clean" in v for v in violations)
 
     def test_dropped_point_needs_points_to_drop(self) -> None:
         pair = _pair(FaultArchetype.DROPPED_EXPECTED_POINT, expected_points=())
-        violations = validate_judge_set([pair], [_golden(expected_points=())])
+        violations = validate_calibration_set([pair], [_golden(expected_points=())])
         assert any("expected_points" in v for v in violations)
 
     def test_refusal_archetype_needs_two_refusals_with_the_same_motif_and_a_shorter_twin(self) -> None:
         pair = _pair(FaultArchetype.REFUSAL_WITHOUT_EXPLANATION)
-        violations = validate_judge_set([pair], [_golden()])
+        violations = validate_calibration_set([pair], [_golden()])
         assert any("Refus" in v for v in violations)
 
         longer_twin = _pair(
@@ -186,7 +186,7 @@ class TestValidateJudgeSet:
                 Refus(explanation="Non, et voici bien plus.", motif=Motif.CONSEIL_ACTION), HumanLabel.FAIL
             ),
         )
-        violations = validate_judge_set([longer_twin], [_golden()])
+        violations = validate_calibration_set([longer_twin], [_golden()])
         assert any("shorter" in v for v in violations)
 
 
@@ -364,26 +364,31 @@ class TestRunCalibration:
         _git(tmp_path, "init")
         _git(tmp_path, "config", "user.email", "t@example.com")
         _git(tmp_path, "config", "user.name", "T")
-        judge_set_path = tmp_path / "judge-set.yaml"
-        dump_judge_set([_pair()], judge_set_path)
+        calibration_set_path = tmp_path / "judge-set.yaml"
+        dump_calibration_set([_pair()], calibration_set_path)
         _git(tmp_path, "add", "-A")
-        _git(tmp_path, "commit", "-m", "judge set")
+        _git(tmp_path, "commit", "-m", "calibration set")
 
         run = run_calibration(
-            load_judge_set(judge_set_path),
+            load_calibration_set(calibration_set_path),
             _judge({CLEAN: 1.0, FAULTED: 0.5}, provider="Anthropic"),
             run_id="calibration-test",
             repo_root=tmp_path,
-            judge_set_path=judge_set_path,
+            calibration_set_path=calibration_set_path,
             runs_dir=tmp_path / "runs",
         )
 
         assert run.header.judge_model == "anthropic/claude-sonnet-5"
-        assert run.header.judge_provider == "Anthropic"
+        assert run.header.judge_providers == ("Anthropic",)
         assert run.header.judge_prompt_languages == {"faithfulness": "en", "point_coverage": "fr"}
         assert run.header.pass_threshold == 1.0
-        assert len(run.header.judge_set_git_sha) == 40
+        assert len(run.header.calibration_set_git_sha) == 40
         [row] = run.pairs
         assert row.golden_id == "gs-002"
         assert row.detected is True
-        assert load_calibration_run(tmp_path / "runs" / "calibration-test.json") == run
+        persisted = json.loads((tmp_path / "runs" / "calibration-test.json").read_text(encoding="utf-8"))
+        assert persisted["header"]["judge_providers"] == ["Anthropic"]
+        assert persisted["header"]["judge_prompt_languages"] == {"faithfulness": "en", "point_coverage": "fr"}
+        assert persisted["pairs"][0]["golden_id"] == "gs-002"
+        assert persisted["pairs"][0]["detected"] is True
+        assert persisted["summary"]["passed"] is True

@@ -10,10 +10,10 @@ import pytest
 
 from rag.eval.calibration import (
     CalibrationAnswer,
+    CalibrationSetError,
     FaultArchetype,
     HumanLabel,
-    JudgeSetError,
-    load_judge_set,
+    load_calibration_set,
 )
 from rag.eval.calibration_authoring import (
     ARCHETYPE_GUIDANCE,
@@ -107,7 +107,7 @@ class TestEnvelopeYaml:
         assert envelope_from_yaml(envelope_to_yaml(envelope)) == envelope
 
     def test_an_edit_that_breaks_the_envelope_is_rejected_with_a_reason(self) -> None:
-        with pytest.raises(JudgeSetError, match="motif"):
+        with pytest.raises(CalibrationSetError, match="motif"):
             envelope_from_yaml("type: refus\nexplanation: Non.\n")
 
 
@@ -122,7 +122,7 @@ class TestUpsertPair:
 
         upsert_pair(path, pair, [_golden()])
 
-        assert load_judge_set(path) == [pair]
+        assert load_calibration_set(path) == [pair]
 
     def test_replaces_an_existing_pair_for_the_same_golden_item(self, tmp_path: Path) -> None:
         path = tmp_path / "judge-set.yaml"
@@ -132,13 +132,13 @@ class TestUpsertPair:
 
         upsert_pair(path, second, [_golden()])
 
-        assert load_judge_set(path) == [second]
+        assert load_calibration_set(path) == [second]
 
     def test_an_invalid_pair_is_never_written(self, tmp_path: Path) -> None:
         path = tmp_path / "judge-set.yaml"
         untouched_twin = draft_pair(_golden(), _result(), FaultArchetype.CLAIM_ABSENT_FROM_CONTEXT)
 
-        with pytest.raises(JudgeSetError, match="identical"):
+        with pytest.raises(CalibrationSetError, match="identical"):
             upsert_pair(path, untouched_twin, [_golden()])
 
         assert not path.exists()

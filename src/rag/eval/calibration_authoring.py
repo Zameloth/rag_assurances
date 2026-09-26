@@ -12,7 +12,7 @@ generated from, so the pair stays replayable without Qdrant.
 
 **Nothing invalid reaches the file.** `upsert_pair` validates the whole resulting set
 against the golden set before writing, so the helper can't leave `judge-set.yaml` in a
-state `rag.eval.calibration.load_judge_set`/`validate_judge_set` would reject.
+state `rag.eval.calibration.load_calibration_set`/`validate_calibration_set` would reject.
 """
 
 from __future__ import annotations
@@ -25,15 +25,15 @@ from pydantic import ValidationError
 
 from rag.eval.calibration import (
     ENVELOPE_ADAPTER,
-    BlockStyleDumper,
     CalibrationAnswer,
     CalibrationPair,
+    CalibrationSetError,
     FaultArchetype,
     HumanLabel,
-    JudgeSetError,
-    dump_judge_set,
-    load_judge_set,
-    validate_judge_set,
+    block_yaml,
+    dump_calibration_set,
+    load_calibration_set,
+    validate_calibration_set,
 )
 from rag.eval.schema import GoldenItem
 from rag.generation.citation import retrieved_citation_ids
@@ -104,32 +104,25 @@ def parse_label(raw: str, *, default: HumanLabel) -> HumanLabel | None:
 
 
 def envelope_to_yaml(envelope: Envelope) -> str:
-    return yaml.dump(
-        ENVELOPE_ADAPTER.dump_python(envelope, mode="json"),
-        Dumper=BlockStyleDumper,
-        allow_unicode=True,
-        sort_keys=False,
-        default_flow_style=False,
-        width=100,
-    )
+    return block_yaml(ENVELOPE_ADAPTER.dump_python(envelope, mode="json"))
 
 
 def envelope_from_yaml(text: str) -> Envelope:
-    """Parse an edited envelope back, raising `JudgeSetError` with the schema's own reason
+    """Parse an edited envelope back, raising `CalibrationSetError` with the schema's own reason
     — the author is looking at the editor, not a traceback."""
     try:
         return ENVELOPE_ADAPTER.validate_python(yaml.safe_load(text))
     except (yaml.YAMLError, ValidationError) as error:
-        raise JudgeSetError(f"not a valid envelope: {error}") from None
+        raise CalibrationSetError(f"not a valid envelope: {error}") from None
 
 
 def upsert_pair(path: Path, pair: CalibrationPair, golden_set: Sequence[GoldenItem]) -> None:
-    """Write `pair` into the judge set at `path`, replacing any pair for the same golden
-    item, after validating the whole resulting set. Raises `JudgeSetError` — and writes
+    """Write `pair` into the calibration set at `path`, replacing any pair for the same golden
+    item, after validating the whole resulting set. Raises `CalibrationSetError` — and writes
     nothing — if any violation remains."""
-    pairs = [existing for existing in load_judge_set(path) if existing.golden_id != pair.golden_id]
+    pairs = [existing for existing in load_calibration_set(path) if existing.golden_id != pair.golden_id]
     pairs.append(pair)
-    violations = validate_judge_set(pairs, golden_set)
+    violations = validate_calibration_set(pairs, golden_set)
     if violations:
-        raise JudgeSetError("\n".join(violations))
-    dump_judge_set(pairs, path)
+        raise CalibrationSetError("\n".join(violations))
+    dump_calibration_set(pairs, path)

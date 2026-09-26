@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Validate `eval/calibration/judge-set.yaml` against SPEC §12.10 and the golden set (#47).
 
-    uv run python scripts/validate_judge_set.py [path/to/judge-set.yaml]
+    uv run python scripts/validate_calibration_set.py [path/to/judge-set.yaml]
 
 Exits non-zero and prints every violation found — schema shape first, then the per-pair
 checks (one pair per golden item, question/points matching it, each archetype's structural
@@ -14,22 +14,19 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from rag.eval.calibration import JudgeSetError, load_judge_set, validate_judge_set
+from rag.eval.calibration import CalibrationSetError, load_calibration_set, validate_calibration_set
+from rag.eval.paths import CALIBRATION_SET_PATH, GOLDEN_SET_PATH
 from rag.eval.schema import load_golden_set
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_JUDGE_SET = REPO_ROOT / "eval" / "calibration" / "judge-set.yaml"
-GOLDEN_SET_PATH = REPO_ROOT / "eval" / "golden" / "golden-set.yaml"
 
 
 def main(argv: list[str]) -> int:
-    path = Path(argv[0]) if argv else DEFAULT_JUDGE_SET
+    path = Path(argv[0]) if argv else CALIBRATION_SET_PATH
     try:
-        pairs = load_judge_set(path)
-    except JudgeSetError as exc:
+        pairs = load_calibration_set(path)
+    except CalibrationSetError as exc:
         print(f"{path}: INVALID\n{exc}", file=sys.stderr)
         return 1
-    violations = validate_judge_set(pairs, load_golden_set(GOLDEN_SET_PATH))
+    violations = validate_calibration_set(pairs, load_golden_set(GOLDEN_SET_PATH))
     if violations:
         print(f"{path}: INVALID\n" + "\n".join(violations), file=sys.stderr)
         return 1

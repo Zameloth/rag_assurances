@@ -747,7 +747,7 @@ class TestJudgedEvaluators:
         )
 
         assert run.header.judge_model == "anthropic/claude-sonnet-5"
-        assert run.header.judge_provider == "Google"
+        assert run.header.judge_providers == ("Google",)
         assert run.header.judge_prompt_languages == {"faithfulness": "en", "point_coverage": "fr"}
 
     def test_item_without_expected_points_has_no_coverage_score(
@@ -803,7 +803,7 @@ class TestJudgedEvaluators:
         [score] = run.items
         assert score.faithfulness is None
         assert run.header.judge_model == ""
-        assert run.header.judge_provider == ""
+        assert run.header.judge_providers == ()
 
     def test_a_judge_failure_is_recorded_per_item_and_fails_the_run_after_persisting_it(
         self,

@@ -25,28 +25,24 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import UTC, datetime
-from pathlib import Path
 
 from rag.config import load_settings
 from rag.eval.calibration import (
     DEFAULT_PASS_THRESHOLD,
     CalibrationRun,
-    load_judge_set,
+    load_calibration_set,
     run_calibration,
-    validate_judge_set,
+    validate_calibration_set,
 )
 from rag.eval.judge_chain import make_judge
+from rag.eval.paths import CALIBRATION_SET_PATH, GOLDEN_SET_PATH, REPO_ROOT, RUNS_DIR
 from rag.eval.schema import load_golden_set
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-JUDGE_SET_PATH = REPO_ROOT / "eval" / "calibration" / "judge-set.yaml"
-GOLDEN_SET_PATH = REPO_ROOT / "eval" / "golden" / "golden-set.yaml"
-RUNS_DIR = REPO_ROOT / "eval" / "runs"
 
 
 def _print_report(run: CalibrationRun) -> None:
     header = run.header
-    print(f"judge: {header.judge_model} via {header.judge_provider} — prompts {header.judge_prompt_languages}")
+    languages = ", ".join(f"{metric.value} {language.value}" for metric, language in header.judge_prompt_languages.items())
+    print(f"judge: {header.judge_model} via {', '.join(header.judge_providers)} — prompts: {languages}")
     print(f"pass threshold: {header.pass_threshold}")
     print()
     for pair in run.pairs:
@@ -82,13 +78,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     settings = load_settings()
-    pairs = load_judge_set(JUDGE_SET_PATH)
-    violations = validate_judge_set(pairs, load_golden_set(GOLDEN_SET_PATH))
+    pairs = load_calibration_set(CALIBRATION_SET_PATH)
+    violations = validate_calibration_set(pairs, load_golden_set(GOLDEN_SET_PATH))
     if violations:
-        print(f"{JUDGE_SET_PATH}: INVALID\n" + "\n".join(violations), file=sys.stderr)
+        print(f"{CALIBRATION_SET_PATH}: INVALID\n" + "\n".join(violations), file=sys.stderr)
         return 1
     if not pairs:
-        print(f"{JUDGE_SET_PATH}: no pairs yet — author some with scripts/author_calibration_pair.py", file=sys.stderr)
+        print(f"{CALIBRATION_SET_PATH}: no pairs yet — author some with scripts/author_calibration_pair.py", file=sys.stderr)
         return 1
 
     run_id = f"calibration-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
@@ -97,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         make_judge(settings),
         run_id=run_id,
         repo_root=REPO_ROOT,
-        judge_set_path=JUDGE_SET_PATH,
+        calibration_set_path=CALIBRATION_SET_PATH,
         runs_dir=RUNS_DIR,
         pass_threshold=args.pass_threshold,
     )

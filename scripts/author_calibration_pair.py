@@ -32,7 +32,7 @@ from qdrant_client import QdrantClient
 from rag.condensation.chain import make_condense_fn
 from rag.condensation.prompt import HistoryTurn
 from rag.config import load_settings
-from rag.eval.calibration import CalibrationAnswer, FaultArchetype, HumanLabel, JudgeSetError
+from rag.eval.calibration import CalibrationAnswer, CalibrationSetError, FaultArchetype, HumanLabel
 from rag.eval.calibration_authoring import (
     ARCHETYPE_GUIDANCE,
     draft_pair,
@@ -42,18 +42,11 @@ from rag.eval.calibration_authoring import (
     upsert_pair,
 )
 from rag.eval.judge import render_answer
-from rag.eval.run_generation_experiment import run_chain
+from rag.eval.paths import CALIBRATION_SET_PATH, GOLDEN_SET_PATH, REPO_ROOT
+from rag.eval.run_generation_experiment import GENERATION_RETRIEVAL_ARM, run_chain
 from rag.eval.schema import load_golden_set
 from rag.generation.chain import make_generate_fn
 from rag.retrieval.lookup import load_lookup_keys
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-GOLDEN_SET_PATH = REPO_ROOT / "eval" / "golden" / "golden-set.yaml"
-JUDGE_SET_PATH = REPO_ROOT / "eval" / "calibration" / "judge-set.yaml"
-
-# Same arm `run_generation_eval.py` sits on (ADR-0024) — the clean answers must be what the
-# generation eval would actually score.
-RETRIEVAL_ARM = "rung1"
 
 
 def _choose_archetype() -> FaultArchetype:
@@ -110,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
             lookup_keys=load_lookup_keys(client),
             condense_fn=make_condense_fn(settings),
             generate_fn=make_generate_fn(settings),
-            retrieval_arm=RETRIEVAL_ARM,
+            retrieval_arm=GENERATION_RETRIEVAL_ARM,
         )
     finally:
         client.close()
@@ -144,15 +137,15 @@ def main(argv: list[str] | None = None) -> int:
                 print("\n--- faulted twin ---")
                 print(render_answer(envelope))
                 twin_label = _ask_label("\nyour label for the faulted twin", HumanLabel.FAIL)
-            upsert_pair(JUDGE_SET_PATH, pair.with_faulted(CalibrationAnswer(envelope, twin_label)), golden_set)
-        except JudgeSetError as error:
+            upsert_pair(CALIBRATION_SET_PATH, pair.with_faulted(CalibrationAnswer(envelope, twin_label)), golden_set)
+        except CalibrationSetError as error:
             print(f"\nnot written:\n{error}")
             if input("edit again? [Y/n] ").strip().lower() == "n":
                 return 1
             continue
         break
 
-    print(f"\nwritten to {JUDGE_SET_PATH.relative_to(REPO_ROOT)} ({item.id}, {archetype.value})")
+    print(f"\nwritten to {CALIBRATION_SET_PATH.relative_to(REPO_ROOT)} ({item.id}, {archetype.value})")
     return 0
 
 

@@ -37,6 +37,7 @@ from typing import Protocol, TypeVar
 
 from pydantic import BaseModel, Field
 
+from rag.config import PromptLanguage
 from rag.generation.schema import Envelope, Refus
 
 __all__ = [
@@ -54,11 +55,6 @@ __all__ = [
 ]
 
 _M = TypeVar("_M", bound=BaseModel)
-
-
-class PromptLanguage(enum.StrEnum):
-    EN = "en"
-    FR = "fr"
 
 
 class JudgedMetric(enum.StrEnum):
@@ -222,11 +218,20 @@ class Judge:
     faithfulness_language: PromptLanguage
     point_coverage_language: PromptLanguage
 
-    def languages(self) -> dict[str, str]:
+    def languages(self) -> dict[JudgedMetric, PromptLanguage]:
         return {
-            JudgedMetric.FAITHFULNESS.value: self.faithfulness_language.value,
-            JudgedMetric.POINT_COVERAGE.value: self.point_coverage_language.value,
+            JudgedMetric.FAITHFULNESS: self.faithfulness_language,
+            JudgedMetric.POINT_COVERAGE: self.point_coverage_language,
         }
+
+    def score(
+        self, metric: JudgedMetric, *, question: str, context: str, answer: str, expected_points: Sequence[str]
+    ) -> JudgeScore | None:
+        """`metric` for one answer — the single place that maps a metric to what it is
+        judged against: the context for faithfulness, the points for coverage."""
+        if metric is JudgedMetric.FAITHFULNESS:
+            return self.faithfulness(context=context, answer=answer)
+        return self.point_coverage(question=question, answer=answer, expected_points=expected_points)
 
     def faithfulness(self, *, context: str, answer: str) -> JudgeScore:
         """Statements in `answer` grounded in `context` (the rendered context section the
