@@ -17,10 +17,13 @@ from __future__ import annotations
 
 import json
 import subprocess
-from dataclasses import asdict, dataclass
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from rag.config import PromptLanguage
+from rag.eval.judge import JudgedMetric
 from rag.eval.retrieval_metrics import ItemRetrievalScore
 
 __all__ = [
@@ -35,10 +38,14 @@ __all__ = [
 @dataclass(frozen=True)
 class RunHeader:
     """SPEC §12.11: "the run header pins everything that could move a score." `judge_model`
-    and `judge_provider` default empty — a pure retrieval run has no judge in the loop at
-    all (ADR-0011: "the ladder is fully deterministic and API-free"); they stay empty on
-    #46's generation runs too, since the three deterministic metrics need no judge — they
-    are reserved for the point-coverage/faithfulness evaluators a later ticket adds.
+    and `judge_providers` default empty — a pure retrieval run has no judge in the loop at
+    all (ADR-0011: "the ladder is fully deterministic and API-free"), and neither does a
+    generation run made without one (#46's). #47's judged runs fill them, `judge_providers`
+    with every provider OpenRouter *resolved* across the run's judge calls — read off each
+    response (`rag.eval.judge_chain`), not the one requested; one in practice, since
+    `allow_fallbacks: false` leaves nowhere else to route — plus `judge_prompt_languages`,
+    the per-metric prompt language (SPEC §12.10's FR/EN question), since the same judge
+    model behind a different prompt is a different instrument.
 
     `generation_model`/`generation_provider` are the #46 counterpart for the generation arm
     itself: "the generation model is an ablatable arm" (SPEC §10.1) is exactly the fact a
@@ -64,9 +71,30 @@ class RunHeader:
     timestamp: str
     langfuse_run_name: str
     judge_model: str = ""
-    judge_provider: str = ""
+    judge_providers: tuple[str, ...] = ()
     generation_model: str = ""
     generation_provider: str = ""
+    judge_prompt_languages: dict[JudgedMetric, PromptLanguage] = field(default_factory=dict)
+
+    @classmethod
+    def from_json(cls, raw: Mapping[str, Any]) -> RunHeader:
+        """The inverse of `asdict` + JSON: tuples and enums back from lists and strings.
+
+        Runs written before #47 carry a single `judge_provider` string — always empty, since
+        no judge had run yet — instead of `judge_providers`; it is read as one provider when
+        non-empty and as none otherwise, so every committed run in `eval/runs/` still loads.
+        """
+        fields = dict(raw)
+        legacy_provider = fields.pop("judge_provider", None)
+        providers = fields.pop("judge_providers", [legacy_provider] if legacy_provider else [])
+        languages = fields.pop("judge_prompt_languages", {})
+        return cls(
+            **fields,
+            judge_providers=tuple(providers),
+            judge_prompt_languages={
+                JudgedMetric(metric): PromptLanguage(language) for metric, language in languages.items()
+            },
+        )
 
 
 @dataclass(frozen=True)
@@ -88,7 +116,7 @@ def load_run(path: Path) -> RetrievalRun:
     """The inverse of `write_run` — reconstructs the dataclasses `compare.py` (#36) reads
     per-item scores through, rather than handing back bare JSON dicts."""
     raw = json.loads(path.read_text(encoding="utf-8"))
-    header = RunHeader(**raw["header"])
+    header = RunHeader.from_json(raw["header"])
     items = tuple(ItemRetrievalScore(**item) for item in raw["items"])
     return RetrievalRun(header=header, items=items)
 

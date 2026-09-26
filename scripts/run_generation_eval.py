@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
-"""Run the generation eval's three deterministic metrics end to end and record the
-verdict (SPEC §12.9, §12.11, §12.12, ADR-0009, #46).
+"""Run the generation eval end to end and record the verdict (SPEC §12.9, §12.10,
+§12.11, §12.12, ADR-0009, ADR-0025, #46, #47).
 
-State accuracy, citation validity and citation correctness cost nothing and cannot drift
-(SPEC §12.9): no judge sits in the loop here, unlike the two point-coverage/faithfulness
-metrics a later ticket adds. This script still costs real OpenRouter calls, though — every
-item runs the full chain (condensation when it carries history, then retrieval, then
-generation), so it is not free the way `run_ladder.py`'s rungs 1-3 are.
+Five metrics. State accuracy, citation validity and citation correctness cost nothing and
+cannot drift (SPEC §12.9); faithfulness and point coverage are judged by `JUDGE_MODEL`
+(#47), on pinned OpenRouter routing, with the resolved provider recorded in the run header.
+`--no-judge` runs the deterministic three alone. Every item runs the full chain
+(condensation when it carries history, then retrieval, then generation), plus two judge
+calls unless `--no-judge`, so this is not free the way `run_ladder.py`'s rungs 1-3 are.
+
+**Trust the judged numbers only for a judge configuration that passed calibration**
+(`scripts/run_judge_calibration.py`, SPEC §12.10) — same judge model, same prompt
+languages, same resolved provider.
 
 **Runs on top of the ladder-winning arm** (ADR-0024: rung 1 stands — reranking and the quota
 guard both failed their adoption bar, and the e5 embedder A/B was a wash), not whichever rung
-happened to run most recently — `RETRIEVAL_ARM` below is a named constant for exactly that
-reason.
+happened to run most recently — `GENERATION_RETRIEVAL_ARM` is a named constant for exactly that
+reason, shared with the calibration authoring helper.
 
 **Citation correctness is a distinct number from article recall@4, read together, not summed**
 (SPEC §12.9): recall says the gold article reached the prompt (a fact from `run_ladder.py`'s
@@ -22,6 +27,7 @@ computing recall itself — recall belongs to the ladder's own dataset and run, 
 
     uv run python scripts/run_generation_eval.py
     uv run python scripts/run_generation_eval.py --no-sync
+    uv run python scripts/run_generation_eval.py --no-judge
 """
 
 from __future__ import annotations
@@ -29,27 +35,25 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import UTC, datetime
-from pathlib import Path
 
 from qdrant_client import QdrantClient
 
 from rag.condensation.chain import make_condense_fn
 from rag.config import load_settings
 from rag.eval.generation_run import GenerationRun
+from rag.eval.judge_chain import make_judge
 from rag.eval.langfuse_sync import sync_generation_dataset
-from rag.eval.run_generation_experiment import MAX_CONCURRENCY, run_generation_eval
+from rag.eval.paths import GOLDEN_SET_PATH, REPO_ROOT, RUNS_DIR
+from rag.eval.run_generation_experiment import (
+    GENERATION_RETRIEVAL_ARM,
+    MAX_CONCURRENCY,
+    JudgeRunError,
+    run_generation_eval,
+)
 from rag.generation.chain import make_generate_fn
 from rag.ingest.embedder import MODEL_ID as EMBEDDER_MODEL_ID
 from rag.retrieval.lookup import load_lookup_keys
 from rag.retrieval.pipeline import LEG_CANDIDATE_LIMIT, TOP_K
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-GOLDEN_SET_PATH = REPO_ROOT / "eval" / "golden" / "golden-set.yaml"
-RUNS_DIR = REPO_ROOT / "eval" / "runs"
-
-# ADR-0024 — rung 1 stands; this is what a generation run should sit on top of, not
-# whichever rung a ladder script happened to run last.
-RETRIEVAL_ARM = "rung1"
 
 
 def _retrieval_config(settings_condenser_model: str, settings_condenser_provider: str) -> dict[str, object]:
@@ -58,7 +62,7 @@ def _retrieval_config(settings_condenser_model: str, settings_condenser_provider
     §8.2: "a controlled constant"), since `RunHeader` has no dedicated field for it and this
     dict is the caller's free-form record of everything else that could move a score."""
     return {
-        "retrieval_arm": RETRIEVAL_ARM,
+        "retrieval_arm": GENERATION_RETRIEVAL_ARM,
         "embedder": EMBEDDER_MODEL_ID,
         "leg_candidate_limit": LEG_CANDIDATE_LIMIT,
         "top_k": TOP_K,
@@ -86,6 +90,12 @@ def _print_summary(run: GenerationRun) -> None:
         "(a different run, `eval/runs/rung*.json`) — recall high + correctness low is a "
         "generation failure, both low is a retrieval failure."
     )
+    for name in ("faithfulness", "point_coverage"):
+        judged = [getattr(item, name) for item in run.items if getattr(item, name) is not None]
+        if judged:
+            print(f"{name}: {sum(judged) / len(judged):.3f} (mean over {len(judged)} judged item(s))")
+    if run.header.judge_model:
+        print(f"judge: {run.header.judge_model} via {', '.join(run.header.judge_providers) or '(no call succeeded)'}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -104,9 +114,16 @@ def main(argv: list[str] | None = None) -> int:
             "a better shot at a clean, complete-item run"
         ),
     )
+    parser.add_argument(
+        "--no-judge",
+        action="store_true",
+        help="skip faithfulness and point coverage — the three deterministic metrics only",
+    )
     args = parser.parse_args(argv)
 
     settings = load_settings()  # also loads .env into the process environment
+    # Built before any paid call, so a same-family or unconfigured judge fails up front.
+    judge = None if args.no_judge else make_judge(settings)
     if not args.no_sync:
         print(f"syncing {GOLDEN_SET_PATH} -> Langfuse generation dataset ...")
         sync_generation_dataset(GOLDEN_SET_PATH)
@@ -132,9 +149,14 @@ def main(argv: list[str] | None = None) -> int:
             generation_model=settings.generation_model,
             generation_provider=settings.generation_provider,
             retrieval_config=_retrieval_config(settings.condenser_model, settings.condenser_provider),
-            retrieval_arm=RETRIEVAL_ARM,
+            retrieval_arm=GENERATION_RETRIEVAL_ARM,
             max_concurrency=args.max_concurrency,
+            judge=judge,
         )
+    except JudgeRunError as error:
+        # The run is already written; its judged scores are incomplete, so no summary.
+        print(f"FAILED: {error}", file=sys.stderr)
+        return 1
     finally:
         client.close()
 

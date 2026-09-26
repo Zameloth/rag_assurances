@@ -67,3 +67,52 @@ class TestWriteGenerationRun:
         run = GenerationRun(header=make_header(), items=())
         write_generation_run(run, runs_dir)
         assert (runs_dir / "generation-2026-09-25.json").exists()
+
+
+class TestJudgedFields:
+    """#47 — the two judged metrics and the judge's pinned configuration."""
+
+    def test_judged_scores_and_typed_judge_header_round_trip(self, tmp_path: Path) -> None:
+        from dataclasses import replace
+
+        from rag.config import PromptLanguage
+        from rag.eval.judge import JudgedMetric
+
+        item = replace(make_item(), faithfulness=0.75, point_coverage=None, judge_error="point_coverage: boom")
+        header = make_header(
+            judge_model="anthropic/claude-sonnet-5",
+            judge_providers=("Anthropic",),
+            judge_prompt_languages={
+                JudgedMetric.FAITHFULNESS: PromptLanguage.EN,
+                JudgedMetric.POINT_COVERAGE: PromptLanguage.FR,
+            },
+        )
+        run = GenerationRun(header=header, items=(item,))
+
+        reloaded = load_generation_run(write_generation_run(run, tmp_path))
+
+        assert reloaded == run
+        assert reloaded.header.judge_providers == ("Anthropic",)
+        [(metric, language)] = list(reloaded.header.judge_prompt_languages.items())[:1]
+        assert metric is JudgedMetric.FAITHFULNESS
+        assert language is PromptLanguage.EN
+
+    def test_a_run_written_before_the_judge_existed_still_loads(self, tmp_path: Path) -> None:
+        """`eval/runs/*.json` from before #47: no judged fields, and the header's single
+        `judge_provider` string (empty — no judge ran) instead of `judge_providers`."""
+        run = GenerationRun(header=make_header(), items=(make_item(),))
+        path = write_generation_run(run, tmp_path)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        for item in payload["items"]:
+            del item["faithfulness"], item["point_coverage"], item["judge_error"]
+        del payload["header"]["judge_prompt_languages"], payload["header"]["judge_providers"]
+        payload["header"]["judge_provider"] = ""
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+        reloaded = load_generation_run(path)
+
+        [item] = reloaded.items
+        assert item.faithfulness is None
+        assert item.point_coverage is None
+        assert reloaded.header.judge_providers == ()
+        assert reloaded.header == run.header

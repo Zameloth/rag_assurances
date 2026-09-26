@@ -29,9 +29,18 @@ from rag.condensation.schema import CondenserOutput
 from rag.config import Settings
 from rag.eval.generation_metrics import ItemGenerationScore
 from rag.eval.generation_run import load_generation_run
+from rag.eval.judge import (
+    FaithfulnessOutput,
+    Judge,
+    JudgeOutputError,
+    PointCoverageOutput,
+    PointVerdict,
+    PromptLanguage,
+)
 from rag.eval.langfuse_sync import GENERATION_DATASET_NAME, generation_dataset_items
 from rag.eval.run_generation_experiment import (
     MAX_CONCURRENCY,
+    JudgeRunError,
     _score_evaluations,
     run_generation_eval,
 )
@@ -95,6 +104,7 @@ def golden_item(
     history: tuple[dict[str, str], ...] = (),
     expected_state: str = "reponse",
     gold_articles: tuple[str, ...] = (),
+    expected_points: tuple[str, ...] = (),
 ) -> GoldenItem:
     return GoldenItem(
         id=id,
@@ -104,7 +114,7 @@ def golden_item(
         gold_fiches=(),
         gold_spans=(),
         gold_articles=gold_articles,
-        expected_points=(),
+        expected_points=expected_points,
         tags=(),
     )
 
@@ -148,6 +158,7 @@ class _FakeDataset:
         self.items = items
         self.updated_at = updated_at
         self.run_experiment_calls: list[dict[str, Any]] = []
+        self.last_evaluations: list[Evaluation] = []
 
     def run_experiment(
         self, *, name: str, run_name: str, task: Any, evaluators: list[Any], max_concurrency: int
@@ -164,6 +175,7 @@ class _FakeDataset:
                     input=item.input, output=output, expected_output=item.expected_output, metadata=item.metadata
                 )
                 evaluations.extend(produced if isinstance(produced, list) else [produced])
+            self.last_evaluations = evaluations
             item_results.append(
                 ExperimentItemResult(
                     item=item, output=output, evaluations=evaluations, trace_id=None, dataset_run_id=None
@@ -599,3 +611,241 @@ class TestRunGenerationEval:
         [score] = run.items
         assert score.citation_valid is True
         assert score.citation_correctness == 1.0
+
+
+class _ScriptedJudgeCall:
+    """Answers faithfulness with a fixed score and point coverage with every point asserted
+    except the last — enough to tell the two metrics apart in what gets persisted."""
+
+    def __init__(self, provider: str = "Anthropic") -> None:
+        self.provider = provider
+        self.prompts: list[str] = []
+
+    def __call__(self, prompt: str, schema: type[Any]) -> tuple[Any, str]:
+        self.prompts.append(prompt)
+        if schema is FaithfulnessOutput:
+            return FaithfulnessOutput(score=0.8, reasoning="4 of 5 grounded"), self.provider
+        points = [line for line in prompt.splitlines() if line[:1].isdigit() and ". " in line]
+        verdicts = [
+            PointVerdict(index=i, asserted=i < len(points), reasoning="r") for i in range(1, len(points) + 1)
+        ]
+        return PointCoverageOutput(verdicts=verdicts), self.provider
+
+
+class _FailingOnFaithfulness(_ScriptedJudgeCall):
+    """Point coverage succeeds; faithfulness raises the way a response with no resolved
+    provider does (`rag.eval.judge_chain`)."""
+
+    def __call__(self, prompt: str, schema: type[Any]) -> tuple[Any, str]:
+        if schema is FaithfulnessOutput:
+            raise JudgeOutputError("OpenRouter reported no resolved provider for the judge call")
+        return super().__call__(prompt, schema)
+
+
+class TestJudgedEvaluators:
+    """#47 — faithfulness and point coverage, wired as evaluators over the same task output
+    as the three deterministic metrics, persisted per item with the resolved provider."""
+
+    def _run(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        qdrant: QdrantClient,
+        create_collection: CreateCollection,
+        fake_settings: Settings,
+        items: list[GoldenItem],
+        judge: Judge | None,
+    ) -> tuple[Any, _FakeDataset]:
+        create_collection(qdrant, FICHES_ALIAS)
+        create_collection(qdrant, ARTICLES_ALIAS)
+        qdrant.upsert(FICHES_ALIAS, points=[raw_point(1, [1.0, 0.0, 0.0, 0.0], {"fiche_id": "F1", "text": "Texte de fiche."})])
+        dataset = _FakeDataset([_fake_dataset_item(i) for i in items], updated_at=datetime(2026, 9, 25, tzinfo=UTC))
+        monkeypatch.setattr(run_generation_experiment_module, "load_settings", lambda: fake_settings)
+        monkeypatch.setattr(
+            run_generation_experiment_module, "Langfuse", lambda **kwargs: _FakeLangfuseClient(dataset, **kwargs)
+        )
+        _init_git_repo(tmp_path)
+        golden_set_path = tmp_path / "golden-set.yaml"
+        dump_golden_set(items, golden_set_path)
+        _commit_all(tmp_path, "add golden set")
+
+        run = run_generation_eval(
+            client=qdrant,
+            embed=stub_embed([1.0, 0.0, 0.0, 0.0]),
+            lookup_keys=set(),
+            condense_fn=_fake_condense_fn("ignored"),
+            generate_fn=_fake_generate_fn(Reponse(explanation="Oui.", fondement_juridique=[])),
+            arm="mistral-large-2512",
+            run_id="generation-test-run",
+            repo_root=tmp_path,
+            golden_set_path=golden_set_path,
+            runs_dir=tmp_path / "runs",
+            generation_model="mistralai/mistral-large-2512",
+            generation_provider="mistral",
+            retrieval_config={},
+            judge=judge,
+        )
+        return run, dataset
+
+    def _judge(self, call: _ScriptedJudgeCall) -> Judge:
+        return Judge(
+            call=call,
+            model="anthropic/claude-sonnet-5",
+            faithfulness_language=PromptLanguage.EN,
+            point_coverage_language=PromptLanguage.FR,
+        )
+
+    def test_persists_both_judged_scores_per_item(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        qdrant: QdrantClient,
+        create_collection: CreateCollection,
+        fake_settings: Settings,
+    ) -> None:
+        item = golden_item("gs-001", expected_points=("p1", "p2"))
+        run, _ = self._run(
+            tmp_path, monkeypatch, qdrant, create_collection, fake_settings, [item], self._judge(_ScriptedJudgeCall())
+        )
+
+        [score] = run.items
+        assert score.faithfulness == 0.8
+        assert score.point_coverage == 0.5
+        assert load_generation_run(tmp_path / "runs" / "generation-test-run.json") == run
+
+    def test_judge_sees_the_context_the_generator_saw(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        qdrant: QdrantClient,
+        create_collection: CreateCollection,
+        fake_settings: Settings,
+    ) -> None:
+        call = _ScriptedJudgeCall()
+        self._run(tmp_path, monkeypatch, qdrant, create_collection, fake_settings, [golden_item()], self._judge(call))
+
+        [faithfulness_prompt] = call.prompts
+        assert "Texte de fiche." in faithfulness_prompt
+        assert "Oui." in faithfulness_prompt
+
+    def test_header_pins_judge_model_resolved_provider_and_prompt_languages(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        qdrant: QdrantClient,
+        create_collection: CreateCollection,
+        fake_settings: Settings,
+    ) -> None:
+        run, _ = self._run(
+            tmp_path,
+            monkeypatch,
+            qdrant,
+            create_collection,
+            fake_settings,
+            [golden_item()],
+            self._judge(_ScriptedJudgeCall(provider="Google")),
+        )
+
+        assert run.header.judge_model == "anthropic/claude-sonnet-5"
+        assert run.header.judge_providers == ("Google",)
+        assert run.header.judge_prompt_languages == {"faithfulness": "en", "point_coverage": "fr"}
+
+    def test_item_without_expected_points_has_no_coverage_score(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        qdrant: QdrantClient,
+        create_collection: CreateCollection,
+        fake_settings: Settings,
+    ) -> None:
+        run, dataset = self._run(
+            tmp_path, monkeypatch, qdrant, create_collection, fake_settings, [golden_item()], self._judge(_ScriptedJudgeCall())
+        )
+
+        [score] = run.items
+        assert score.point_coverage is None
+        assert score.faithfulness == 0.8
+
+    def test_scores_reach_langfuse_with_reasoning_and_provider(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        qdrant: QdrantClient,
+        create_collection: CreateCollection,
+        fake_settings: Settings,
+    ) -> None:
+        run, dataset = self._run(
+            tmp_path,
+            monkeypatch,
+            qdrant,
+            create_collection,
+            fake_settings,
+            [golden_item(expected_points=("p1",))],
+            self._judge(_ScriptedJudgeCall()),
+        )
+
+        [faithfulness] = [e for e in dataset.last_evaluations if e.name == "faithfulness"]
+        assert faithfulness.comment == "4 of 5 grounded"
+        assert faithfulness.metadata == {"provider": "Anthropic"}
+        assert faithfulness.data_type == "NUMERIC"
+        assert {e.name for e in dataset.last_evaluations} >= {"faithfulness", "point_coverage"}
+
+    def test_without_a_judge_the_run_stays_deterministic_only(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        qdrant: QdrantClient,
+        create_collection: CreateCollection,
+        fake_settings: Settings,
+    ) -> None:
+        run, _ = self._run(tmp_path, monkeypatch, qdrant, create_collection, fake_settings, [golden_item()], None)
+
+        [score] = run.items
+        assert score.faithfulness is None
+        assert run.header.judge_model == ""
+        assert run.header.judge_providers == ()
+
+    def test_a_judge_failure_is_recorded_per_item_and_fails_the_run_after_persisting_it(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        qdrant: QdrantClient,
+        create_collection: CreateCollection,
+        fake_settings: Settings,
+    ) -> None:
+        """`dataset.run_experiment()` swallows evaluator exceptions — a judge failure must
+        not reach `eval/runs/` looking like "no judge ran" or "nothing to cover"."""
+        item = golden_item("gs-007", expected_points=("p1", "p2"))
+
+        with pytest.raises(JudgeRunError, match="gs-007"):
+            self._run(
+                tmp_path,
+                monkeypatch,
+                qdrant,
+                create_collection,
+                fake_settings,
+                [item],
+                self._judge(_FailingOnFaithfulness()),
+            )
+
+        [score] = load_generation_run(tmp_path / "runs" / "generation-test-run.json").items
+        assert score.faithfulness is None
+        assert score.judge_error is not None
+        assert "faithfulness" in score.judge_error
+        assert "no resolved provider" in score.judge_error
+        assert score.point_coverage == 0.5  # the metric that succeeded is kept
+
+    def test_a_clean_judged_run_records_no_judge_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        qdrant: QdrantClient,
+        create_collection: CreateCollection,
+        fake_settings: Settings,
+    ) -> None:
+        run, _ = self._run(
+            tmp_path, monkeypatch, qdrant, create_collection, fake_settings, [golden_item()], self._judge(_ScriptedJudgeCall())
+        )
+
+        [score] = run.items
+        assert score.judge_error is None

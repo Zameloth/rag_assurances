@@ -14,16 +14,19 @@ items are the only golden-set items that measure the condenser at all (SPEC §12
 or reaching for `get_client()`'s ambient singleton, and `dataset.run_experiment()` runs
 through that instance, not some other one.
 
-**Only the three deterministic metrics are evaluators here** (SPEC §12.9): state accuracy,
-citation validity, citation correctness. Point coverage and faithfulness are judged metrics
-a later ticket adds as further evaluators over the same `task` output — this module's own
-per-item persistence (`ItemGenerationScore`) has no fields for them yet, on purpose, so
-their absence isn't threatened by a wrong guess at a judge's shape made here.
+**Five metrics, two evaluators** (SPEC §12.9): the three deterministic ones (state
+accuracy, citation validity, citation correctness) always run; faithfulness and point
+coverage (#47) run when a `rag.eval.judge.Judge` is passed, as a second evaluator over the
+same `task` output. The judged scores reach Langfuse with the judge's reasoning as the
+score comment and the resolved provider in its metadata, and reach `eval/runs/` read back
+from those same evaluations — each judge call is made once, never re-run for persistence.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from collections.abc import Set as AbstractSet
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -38,15 +41,25 @@ from rag.condensation.prompt import HistoryTurn as CondensationHistoryTurn
 from rag.config import load_settings
 from rag.eval.generation_metrics import ItemGenerationScore, score_item
 from rag.eval.generation_run import GenerationRun, write_generation_run
+from rag.eval.judge import Judge, JudgedMetric, JudgeScore, render_answer
 from rag.eval.langfuse_sync import GENERATION_DATASET_NAME, reconstruct_generation_item
 from rag.eval.retrieval_run import RunHeader, resolve_git_sha
 from rag.eval.schema import GoldenItem
 from rag.generation.pipeline import GenerateFn, GenerationResult, generate
 from rag.generation.prompt import HistoryTurn as GenerationHistoryTurn
+from rag.generation.prompt import build_context_section
 from rag.ingest.upsert import EmbedFn
 from rag.retrieval.pipeline import DEFAULT_RETRIEVAL_ARM, retrieve
 
-__all__ = ["GENERATION_RUNG", "MAX_CONCURRENCY", "MIN_CONCURRENCY", "run_generation_eval"]
+__all__ = [
+    "GENERATION_RETRIEVAL_ARM",
+    "GENERATION_RUNG",
+    "MAX_CONCURRENCY",
+    "MIN_CONCURRENCY",
+    "JudgeRunError",
+    "run_chain",
+    "run_generation_eval",
+]
 
 # Same range and reasoning as `rag.eval.run_experiment` — every generation-eval item makes
 # two paid OpenRouter calls instead of retrieval's zero (condensation, when history is
@@ -61,6 +74,11 @@ MAX_CONCURRENCY = 10
 # (`RunHeader.arm`, `RunHeader.generation_model`/`generation_provider`), so `rung` is this
 # one constant rather than a per-call parameter with nothing yet to vary it.
 GENERATION_RUNG = "generation"
+
+# ADR-0024 — rung 1 stands. What a generation run sits on top of, and what the calibration
+# authoring helper's real answers come from: one constant, so the answers calibrated against
+# are answers the generation eval would actually score.
+GENERATION_RETRIEVAL_ARM = "rung1"
 
 _SCORE_FIELDS = ("state_correct", "citation_valid", "citation_correctness")
 _BOOLEAN_SCORE_FIELDS = frozenset({"state_correct", "citation_valid"})
@@ -88,6 +106,93 @@ def _history_from_metadata(metadata: Any) -> tuple[CondensationHistoryTurn, ...]
     the one place that turns them back into `HistoryTurn`s, condensation's own type since
     it's the first stage of the chain to need one."""
     return tuple(CondensationHistoryTurn(role=turn["role"], content=turn["content"]) for turn in metadata.get("history", []))
+
+
+class JudgeRunError(Exception):
+    """At least one judge call failed. Raised only after the run is persisted, so the
+    failed items and their `judge_error` are on disk to inspect."""
+
+
+@dataclass(frozen=True)
+class _JudgedItem:
+    """One item's judge outcome, kept typed for persistence — `scores` has no entry for a
+    metric that is undefined on the item (no points to cover) or whose call failed; the
+    failure is in `errors` instead."""
+
+    scores: dict[JudgedMetric, JudgeScore]
+    errors: tuple[str, ...]
+
+
+def _judge_item(judge: Judge, item: GoldenItem, result: GenerationResult) -> _JudgedItem:
+    """Both judged metrics for one item: faithfulness against the context section the
+    generator itself was shown, point coverage against the item's `expected_points`.
+
+    Failures are caught here rather than left to propagate: `dataset.run_experiment()`
+    catches an evaluator's exception itself, logs it and drops the whole evaluator's
+    output, so an uncaught judge failure would reach `eval/runs/` as a bare `None`,
+    indistinguishable from "no judge ran" or "no points to cover". Each metric is tried on
+    its own, so one failed call doesn't discard the other's score.
+    """
+    answer = render_answer(result.envelope)
+    context = build_context_section(result.contexts)
+    scores: dict[JudgedMetric, JudgeScore] = {}
+    errors: list[str] = []
+    for metric in JudgedMetric:
+        try:
+            score = judge.score(
+                metric, question=item.question, context=context, answer=answer, expected_points=item.expected_points
+            )
+        except Exception as error:  # any failure — network, parsing, no provider — is recorded, not scored
+            errors.append(f"{metric.value}: {type(error).__name__}: {error}")
+            continue
+        if score is not None:
+            scores[metric] = score
+    return _JudgedItem(scores=scores, errors=tuple(errors))
+
+
+def _judge_evaluation(score: JudgeScore) -> Evaluation:
+    """How a judged score reaches Langfuse: the reasoning as the score comment, the
+    resolved provider in its metadata."""
+    return Evaluation(
+        name=score.metric.value,
+        value=score.value,
+        comment=score.reasoning,
+        metadata={"provider": score.provider},
+        data_type="NUMERIC",
+    )
+
+
+def _with_judged(score: ItemGenerationScore, judged: _JudgedItem | None) -> ItemGenerationScore:
+    if judged is None:
+        return score
+    faithfulness = judged.scores.get(JudgedMetric.FAITHFULNESS)
+    point_coverage = judged.scores.get(JudgedMetric.POINT_COVERAGE)
+    return replace(
+        score,
+        faithfulness=faithfulness.value if faithfulness is not None else None,
+        point_coverage=point_coverage.value if point_coverage is not None else None,
+        judge_error="; ".join(judged.errors) or None,
+    )
+
+
+def run_chain(
+    raw_turn: str,
+    history: Sequence[CondensationHistoryTurn],
+    *,
+    client: QdrantClient,
+    embed: EmbedFn,
+    lookup_keys: AbstractSet[str],
+    condense_fn: CondenseFn,
+    generate_fn: GenerateFn,
+    retrieval_arm: str = DEFAULT_RETRIEVAL_ARM,
+) -> GenerationResult:
+    """The full chain for one turn — condense, retrieve, generate — exactly as the eval
+    task runs it. Shared with the calibration authoring helper (#47), whose clean answers
+    must be real pipeline answers, not a second code path's."""
+    condensation = condense(raw_turn, history, lookup_keys, condense_fn)
+    retrieval = retrieve(client, embed, condensation.query, lookup_keys, arm=retrieval_arm)
+    generation_history = tuple(GenerationHistoryTurn(role=turn.role, content=turn.content) for turn in history)
+    return generate(raw_turn, retrieval, generate_fn, history=generation_history)
 
 
 def _golden_item_from(item: DatasetItem) -> GoldenItem:
@@ -122,6 +227,7 @@ def run_generation_eval(
     dataset_name: str = GENERATION_DATASET_NAME,
     retrieval_arm: str = DEFAULT_RETRIEVAL_ARM,
     max_concurrency: int = MAX_CONCURRENCY,
+    judge: Judge | None = None,
 ) -> GenerationRun:
     """Run the full chain (condense -> retrieve -> generate) against every item in the
     synced `dataset_name` dataset and persist the result to `runs_dir` (SPEC §12.11's
@@ -167,16 +273,16 @@ def run_generation_eval(
         # Same assertion `rag.eval.run_experiment.task` makes, same reason: a dataset-bound
         # `run_experiment()` call only ever hands its task a `DatasetItem`.
         assert isinstance(item, DatasetItem)
-        raw_turn = str(item.input)
-        condensation_history = _history_from_metadata(item.metadata)
-
-        condensation = condense(raw_turn, condensation_history, lookup_keys, condense_fn)
-        retrieval = retrieve(client, embed, condensation.query, lookup_keys, arm=retrieval_arm)
-
-        generation_history = tuple(
-            GenerationHistoryTurn(role=turn.role, content=turn.content) for turn in condensation_history
+        return run_chain(
+            str(item.input),
+            _history_from_metadata(item.metadata),
+            client=client,
+            embed=embed,
+            lookup_keys=lookup_keys,
+            condense_fn=condense_fn,
+            generate_fn=generate_fn,
+            retrieval_arm=retrieval_arm,
         )
-        return generate(raw_turn, retrieval, generate_fn, history=generation_history)
 
     def generation_evaluator(
         *, input: Any, output: GenerationResult, expected_output: Any, metadata: Any, **kwargs: Any
@@ -186,19 +292,40 @@ def run_generation_eval(
         )
         return _score_evaluations(score_item(golden_item, output))
 
+    evaluators: list[Any] = [generation_evaluator]
+    # Filled from `judged_evaluator`, which runs concurrently across items — one key per
+    # golden id, so writes never collide. Persistence reads the typed scores from here, not
+    # back out of the Langfuse `Evaluation`s.
+    judged: dict[str, _JudgedItem] = {}
+    if judge is not None:
+        active_judge = judge
+
+        def judged_evaluator(
+            *, input: Any, output: GenerationResult, expected_output: Any, metadata: Any, **kwargs: Any
+        ) -> list[Evaluation]:
+            golden_item = reconstruct_generation_item(
+                golden_id=metadata["golden_id"], question=str(input), expected_output=expected_output, metadata=metadata
+            )
+            judged_item = _judge_item(active_judge, golden_item, output)
+            judged[golden_item.id] = judged_item
+            return [_judge_evaluation(score) for score in judged_item.scores.values()]
+
+        evaluators.append(judged_evaluator)
+
     result = dataset.run_experiment(
         name=run_id,
         run_name=run_id,
         task=task,
-        evaluators=[generation_evaluator],
+        evaluators=evaluators,
         max_concurrency=max_concurrency,
     )
 
+    dataset_results = [(r.item, r) for r in result.item_results if isinstance(r.item, DatasetItem)]
     items = tuple(
-        score_item(_golden_item_from(item_result.item), item_result.output)
-        for item_result in result.item_results
-        if isinstance(item_result.item, DatasetItem)
+        _with_judged(score_item(_golden_item_from(item), r.output), judged.get(item.metadata["golden_id"]))
+        for item, r in dataset_results
     )
+    failed = sorted(golden_id for golden_id, judged_item in judged.items() if judged_item.errors)
     header = RunHeader(
         run_id=run_id,
         rung=GENERATION_RUNG,
@@ -211,8 +338,20 @@ def run_generation_eval(
         langfuse_run_name=run_id,
         generation_model=generation_model,
         generation_provider=generation_provider,
+        judge_model=judge.model if judge is not None else "",
+        # One provider in practice — `allow_fallbacks: false` leaves OpenRouter nowhere else
+        # to route — but a run that somehow saw two says so rather than recording one.
+        judge_providers=tuple(
+            sorted({score.provider for judged_item in judged.values() for score in judged_item.scores.values()})
+        ),
+        judge_prompt_languages=judge.languages() if judge is not None else {},
     )
     run = GenerationRun(header=header, items=items)
-    write_generation_run(run, runs_dir)
+    path = write_generation_run(run, runs_dir)
     langfuse.flush()
+    if failed:
+        raise JudgeRunError(
+            f"judge failed on {len(failed)} item(s): {', '.join(failed)} — see judge_error in {path}; "
+            "their judged scores are missing, not zero"
+        )
     return run

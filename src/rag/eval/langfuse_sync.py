@@ -213,11 +213,10 @@ def generation_dataset_items(golden_set: Sequence[GoldenItem]) -> list[Generatio
     `input` is the bare current-turn question, same as retrieval's — `history` cannot live
     there too without conflating "the text to condense/generate from" with "prior turns",
     so it travels in `metadata` instead, alongside `golden_id`/`tags`. `expected_output`
-    carries exactly what `rag.eval.generation_metrics.score_item` reads off a `GoldenItem`
-    for the three deterministic metrics (#46): `expected_state` and `gold_articles`. Not
-    `gold_fiches`/`gold_spans` (retrieval-regime fields with no deterministic-generation
-    reader) and not `expected_points` (SPEC §12.9's two *judged* metrics, a later ticket's
-    concern — added here if and when that evaluator needs it, not speculatively now).
+    carries exactly what the generation metrics read off a `GoldenItem`: `expected_state`
+    and `gold_articles` for the three deterministic ones (#46), `expected_points` for point
+    coverage (#47). Not `gold_fiches`/`gold_spans` — retrieval-regime fields with no
+    generation reader.
     """
     return [
         GenerationDatasetItem(
@@ -226,6 +225,7 @@ def generation_dataset_items(golden_set: Sequence[GoldenItem]) -> list[Generatio
             expected_output={
                 "expected_state": item.expected_state,
                 "gold_articles": list(item.gold_articles),
+                "expected_points": list(item.expected_points),
             },
             metadata={
                 "golden_id": item.id,
@@ -246,10 +246,13 @@ def reconstruct_generation_item(
     `GoldenItem`, and both `rag.condensation.pipeline.condense` (via `history`) and
     `rag.eval.generation_metrics.score_item` (via `expected_state`/`gold_articles`) need one.
 
-    Only reconstructs what those two callers read. `gold_fiches`/`gold_spans` are always
-    `()` — `generation_dataset_items` never carries them (they are the retrieval regime's own
-    fields) — and `expected_points`/`tags` are always `()`, same reasoning
-    `reconstruct_golden_item` already gives for its own unreconstructed fields.
+    Only reconstructs what those callers read — plus `expected_points` for the judged point
+    coverage evaluator (#47). `gold_fiches`/`gold_spans` are always `()` —
+    `generation_dataset_items` never carries them (they are the retrieval regime's own
+    fields) — and `tags` is always `()`, same reasoning `reconstruct_golden_item` already
+    gives for its own unreconstructed fields. `expected_points` is read strictly: a dataset
+    synced before #47 lacks it, and a `KeyError` says "re-sync" where a silent `()` would
+    read as "no points to cover" on every item.
     """
     return GoldenItem(
         id=golden_id,
@@ -259,7 +262,7 @@ def reconstruct_generation_item(
         gold_fiches=(),
         gold_spans=(),
         gold_articles=tuple(expected_output["gold_articles"]),
-        expected_points=(),
+        expected_points=tuple(expected_output["expected_points"]),
         tags=(),
     )
 

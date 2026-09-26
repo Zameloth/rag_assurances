@@ -44,7 +44,7 @@ def load_generation_run(path: Path) -> GenerationRun:
     otherwise fail the round trip on type alone.
     """
     raw = json.loads(path.read_text(encoding="utf-8"))
-    header = RunHeader(**raw["header"])
+    header = RunHeader.from_json(raw["header"])
     items = tuple(
         ItemGenerationScore(**{**item, "fabricated_ids": tuple(item["fabricated_ids"])})
         for item in raw["items"]

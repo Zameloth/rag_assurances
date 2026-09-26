@@ -285,7 +285,9 @@ class TestGenerationDatasetItems:
         [item] = generation_dataset_items(items)
         assert item.input == "et si c'était lui l'ivre ?"
 
-    def test_expected_output_carries_only_what_the_three_deterministic_metrics_read(self) -> None:
+    def test_expected_output_carries_only_what_the_generation_metrics_read(self) -> None:
+        """The three deterministic metrics read `expected_state`/`gold_articles`; point
+        coverage (#47) reads `expected_points`. Retrieval-only labels stay out."""
         items = [
             golden_item(
                 "gs-001",
@@ -297,7 +299,11 @@ class TestGenerationDatasetItems:
             )
         ]
         [item] = generation_dataset_items(items)
-        assert item.expected_output == {"expected_state": "reponse", "gold_articles": ["CID1"]}
+        assert item.expected_output == {
+            "expected_state": "reponse",
+            "gold_articles": ["CID1"],
+            "expected_points": ["un point"],
+        }
 
     def test_metadata_carries_golden_id_tags_and_history(self) -> None:
         items = [
@@ -336,6 +342,7 @@ class TestReconstructGenerationItem:
             "gs-031",
             expected_state="reponse",
             gold_articles=("CID1",),
+            expected_points=("un point", "un autre"),
             history=({"role": "user", "content": "il était ivre"},),
         )
         [projected] = generation_dataset_items([original])
@@ -356,25 +363,25 @@ class TestReconstructGenerationItem:
         assert reconstructed.expected_state == original.expected_state
         assert reconstructed.gold_articles == original.gold_articles
         assert reconstructed.history == original.history
+        assert reconstructed.expected_points == original.expected_points
 
-    def test_never_reconstructs_gold_fiches_gold_spans_expected_points_or_tags(self) -> None:
+    def test_never_reconstructs_gold_fiches_gold_spans_or_tags(self) -> None:
         reconstructed = reconstruct_generation_item(
             golden_id="gs-001",
             question="une question",
-            expected_output={"expected_state": "reponse", "gold_articles": []},
+            expected_output={"expected_state": "reponse", "gold_articles": [], "expected_points": []},
             metadata={"golden_id": "gs-001", "tags": ["situationnel"], "history": []},
         )
 
         assert reconstructed.gold_fiches == ()
         assert reconstructed.gold_spans == ()
-        assert reconstructed.expected_points == ()
         assert reconstructed.tags == ()
 
     def test_defaults_history_to_empty_when_metadata_omits_it(self) -> None:
         reconstructed = reconstruct_generation_item(
             golden_id="gs-001",
             question="une question",
-            expected_output={"expected_state": "reponse", "gold_articles": []},
+            expected_output={"expected_state": "reponse", "gold_articles": [], "expected_points": []},
             metadata={"golden_id": "gs-001", "tags": []},
         )
 

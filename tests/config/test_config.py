@@ -77,3 +77,27 @@ def test_langfuse_host_is_rejected_as_the_dead_sdk_v3_name() -> None:
     """SPEC §11.3 — v4 ignores the v3 name in silence, and EU cloud hides the mistake."""
     with pytest.raises(ConfigurationError, match="LANGFUSE_BASE_URL"):
         Settings.from_env({"LANGFUSE_HOST": "https://cloud.langfuse.com"})
+
+
+class TestJudgePromptLanguages:
+    """SPEC §12.10 — the FR/EN judge question is settled empirically, so both languages
+    are config, and the starting point is the spec's own: managed Faithfulness v2 in
+    English, the custom point-coverage evaluator in French."""
+
+    def test_unset_resolves_to_the_spec_starting_configuration(self) -> None:
+        settings = Settings.from_env({})
+
+        assert settings.judge_faithfulness_language == "en"
+        assert settings.judge_point_coverage_language == "fr"
+
+    def test_each_metric_is_switched_independently(self) -> None:
+        settings = Settings.from_env(
+            {"JUDGE_FAITHFULNESS_LANGUAGE": "FR", "JUDGE_POINT_COVERAGE_LANGUAGE": " en "}
+        )
+
+        assert settings.judge_faithfulness_language == "fr"
+        assert settings.judge_point_coverage_language == "en"
+
+    def test_rejects_a_language_with_no_prompt_rather_than_falling_back(self) -> None:
+        with pytest.raises(ConfigurationError, match="JUDGE_FAITHFULNESS_LANGUAGE"):
+            Settings.from_env({"JUDGE_FAITHFULNESS_LANGUAGE": "de"})
