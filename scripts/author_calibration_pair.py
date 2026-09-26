@@ -8,7 +8,7 @@
 Runs the full chain (condensation when the item has history, retrieval on the
 ladder-winning arm, generation) for the golden item, prints the answer next to the four
 fault archetypes, then opens `$EDITOR` on a copy of the answer for you to plant **one**
-fault in. The pair is validated against the golden set and each archetype's structural
+fault in. You label both answers pass/fail yourself — the real answer is not assumed clean. The pair is validated against the golden set and each archetype's structural
 rules before it is written to `eval/calibration/judge-set.yaml`; an invalid edit reopens
 the editor with the reason, and nothing is written until it passes. An existing pair for
 the same golden item is replaced.
@@ -24,6 +24,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 
 from qdrant_client import QdrantClient
@@ -37,6 +38,7 @@ from rag.eval.calibration_authoring import (
     draft_pair,
     envelope_from_yaml,
     envelope_to_yaml,
+    parse_label,
     upsert_pair,
 )
 from rag.eval.judge import render_answer
@@ -61,6 +63,14 @@ def _choose_archetype() -> FaultArchetype:
         if raw.isdigit() and 1 <= int(raw) <= len(archetypes):
             return archetypes[int(raw) - 1]
         print("pick one of the numbers above")
+
+
+def _ask_label(question: str, default: HumanLabel) -> HumanLabel:
+    while True:
+        label = parse_label(input(f"{question} [pass/fail, Enter = {default.value}]: "), default=default)
+        if label is not None:
+            return label
+        print("answer pass or fail")
 
 
 def _edit(text: str) -> str:
@@ -117,16 +127,24 @@ def main(argv: list[str] | None = None) -> int:
 
     archetype = FaultArchetype(args.archetype) if args.archetype else _choose_archetype()
     pair = draft_pair(item, result, archetype)
+    # SPEC §12.10: every answer human-labelled — the real answer is not assumed clean.
+    clean_label = _ask_label("\nyour label for the clean (real) answer above", HumanLabel.PASS)
+    pair = replace(pair, clean=CalibrationAnswer(pair.clean.envelope, clean_label))
     print(f"\nretrieved_citation_ids: {', '.join(pair.retrieved_citation_ids) or '(none)'}")
     input(f"\n{archetype.value}: {ARCHETYPE_GUIDANCE[archetype]}\npress Enter to open the editor on the twin ")
 
     header = f"# {archetype.value}: {ARCHETYPE_GUIDANCE[archetype]}\n# Plant exactly one fault.\n"
     draft = header + envelope_to_yaml(pair.faulted.envelope)
+    twin_label: HumanLabel | None = None
     while True:
         draft = _edit(draft)
         try:
-            twin = pair.with_faulted(CalibrationAnswer(envelope_from_yaml(draft), HumanLabel.FAIL))
-            upsert_pair(JUDGE_SET_PATH, twin, golden_set)
+            envelope = envelope_from_yaml(draft)
+            if twin_label is None:
+                print("\n--- faulted twin ---")
+                print(render_answer(envelope))
+                twin_label = _ask_label("\nyour label for the faulted twin", HumanLabel.FAIL)
+            upsert_pair(JUDGE_SET_PATH, pair.with_faulted(CalibrationAnswer(envelope, twin_label)), golden_set)
         except JudgeSetError as error:
             print(f"\nnot written:\n{error}")
             if input("edit again? [Y/n] ").strip().lower() == "n":

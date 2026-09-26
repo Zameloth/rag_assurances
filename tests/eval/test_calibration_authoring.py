@@ -20,6 +20,7 @@ from rag.eval.calibration_authoring import (
     draft_pair,
     envelope_from_yaml,
     envelope_to_yaml,
+    parse_label,
     upsert_pair,
 )
 from rag.eval.schema import GoldenItem
@@ -141,3 +142,22 @@ class TestUpsertPair:
             upsert_pair(path, untouched_twin, [_golden()])
 
         assert not path.exists()
+
+
+class TestParseLabel:
+    """The author labels both answers (SPEC §12.10: "all human-labelled"); the draft's
+    pass/fail is only the default offered, never recorded without being confirmed."""
+
+    @pytest.mark.parametrize("raw", ["pass", "PASS", " p ", "Pass"])
+    def test_accepts_pass(self, raw: str) -> None:
+        assert parse_label(raw, default=HumanLabel.FAIL) is HumanLabel.PASS
+
+    @pytest.mark.parametrize("raw", ["fail", "F", " fail "])
+    def test_accepts_fail(self, raw: str) -> None:
+        assert parse_label(raw, default=HumanLabel.PASS) is HumanLabel.FAIL
+
+    def test_empty_takes_the_offered_default(self) -> None:
+        assert parse_label("  ", default=HumanLabel.FAIL) is HumanLabel.FAIL
+
+    def test_anything_else_is_not_a_label(self) -> None:
+        assert parse_label("maybe", default=HumanLabel.PASS) is None

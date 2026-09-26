@@ -304,15 +304,15 @@ class TestSummarize:
             results.append(score_pair(_judge({clean_text: clean, faulted_text: faulted}), pair))
         return results
 
-    def test_ten_of_twelve_detected_with_no_leniency_passes(self) -> None:
+    def test_ten_of_twelve_detected_with_no_false_pass_passes(self) -> None:
         summary = summarize(self._results([(1.0, 0.5)] * 10 + [(0.5, 0.5)] * 2))
 
         assert summary.pairs == 12
         assert summary.detected == 10
         assert summary.detection_required == 10
-        assert summary.false_passes == 0
-        assert summary.false_fails == 2
-        assert summary.systematically_lenient is False
+        assert summary.false_passes == {"faithfulness": 0, "point_coverage": 0}
+        assert summary.false_fails == {"faithfulness": 2, "point_coverage": 0}
+        assert summary.lenient is False
         assert summary.passed is True
 
     def test_nine_of_twelve_fails_detection(self) -> None:
@@ -320,14 +320,36 @@ class TestSummarize:
 
         assert summary.passed is False
 
-    def test_leniency_disqualifies_regardless_of_rate(self) -> None:
-        """SPEC §12.10: a judge whose every error is a false pass is useless here."""
+    def test_a_single_false_pass_disqualifies_regardless_of_rate(self) -> None:
+        """SPEC §12.10: false passes are exactly what this eval exists to catch."""
         summary = summarize(self._results([(1.0, 0.5)] * 11 + [(1.0, 1.0)]))
 
         assert summary.detected == 11
-        assert summary.false_passes == 1
-        assert summary.systematically_lenient is True
+        assert summary.false_passes == {"faithfulness": 1, "point_coverage": 0}
+        assert summary.lenient is True
         assert summary.passed is False
+
+    def test_false_fails_cannot_offset_a_false_pass(self) -> None:
+        """A harsh judge on clean answers must not hide a lenient one on twins."""
+        summary = summarize(self._results([(1.0, 0.5)] * 10 + [(1.0, 1.0)] + [(0.5, 0.2)] * 3))
+
+        assert summary.false_fails["faithfulness"] > summary.false_passes["faithfulness"]
+        assert summary.lenient is True
+        assert summary.passed is False
+
+    def test_errors_are_counted_per_metric(self) -> None:
+        coverage_pair = _pair(
+            FaultArchetype.DROPPED_EXPECTED_POINT,
+            golden_id="gs-100",
+            clean=CalibrationAnswer(_reponse("Clean cov."), HumanLabel.PASS),
+            faulted=CalibrationAnswer(_reponse("Faulted cov."), HumanLabel.FAIL),
+        )
+        coverage_result = score_pair(_judge({"Clean cov.": 1.0, "Faulted cov.": 1.0}), coverage_pair)
+
+        summary = summarize([*self._results([(0.5, 0.5)]), coverage_result])
+
+        assert summary.false_passes == {"faithfulness": 0, "point_coverage": 1}
+        assert summary.false_fails == {"faithfulness": 1, "point_coverage": 0}
 
     def test_the_detection_bar_scales_to_an_arbitrary_pair_count(self) -> None:
         assert summarize(self._results([(1.0, 0.5)] * 6)).detection_required == 5

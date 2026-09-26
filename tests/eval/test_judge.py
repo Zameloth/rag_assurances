@@ -100,6 +100,19 @@ class TestFaithfulness:
         assert prompt != FAITHFULNESS_V2_PROMPT_EN.replace("{{context}}", "C").replace("{{answer}}", "A")
         assert "Contexte" in prompt
 
+    def test_french_prompt_translates_the_same_steps_and_adds_none(self) -> None:
+        """The FR/EN A/B must vary language only (SPEC §12.10)."""
+        call = _FakeCall(*(FaithfulnessOutput(score=1.0, reasoning="") for _ in range(2)))
+        _judge(call, faithfulness_language=PromptLanguage.EN).faithfulness(context="C", answer="A")
+        _judge(call, faithfulness_language=PromptLanguage.FR).faithfulness(context="C", answer="A")
+
+        def steps(prompt: str) -> list[str]:
+            return [line.split(" ", 1)[0] for line in prompt.splitlines() if line[:1].isdigit()]
+
+        [(en, _), (fr, _)] = call.calls
+        assert steps(en) == steps(fr) == ["1.", "2.", "3.", "4."]
+        assert len(fr.splitlines()) == len(en.splitlines())
+
     def test_returns_the_score_reasoning_and_resolved_provider(self) -> None:
         call = _FakeCall(FaithfulnessOutput(score=0.5, reasoning="half"), provider="Google")
 

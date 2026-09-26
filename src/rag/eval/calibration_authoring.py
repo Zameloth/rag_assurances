@@ -41,7 +41,14 @@ from rag.generation.pipeline import GenerationResult
 from rag.generation.prompt import build_context_section
 from rag.generation.schema import Envelope
 
-__all__ = ["ARCHETYPE_GUIDANCE", "draft_pair", "envelope_from_yaml", "envelope_to_yaml", "upsert_pair"]
+__all__ = [
+    "ARCHETYPE_GUIDANCE",
+    "draft_pair",
+    "envelope_from_yaml",
+    "envelope_to_yaml",
+    "parse_label",
+    "upsert_pair",
+]
 
 # What the author is asked to do to the clean answer — one fault, nothing else changed, so
 # a score drop can only mean the judge saw that fault.
@@ -68,8 +75,10 @@ ARCHETYPE_GUIDANCE: Mapping[FaultArchetype, str] = {
 
 
 def draft_pair(item: GoldenItem, result: GenerationResult, archetype: FaultArchetype) -> CalibrationPair:
-    """The pair before the fault is planted: the real answer labelled `pass`, and a copy of
-    it labelled `fail` for the author to edit into the twin."""
+    """The pair before the fault is planted: the real answer and a copy of it for the
+    author to edit into the twin. The `pass`/`fail` labels here are only the defaults the
+    helper offers — the author confirms or overrides each (`parse_label`) before the pair is
+    written, since nothing guarantees the real answer is actually clean."""
     return CalibrationPair(
         golden_id=item.id,
         archetype=archetype,
@@ -80,6 +89,18 @@ def draft_pair(item: GoldenItem, result: GenerationResult, archetype: FaultArche
         clean=CalibrationAnswer(result.envelope, HumanLabel.PASS),
         faulted=CalibrationAnswer(result.envelope, HumanLabel.FAIL),
     )
+
+
+def parse_label(raw: str, *, default: HumanLabel) -> HumanLabel | None:
+    """An author's answer to "pass or fail?": `p`/`pass`, `f`/`fail` (any case), empty for
+    `default`, `None` for anything else so the caller can ask again."""
+    answer = raw.strip().lower()
+    if not answer:
+        return default
+    for label in HumanLabel:
+        if answer in (label.value, label.value[0]):
+            return label
+    return None
 
 
 def envelope_to_yaml(envelope: Envelope) -> str:

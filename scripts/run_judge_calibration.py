@@ -64,9 +64,10 @@ def _print_report(run: CalibrationRun) -> None:
     summary = run.summary
     print()
     print(f"detection: {summary.detected}/{summary.pairs} (bar: {summary.detection_required})")
-    print(f"errors: {summary.false_passes} false pass(es), {summary.false_fails} false fail(s)")
-    if summary.systematically_lenient:
-        print("systematic leniency: false passes outnumber false fails — disqualifying (SPEC §12.10)")
+    for metric, false_passes in summary.false_passes.items():
+        print(f"{metric}: {false_passes} false pass(es), {summary.false_fails[metric]} false fail(s)")
+    if summary.lenient:
+        print("leniency: at least one false pass — disqualifying regardless of rate (SPEC §12.10)")
     print(f"verdict: {'PASS' if summary.passed else 'FAIL'}")
 
 

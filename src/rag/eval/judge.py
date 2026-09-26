@@ -125,18 +125,16 @@ FAITHFULNESS_V2_PROMPT_EN = (
     "Answer: {{answer}}"
 )
 
-# The same four steps, adapted rather than translated word for word: the French version names
-# what "supported" means for this corpus (a cited article must appear in the context), since
-# a fabricated-but-plausible citation is one of the four faults the calibration set plants.
+# A faithful translation of the four steps — nothing added, nothing dropped. The FR/EN
+# calibration A/B (SPEC §12.10) must vary the prompt's language and nothing else, or a
+# difference between the two runs can't be attributed to language.
 _FAITHFULNESS_PROMPT_FR = (
     "Tu es un évaluateur expert. Ta tâche est de mesurer la fidélité (faithfulness) d'une "
     "réponse générée par rapport au contexte fourni.\n\n"
     "Suis exactement ces étapes :\n"
     "1. Décomposition : découpe la « Réponse » en une liste d'affirmations atomiques et "
     "autonomes. N'utilise pas de pronoms ; remplace-les par les sujets réels.\n"
-    "2. Vérification : pour chaque affirmation, vérifie si elle est étayée par le « Contexte ». "
-    "Un article cité dans la réponse n'est étayé que s'il figure dans le contexte et dit bien "
-    "ce que la réponse lui fait dire.\n"
+    "2. Vérification : pour chaque affirmation, vérifie si elle est étayée par le « Contexte ».\n"
     "3. Verdict : attribue 1 si l'affirmation est directement étayée par le contexte, 0 si elle "
     "ne l'est pas ou si elle le contredit. Justifie brièvement chaque verdict.\n"
     "4. Calcul : le score de fidélité final est le nombre de verdicts à 1 divisé par le nombre "

@@ -89,7 +89,8 @@ class ItemGenerationScore:
     `score_item` fills the three deterministic metrics; `faithfulness`/`point_coverage` are
     the judged two (#47), filled by `rag.eval.run_generation_experiment` from the judge's
     evaluations and `None` when no judge ran — or, for `point_coverage`, when the item has
-    no `expected_points` to cover (`hors_corpus`, SPEC §12.9).
+    no `expected_points` to cover (`hors_corpus`, SPEC §12.9). `judge_error` tells the third
+    reason apart: a judge call that failed, with the metric and the error.
     """
 
     item_id: str
@@ -101,6 +102,7 @@ class ItemGenerationScore:
     citation_correctness: float | None
     faithfulness: float | None = None
     point_coverage: float | None = None
+    judge_error: str | None = None
 
 
 def score_item(item: GoldenItem, result: GenerationResult) -> ItemGenerationScore:

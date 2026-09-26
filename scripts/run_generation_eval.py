@@ -44,7 +44,7 @@ from rag.config import load_settings
 from rag.eval.generation_run import GenerationRun
 from rag.eval.judge_chain import make_judge
 from rag.eval.langfuse_sync import sync_generation_dataset
-from rag.eval.run_generation_experiment import MAX_CONCURRENCY, run_generation_eval
+from rag.eval.run_generation_experiment import MAX_CONCURRENCY, JudgeRunError, run_generation_eval
 from rag.generation.chain import make_generate_fn
 from rag.ingest.embedder import MODEL_ID as EMBEDDER_MODEL_ID
 from rag.retrieval.lookup import load_lookup_keys
@@ -156,6 +156,10 @@ def main(argv: list[str] | None = None) -> int:
             max_concurrency=args.max_concurrency,
             judge=judge,
         )
+    except JudgeRunError as error:
+        # The run is already written; its judged scores are incomplete, so no summary.
+        print(f"FAILED: {error}", file=sys.stderr)
+        return 1
     finally:
         client.close()
 

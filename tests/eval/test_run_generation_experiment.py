@@ -32,6 +32,7 @@ from rag.eval.generation_run import load_generation_run
 from rag.eval.judge import (
     FaithfulnessOutput,
     Judge,
+    JudgeOutputError,
     PointCoverageOutput,
     PointVerdict,
     PromptLanguage,
@@ -39,6 +40,7 @@ from rag.eval.judge import (
 from rag.eval.langfuse_sync import GENERATION_DATASET_NAME, generation_dataset_items
 from rag.eval.run_generation_experiment import (
     MAX_CONCURRENCY,
+    JudgeRunError,
     _score_evaluations,
     run_generation_eval,
 )
@@ -630,6 +632,16 @@ class _ScriptedJudgeCall:
         return PointCoverageOutput(verdicts=verdicts), self.provider
 
 
+class _FailingOnFaithfulness(_ScriptedJudgeCall):
+    """Point coverage succeeds; faithfulness raises the way a response with no resolved
+    provider does (`rag.eval.judge_chain`)."""
+
+    def __call__(self, prompt: str, schema: type[Any]) -> tuple[Any, str]:
+        if schema is FaithfulnessOutput:
+            raise JudgeOutputError("OpenRouter reported no resolved provider for the judge call")
+        return super().__call__(prompt, schema)
+
+
 class TestJudgedEvaluators:
     """#47 — faithfulness and point coverage, wired as evaluators over the same task output
     as the three deterministic metrics, persisted per item with the resolved provider."""
@@ -792,3 +804,48 @@ class TestJudgedEvaluators:
         assert score.faithfulness is None
         assert run.header.judge_model == ""
         assert run.header.judge_provider == ""
+
+    def test_a_judge_failure_is_recorded_per_item_and_fails_the_run_after_persisting_it(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        qdrant: QdrantClient,
+        create_collection: CreateCollection,
+        fake_settings: Settings,
+    ) -> None:
+        """`dataset.run_experiment()` swallows evaluator exceptions — a judge failure must
+        not reach `eval/runs/` looking like "no judge ran" or "nothing to cover"."""
+        item = golden_item("gs-007", expected_points=("p1", "p2"))
+
+        with pytest.raises(JudgeRunError, match="gs-007"):
+            self._run(
+                tmp_path,
+                monkeypatch,
+                qdrant,
+                create_collection,
+                fake_settings,
+                [item],
+                self._judge(_FailingOnFaithfulness()),
+            )
+
+        [score] = load_generation_run(tmp_path / "runs" / "generation-test-run.json").items
+        assert score.faithfulness is None
+        assert score.judge_error is not None
+        assert "faithfulness" in score.judge_error
+        assert "no resolved provider" in score.judge_error
+        assert score.point_coverage == 0.5  # the metric that succeeded is kept
+
+    def test_a_clean_judged_run_records_no_judge_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        qdrant: QdrantClient,
+        create_collection: CreateCollection,
+        fake_settings: Settings,
+    ) -> None:
+        run, _ = self._run(
+            tmp_path, monkeypatch, qdrant, create_collection, fake_settings, [golden_item()], self._judge(_ScriptedJudgeCall())
+        )
+
+        [score] = run.items
+        assert score.judge_error is None

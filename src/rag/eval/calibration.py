@@ -18,9 +18,9 @@ from "the fixture moved".
 (scaled for an arbitrary pair count), and no systematic leniency — measured against each
 answer's *human label*, not assumed from which side of the pair it sits on. An answer the
 judge passes (score ≥ `pass_threshold`) that the human failed is a **false pass**; the
-reverse is a **false fail**. A judge whose errors are mostly false passes is disqualified
-whatever its detection rate, because false passes are exactly what this eval exists to
-catch.
+reverse is a **false fail**. Both are counted per judged metric, and a single false pass
+disqualifies whatever the detection rate, because false passes are exactly what this eval
+exists to catch — false fails never offset one.
 """
 
 from __future__ import annotations
@@ -368,32 +368,49 @@ def score_pair(judge: Judge, pair: CalibrationPair, *, pass_threshold: float = D
 
 @dataclass(frozen=True)
 class CalibrationSummary:
+    """`false_passes`/`false_fails` are counted per judged metric (keyed by
+    `JudgedMetric` value) — failures must localise (CONTEXT.md): a lenient faithfulness
+    judge and a harsh point-coverage one are two different fixes."""
+
     pairs: int
     detected: int
     detection_required: int
-    false_passes: int
-    false_fails: int
-    systematically_lenient: bool
+    false_passes: dict[str, int]
+    false_fails: dict[str, int]
+    lenient: bool
     passed: bool
 
 
+def _errors_by_metric(results: Sequence[PairResult], direction: ErrorDirection) -> dict[str, int]:
+    return {
+        metric.value: sum(
+            1
+            for result in results
+            if result.metric is metric
+            for error in (result.clean_error, result.faulted_error)
+            if error is direction
+        )
+        for metric in JudgedMetric
+    }
+
+
 def summarize(results: Sequence[PairResult]) -> CalibrationSummary:
-    """SPEC §12.10's two bars over `results`. "Systematic leniency" is read as *false
-    passes outnumber false fails* — a judge whose only error is one false pass is already
-    "a judge whose every error is a false pass"."""
+    """SPEC §12.10's two bars over `results`. **Any false pass, on either metric,
+    disqualifies** — "systematic leniency disqualifies regardless of rate", and false
+    passes are exactly what this eval exists to catch. False fails are reported but can
+    never offset one: counting leniency *net* of harshness would let a judge that fails
+    clean answers hide one that passes faulted twins."""
     detected = sum(1 for result in results if result.detected)
     required = math.ceil(len(results) * DETECTION_BAR[0] / DETECTION_BAR[1])
-    errors = [e for result in results for e in (result.clean_error, result.faulted_error) if e is not None]
-    false_passes = errors.count(ErrorDirection.FALSE_PASS)
-    false_fails = errors.count(ErrorDirection.FALSE_FAIL)
-    lenient = false_passes > false_fails
+    false_passes = _errors_by_metric(results, ErrorDirection.FALSE_PASS)
+    lenient = any(false_passes.values())
     return CalibrationSummary(
         pairs=len(results),
         detected=detected,
         detection_required=required,
         false_passes=false_passes,
-        false_fails=false_fails,
-        systematically_lenient=lenient,
+        false_fails=_errors_by_metric(results, ErrorDirection.FALSE_FAIL),
+        lenient=lenient,
         passed=detected >= required and not lenient,
     )
 

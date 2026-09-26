@@ -18,7 +18,8 @@ A managed evaluator runs on Langfuse's workers through an **LLM connection**. Ch
 the installed SDK (`langfuse` 4.15, `api/llm_connections`, `api/evaluators`), a connection
 carries a provider name, an adapter, a key, a base URL, a model list, extra *headers* and (for
 OpenAI) a `useResponsesApi` flag. It has **no request-body field**, and OpenRouter's `provider`
-routing block is a body field. The judge call is also made by Langfuse, not by us, so the
+routing block is a body field. An OpenRouter preset used as the model id could pin the routing,
+but nothing can bring the resolved provider back. The judge call is also made by Langfuse, not by us, so the
 response's `provider` field never reaches anything we persist. So a managed evaluator can meet
 (1) but not (2). A third problem: its scores land on traces asynchronously, which suits
 `dataset.run_experiment()`'s per-item persistence (SPEC §12.11) poorly, and suits a calibration
@@ -35,6 +36,10 @@ and directly in `rag.eval.calibration` for calibration runs. They share one `Jud
 - `ProviderReportingChatOpenAI` keeps OpenRouter's `provider` response field, which
   `ChatOpenAI` otherwise drops. `with_structured_output(include_raw=True)` hands it through.
   **A response without a provider raises**; it is never pinned as an empty string.
+- **A failed judge call fails the run, after persisting it.** `dataset.run_experiment()`
+  swallows evaluator exceptions, which would turn a failure into a bare `None`. So the evaluator
+  catches each metric's failure itself and records it as the item's `judge_error`. The run is
+  written, and then `JudgeRunError` is raised.
 - Extraction is via **function calling**, the same path managed judges use (SPEC §11.1).
 
 **"Managed Faithfulness v2" means its prompt, verbatim.** `FAITHFULNESS_V2_PROMPT_EN` is the
@@ -62,8 +67,14 @@ no persisted eval score goes through it.
 **Calibration** (`rag.eval.calibration`) scores each pair on the one metric its fault archetype
 targets. It reports per pair whether the twin scored strictly lower, and gives each answer's
 error direction against its **human label**: false pass or false fail, at `pass_threshold`
-(default 1.0, since a twin is labelled *fail* because one thing in it is wrong). "Systematic
-leniency" is read as *false passes outnumber false fails*.
+(default 1.0, since a twin is labelled *fail* because one thing in it is wrong). Errors are
+counted per metric, and **any false pass disqualifies**. False fails are reported, but they
+never offset a false pass: counting leniency net of harshness would let a judge that fails
+clean answers hide one that passes faulted twins. The authoring helper asks the author to label
+both answers; the real answer is not assumed clean.
+
+The French faithfulness prompt is a straight translation of the English one's four steps, with
+nothing added, so the FR/EN A/B varies language only.
 
 ## Consequences
 
