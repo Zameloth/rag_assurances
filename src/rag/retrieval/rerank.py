@@ -143,7 +143,7 @@ def _load_onnx_int8(model_id: str) -> _ScoringModel:
     exported and cached once under `_ONNX_CACHE_DIR`, rather than depending on a
     pre-quantised file published under some assumed name on the hub. Requires the
     `rerank-onnx` dependency group (`optimum[onnxruntime]`) — not installed by default, the
-    same posture the `fetch` group already takes for its rarely-run `pyarrow`/`httpx`.
+    same posture the `fetch` group already takes for its rarely-run `httpx`.
     """
     from optimum.onnxruntime import (  # deferred: optional group, see pyproject.toml
         AutoQuantizationConfig,

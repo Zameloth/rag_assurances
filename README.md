@@ -31,9 +31,10 @@ make check               # mypy, then the test suite
 ```
 
 `make` on its own lists every target. Of the four pipeline targets, `ingest` is real — it needs
-`make up` first, and downloads the BGE-M3 weights into gitignored `data/raw/` on its first run.
-The remaining three — `ladder`, `publish-index`, `deploy` — are named now and stubbed until their
-ticket lands; each exits non-zero and prints the command it will run.
+`make up` first, and downloads the BGE-M3 weights into gitignored `data/raw/` on its first run —
+and so is `publish-index` (see [Publishing the index](#publishing-the-index)). `ladder` and
+`deploy` are named now and stubbed until their ticket lands; each exits non-zero and prints the
+command it will run.
 
 The suite is green without a live store: anything needing the real engine takes the `qdrant_server`
 fixture and skips when nothing answers at `QDRANT_URL`. Everything else uses `QdrantClient(":memory:")`,
@@ -124,6 +125,46 @@ The repo commits **sources and decisions, never derived binaries** ([SPEC §16.5
 named exceptions to that principle live under `eval/`: the hand-annotated golden set (not derived
 at all) and the per-item eval scores (tiny, and their whole purpose is outliving Langfuse's 30-day
 retention).
+
+## Publishing the index
+
+The index ships as a **Parquet points dump on a GitHub Release** — one file per register plus
+`corpus_manifest.json` — and `index_lock.json`, committed at the repo root, points at it
+([SPEC §15](SPEC.md), [ADR-0014](docs/adr/0014-parquet-points-dump-on-a-release-with-alias-flip.md)).
+
+Publishing is a **runbook step, never an event listener** — every trigger for it is already a
+deliberate, reviewed human act. The ordering is fixed:
+
+> refresh → re-annotate if the changed-text count says so → re-run the ladder → publish → deploy
+
+```sh
+make publish-index RUN=eval/runs/rung1-20260916T181814Z.json   # the run that chose the arm (ADR-0024)
+git add index_lock.json && git commit -m "chore: index lock index-YYYY-MM-DD"
+```
+
+`RUN` names the per-item scores of the run that chose the deployed arm; it has no default, because
+that choice is a decision recorded in an ADR, not something to infer. `make publish-index` then:
+
+1. **refuses** unless the `articles`/`fiches` aliases point at exactly the arms that run scored —
+   an alias left flipped by an interrupted rung-6 run would otherwise ship vectors the scores never
+   measured — refuses if the corpus or the chunkers changed since that run's `code_git_sha`, since
+   the lock's chunk config and corpus pin are read at publish time, and refuses a dirty working
+   tree, since the lock's `git_commit` must name the code that ran;
+2. **scrolls the points back out of the dev Qdrant**, into `data/raw/index/points-{fiches,articles}.parquet`
+   — it never re-embeds, so the published vectors are bit-for-bit the ones the ladder scored;
+3. cuts the release (`gh release create index-<date>`, overridable with `TAG=`) with both dumps
+   and `corpus_manifest.json` — the payloads carry verbatim DILA text, so the dump is a
+   redistribution under Licence Ouverte 2.0 and the attribution travels with the artifact;
+4. only then writes `index_lock.json`: tag, commit, the corpus manifest's sha256, embedder ids and
+   the HF snapshot revisions in the local model cache, chunk config, enrichment flag, per-register
+   collection / point count / asset sha256 / vector-layout fingerprint, and the ladder rung with
+   the commit that added its scores.
+
+**Built locally, never in CI.** The artifact is *reproducible in principle* from git — the corpus is
+pinned and the lock records the full config, so `make ingest` then the ladder on the recorded
+commit is the reproduction path — but it is *produced* on the machine that ran the ladder. A CI
+rebuild would be a re-derivation on different hardware and a different torch build: numerically
+almost identical, and not the artifact that was scored ([SPEC §15.3](SPEC.md)).
 
 ## Licence
 
