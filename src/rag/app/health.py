@@ -24,7 +24,7 @@ from typing import Any
 
 from qdrant_client import QdrantClient
 
-from rag.ingest.arms import ARTICLES_ALIAS, FICHES_ALIAS
+from rag.ingest.arms import REGISTER_ALIASES
 from rag.restore import release_tag_of
 
 __all__ = ["AliasProbe", "HealthReport", "check_health", "qdrant_aliases"]
@@ -32,16 +32,17 @@ __all__ = ["AliasProbe", "HealthReport", "check_health", "qdrant_aliases"]
 # Every alias Qdrant holds, name -> collection; raises when Qdrant cannot be reached.
 AliasProbe = Callable[[], Mapping[str, str]]
 
-_REGISTER_ALIASES = {"fiches": FICHES_ALIAS, "articles": ARTICLES_ALIAS}
-
 
 @dataclass(frozen=True)
 class HealthReport:
     models_loaded: bool
     qdrant_reachable: bool
     release_tag: str
-    # Per register, the release tag its alias target carries — `None` when there is no
-    # alias, or it points at something that is not a release generation of that register.
+    # Per register, the collection its alias points at — `None` when there is no alias
+    # (or Qdrant could not be asked) — and the release tag that name carries, `None` when
+    # it is not a release generation of that register. Both, because the two `None`s of
+    # `served` have different fixes: run restore, versus find who flipped the alias.
+    targets: Mapping[str, str | None]
     served: Mapping[str, str | None]
 
     @property
@@ -60,25 +61,33 @@ class HealthReport:
             "index_matches_lock": self.index_matches_lock,
             "release_tag": self.release_tag,
             "served": dict(self.served),
+            "targets": dict(self.targets),
         }
 
 
 def check_health(*, models_loaded: bool, aliases: AliasProbe, release_tag: str) -> HealthReport:
     try:
-        targets = aliases()
+        found = aliases()
     except Exception:  # noqa: BLE001 — any failure to reach Qdrant means the same thing here
+        nothing: dict[str, str | None] = dict.fromkeys(REGISTER_ALIASES)
         return HealthReport(
             models_loaded=models_loaded,
             qdrant_reachable=False,
             release_tag=release_tag,
-            served={register: None for register in _REGISTER_ALIASES},
+            targets=nothing,
+            served=nothing,
         )
-    served: dict[str, str | None] = {}
-    for register, alias in _REGISTER_ALIASES.items():
-        target = targets.get(alias)
-        served[register] = release_tag_of(register, target) if target is not None else None
+    targets = {register: found.get(alias) for register, alias in REGISTER_ALIASES.items()}
+    served = {
+        register: release_tag_of(register, target) if target is not None else None
+        for register, target in targets.items()
+    }
     return HealthReport(
-        models_loaded=models_loaded, qdrant_reachable=True, release_tag=release_tag, served=served
+        models_loaded=models_loaded,
+        qdrant_reachable=True,
+        release_tag=release_tag,
+        targets=targets,
+        served=served,
     )
 
 

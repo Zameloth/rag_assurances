@@ -18,7 +18,7 @@ is what makes the process safe to kill at any point:
 2. the collection is created by the same code that creates the dev arm (only the vectors
    are derived — SPEC §15.1), and its layout fingerprint checked against the lock;
 3. upsert, then the **exact count, before any alias moves**;
-4. both aliases flip only once every register has verified — a partial write can never
+4. both aliases flip, in one request, only once every register has verified — a partial write can never
    wear a valid name, so a mid-run kill leaves the old index serving and the fix is to
    re-run;
 5. prune to the last two generations per register.
@@ -48,14 +48,20 @@ from qdrant_client import QdrantClient, models
 
 from rag.config import load_settings
 from rag.ingest.arms import (
-    ARTICLES_ALIAS,
-    FICHES_ALIAS,
+    REGISTER_ALIASES,
     ensure_articles_collection,
     ensure_fiches_collection,
-    flip_alias,
+    flip_aliases,
 )
 from rag.ingest.upsert import UPSERT_BATCH_SIZE
-from rag.publish import DEFAULT_LOCK_PATH, IndexLock, load_index_lock, vector_config_fingerprint
+from rag.publish import (
+    DEFAULT_LOCK_PATH,
+    RELEASE_TAG_PREFIX,
+    IndexLock,
+    asset_name,
+    load_index_lock,
+    vector_config_fingerprint,
+)
 
 __all__ = [
     "DownloadFn",
@@ -72,14 +78,9 @@ __all__ = [
 # `(release tag, asset name, destination)` — raises if the asset could not be fetched.
 DownloadFn = Callable[[str, str, Path], None]
 
-# Keyed by the plural collection name, as the lock's registers and the asset names are.
-_REGISTER_ALIASES = {"fiches": FICHES_ALIAS, "articles": ARTICLES_ALIAS}
 _ENSURE_COLLECTION = {"fiches": ensure_fiches_collection, "articles": ensure_articles_collection}
 
-# `make publish-index` tags `index-<date>`, so generation names sort by time. Pruning only
-# ever touches names of this shape: a dev ladder arm (`fiches__m3__c512__v1`) shares the
-# register prefix and must never be read as an old release.
-_GENERATION_TAG_PREFIX = "index-"
+# `make publish-index` tags `index-<date>`, so generation names sort by time.
 _GENERATIONS_KEPT = 2
 
 
@@ -121,7 +122,7 @@ def release_tag_of(register: str, collection: str) -> str | None:
     generation of `register` — how `/health` checks the alias against the lock for free."""
     prefix = f"{register}__"
     tag = collection.removeprefix(prefix)
-    if tag == collection or not tag.startswith(_GENERATION_TAG_PREFIX):
+    if tag == collection or not tag.startswith(RELEASE_TAG_PREFIX):
         return None
     return tag
 
@@ -133,7 +134,7 @@ def restore(client: QdrantClient, lock: IndexLock, *, download: DownloadFn, work
     existing = {c.name for c in client.get_collections().collections}
 
     outcomes: dict[str, RegisterOutcome] = {}
-    for register, alias in _REGISTER_ALIASES.items():
+    for register, alias in REGISTER_ALIASES.items():
         target = generation_name(register, lock.release_tag)
         expected = lock.registers[register].points
         complete = target in existing and _count(client, target) == expected
@@ -155,8 +156,9 @@ def restore(client: QdrantClient, lock: IndexLock, *, download: DownloadFn, work
     for register, asset in assets.items():
         _write_generation(client, lock, register, asset, leftover=generation_name(register, lock.release_tag) in existing)
 
-    for register, alias in _REGISTER_ALIASES.items():
-        flip_alias(client, alias, generation_name(register, lock.release_tag))
+    flip_aliases(
+        client, {alias: generation_name(register, lock.release_tag) for register, alias in REGISTER_ALIASES.items()}
+    )
 
     return RestoreReport(
         release_tag=lock.release_tag,
@@ -168,7 +170,7 @@ def restore(client: QdrantClient, lock: IndexLock, *, download: DownloadFn, work
             )
             for register, outcome in outcomes.items()
         },
-        pruned=tuple(name for register in _REGISTER_ALIASES for name in _prune(client, register)),
+        pruned=tuple(name for register in REGISTER_ALIASES for name in _prune(client, register)),
     )
 
 
@@ -177,7 +179,7 @@ def _count(client: QdrantClient, collection: str) -> int:
 
 
 def _fetch_verified(lock: IndexLock, register: str, download: DownloadFn, work_dir: Path) -> Path:
-    asset = f"points-{register}.parquet"
+    asset = asset_name(register)
     path = work_dir / asset
     download(lock.release_tag, asset, path)
     actual = _sha256(path)
@@ -255,7 +257,7 @@ def _prune(client: QdrantClient, register: str) -> list[str]:
     "The newest other", not "the one before": after a rollback the live generation is the
     older one, and the newer is what rolling forward again needs."""
     live = next(
-        (a.collection_name for a in client.get_aliases().aliases if a.alias_name == _REGISTER_ALIASES[register]),
+        (a.collection_name for a in client.get_aliases().aliases if a.alias_name == REGISTER_ALIASES[register]),
         None,
     )
     generations = sorted(

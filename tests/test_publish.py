@@ -284,6 +284,7 @@ def _publish(
     release: FakeRelease,
     *,
     chunking_changed: bool = False,
+    tag: str | None = None,
 ) -> IndexLock:
     manifest = tmp_path / "corpus_manifest.json"
     manifest.write_text('{"articles": {}}\n', encoding="utf-8")
@@ -299,7 +300,19 @@ def _publish(
         revision_of=lambda model_id: f"rev-of-{model_id}",
         changed_since=lambda commit, paths: chunking_changed,
         now=NOW,
+        tag=tag,
     )
+
+
+def test_publish_refuses_a_tag_restore_could_not_read_back(scored_index: QdrantClient, tmp_path: Path) -> None:
+    """`/health` reads the release tag out of the generation name and pruning only touches
+    `index-` generations — a `v2` release would install fine and never report healthy."""
+    release = FakeRelease()
+
+    with pytest.raises(PublishError, match="index-"):
+        _publish(scored_index, tmp_path, _write_run(tmp_path, {"embedder": "BAAI/bge-m3"}), release, tag="v2")
+
+    assert release.calls == []
 
 
 def test_publish_cuts_the_release_with_both_dumps_and_the_corpus_manifest(

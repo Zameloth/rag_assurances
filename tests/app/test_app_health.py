@@ -76,6 +76,14 @@ class TestCheckHealth:
 
         assert not report.index_matches_lock
 
+    def test_no_alias_and_an_alias_on_a_non_release_are_told_apart(self) -> None:
+        """Different fixes: run restore, versus find who flipped the alias by hand."""
+        aliases = {"fiches": "fiches__m3__c512__v1"}
+
+        report = check_health(models_loaded=True, aliases=_probe(aliases), release_tag=TAG)
+
+        assert report.targets == {"fiches": "fiches__m3__c512__v1", "articles": None}
+
     def test_the_report_serializes_each_clause_separately(self) -> None:
         report = check_health(models_loaded=True, aliases=_probe(LIVE), release_tag=TAG)
 
@@ -86,6 +94,7 @@ class TestCheckHealth:
             "index_matches_lock": True,
             "release_tag": TAG,
             "served": {"fiches": TAG, "articles": TAG},
+            "targets": LIVE,
         }
 
 

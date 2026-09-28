@@ -267,6 +267,27 @@ def test_a_post_upsert_count_short_of_the_lock_never_moves_the_alias(
     assert "fiches" not in _aliases(qdrant), "no alias moves unless every register verified"
 
 
+def test_both_aliases_move_in_one_atomic_request(
+    published: tuple[IndexLock, Release], qdrant: QdrantClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two requests would leave a kill between them serving fiches from one release and
+    articles from another."""
+    lock, release = published
+    requests: list[int] = []
+    update = qdrant.update_collection_aliases
+
+    def counting(**kwargs: object) -> bool:
+        requests.append(1)
+        return update(**kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(qdrant, "update_collection_aliases", counting)
+
+    _restore(qdrant, lock, release, tmp_path)
+
+    assert requests == [1]
+    assert _aliases(qdrant) == {"fiches": f"fiches__{TAG}", "articles": f"articles__{TAG}"}
+
+
 # --- idempotence, retention, rollback -----------------------------------------------------
 
 

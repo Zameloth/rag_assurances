@@ -33,7 +33,7 @@ from qdrant_client import QdrantClient, models
 from rag.config import load_settings
 from rag.eval.retrieval_run import load_run, resolve_git_sha
 from rag.ingest.ab_arms import ARTICLE_BREADCRUMB_ARM, FICHE_HEADER_ARM
-from rag.ingest.arms import ARTICLES_ALIAS, FICHES_ALIAS
+from rag.ingest.arms import REGISTER_ALIASES
 from rag.ingest.articles import BAND, STUB_FLOOR
 
 # Private on purpose: making it public would edit a chunker file, which the publish guard
@@ -45,10 +45,12 @@ from rag.ingest.pipeline import ARTICLES_ARM, FICHES_ARM, REPO_ROOT
 __all__ = [
     "EmbedderPin",
     "IndexLock",
+    "RELEASE_TAG_PREFIX",
     "PublishError",
     "RegisterDump",
     "ReleaseFn",
     "ScoresPointer",
+    "asset_name",
     "dump_register",
     "load_index_lock",
     "main",
@@ -71,8 +73,10 @@ _HF_CACHE_DIR = REPO_ROOT / "data" / "raw" / "hf_cache"
 # one is still a run whose shipped index would carry enriched dense vectors.
 _ENRICHED_ARMS = frozenset({ARTICLE_BREADCRUMB_ARM, FICHE_HEADER_ARM})
 
-# Keyed by the plural collection name, as the aliases and the release asset names are.
-_REGISTER_ALIASES = {"fiches": FICHES_ALIAS, "articles": ARTICLES_ALIAS}
+# Every release tag starts with this. Restore names each generation `<register>__<tag>`,
+# and `/health` and pruning recognise a generation by it — a dev ladder arm
+# (`fiches__m3__c512__v1`) shares the register prefix and must never read as a release.
+RELEASE_TAG_PREFIX = "index-"
 _DEFAULT_ARMS = {"fiches": FICHES_ARM, "articles": ARTICLES_ARM}
 
 # What decides the chunk population and the payload. `chunk_config` and
@@ -160,6 +164,11 @@ class IndexLock:
 def load_index_lock(path: Path = DEFAULT_LOCK_PATH) -> IndexLock:
     """The committed `index_lock.json` — what restore installs and `/health` checks for."""
     return IndexLock.from_dict(json.loads(path.read_text(encoding="utf-8")))
+
+
+def asset_name(register: str) -> str:
+    """The release asset one register's points dump is published — and restored — as."""
+    return f"points-{register}.parquet"
 
 
 def dump_register(client: QdrantClient, alias: str, path: Path) -> RegisterDump:
@@ -276,6 +285,8 @@ def publish(
     last, only once the release exists: a lock naming a tag with no assets behind it is the
     one state restore (#53) cannot recover from on its own.
     """
+    if tag is not None and not tag.startswith(RELEASE_TAG_PREFIX):
+        raise PublishError(f"release tags start with {RELEASE_TAG_PREFIX!r} — {tag!r} could not be restored")
     release = release or _gh_release
     git_sha = git_sha or (lambda path: resolve_git_sha(repo_root, path=path))
     revision_of = revision_of or _cached_revision
@@ -285,10 +296,10 @@ def publish(
     header = load_run(run_path).header
     config = header.retrieval_config
     expected_arms: Mapping[str, str] = config.get("collection_arm") or _DEFAULT_ARMS
-    targets = {register: _alias_target(client, alias) for register, alias in _REGISTER_ALIASES.items()}
+    targets = {register: _alias_target(client, alias) for register, alias in REGISTER_ALIASES.items()}
     wrong = {r: t for r, t in targets.items() if t != expected_arms[r]}
     if wrong:
-        found = ", ".join(f"{_REGISTER_ALIASES[r]} -> {t} (scored: {expected_arms[r]})" for r, t in wrong.items())
+        found = ", ".join(f"{REGISTER_ALIASES[r]} -> {t} (scored: {expected_arms[r]})" for r, t in wrong.items())
         raise PublishError(f"{header.run_id} did not score the index behind the aliases: {found}")
     if changed_since(header.code_git_sha, _CHUNKING_PATHS):
         raise PublishError(
@@ -296,12 +307,12 @@ def publish(
             "re-ingest and re-run the ladder before publishing"
         )
 
-    dump_paths = {register: out_dir / f"points-{register}.parquet" for register in _REGISTER_ALIASES}
+    dump_paths = {register: out_dir / asset_name(register) for register in REGISTER_ALIASES}
     registers = {
         register: dump_register(client, alias, dump_paths[register])
-        for register, alias in _REGISTER_ALIASES.items()
+        for register, alias in REGISTER_ALIASES.items()
     }
-    release_tag = tag or f"index-{now:%Y-%m-%d}"
+    release_tag = tag or f"{RELEASE_TAG_PREFIX}{now:%Y-%m-%d}"
     git_commit = git_sha(None)
     dense_id = config.get("dense_embedder") or config["embedder"]
     sparse_id = config.get("sparse_embedder") or config["embedder"]
