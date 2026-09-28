@@ -8,14 +8,15 @@
 
 <section id="conversation" class="conversation" aria-live="polite"></section>
 
-<form class="ask" hx-post="/ask" hx-target="#conversation" hx-swap="beforeend show:bottom"
-      hx-include="#conversation" hx-disabled-elt="find button" hx-indicator="this">
+{#- Submitted by app.js to /ask/stream, which reports each pipeline stage as it runs
+    (SPEC §13.2) before the answer's partial. -#}
+<form class="ask" action="/ask/stream" method="post">
   <label for="question" class="visually-hidden">Votre question</label>
   <textarea id="question" name="question" rows="2" required maxlength="{{ max_question_chars }}"
             placeholder="Ex. : Puis-je résilier mon assurance habitation à tout moment ?"></textarea>
   <button type="submit">
     <span class="idle">Demander</span>
-    <span class="busy" aria-hidden="true">Recherche…</span>
+    <span class="busy" aria-hidden="true">En cours…</span>
   </button>
 </form>
 {% endblock %}

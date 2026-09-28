@@ -1548,6 +1548,8 @@ spinner discards the reason no-streaming was acceptable.
 - **`POST /api/ask`** → the generation envelope as JSON, serialized for free with auto-generated
   OpenAPI docs.
 - **`POST /ask`** → the HTML partial HTMX swaps in.
+- **`POST /ask/stream`** → §13.2's stage events as SSE, then that same partial as the last event —
+  what the page itself submits to. POSTed and read with `fetch`, since `EventSource` can only GET.
 - **`GET /health`** → §14.3.
 
 The dual endpoint is nearly free and pays twice: it makes the typed contract **directly inspectable by

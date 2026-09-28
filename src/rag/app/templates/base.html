@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Assurances, le droit expliqué</title>
 <meta name="description" content="Questions de droit des assurances, réponses expliquées et adossées au Code des assurances.">
-{#- htmx 2 swaps only 2xx by default; a 503 carries an error partial worth showing. -#}
-<meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"503","swap":true,"error":true},{"code":"[45]..","swap":false,"error":true}]}'>
 <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
 <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"
         integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"

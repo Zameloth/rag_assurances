@@ -168,6 +168,32 @@ a:hover { text-decoration-thickness: 2px; }
 
 .error { margin: 0; color: var(--warn); font-family: var(--sans); }
 
+/* The staged indicator (SPEC §13.2): only the stages the pipeline reported, as it reported
+   them — a skipped condensation never appears. */
+.stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem 1.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: .9rem/1.5 var(--sans);
+  color: var(--ink-soft);
+}
+.stages li { position: relative; }
+.stages li + li::before {
+  content: "→";
+  position: absolute;
+  left: -1.05rem;
+  color: var(--rule);
+}
+.stages .done::after { content: " ✓"; color: var(--ok); }
+.stages .active { color: var(--ink); font-weight: 600; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) {
+  .stages .active { animation: none; }
+}
+
 /* --- the ask form ------------------------------------------------------------------- */
 
 .ask {
@@ -206,8 +232,8 @@ a:hover { text-decoration-thickness: 2px; }
 }
 .ask button:disabled { opacity: .6; cursor: progress; }
 .ask .busy { display: none; }
-.ask.htmx-request .idle { display: none; }
-.ask.htmx-request .busy { display: inline; }
+.ask.is-busy .idle { display: none; }
+.ask.is-busy .busy { display: inline; }
 
 /* --- footer ------------------------------------------------------------------------- */
 
