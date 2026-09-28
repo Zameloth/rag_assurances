@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const question = form.querySelector("textarea");
   const button = form.querySelector("button");
   const conversation = document.querySelector("#conversation");
+  const reset = document.querySelector("button.reset");
 
   // Enter sends, Shift+Enter breaks the line.
   question.addEventListener("keydown", (event) => {
@@ -16,6 +17,12 @@ document.addEventListener("DOMContentLoaded", () => {
       event.preventDefault();
       form.requestSubmit();
     }
+  });
+
+  // The history is the rendered exchanges' hidden inputs, so this is the whole reset.
+  reset.addEventListener("click", () => {
+    conversation.replaceChildren();
+    question.focus();
   });
 
   form.addEventListener("submit", async (event) => {
@@ -32,7 +39,8 @@ document.addEventListener("DOMContentLoaded", () => {
     conversation.append(pending);
     scrollToLatest();
     form.classList.add("is-busy");
-    button.disabled = true;
+    // Clearing mid-answer would detach the exchange the answer is about to replace.
+    button.disabled = reset.disabled = true;
 
     try {
       const { event: outcome, html } = await ask(body, pending.querySelector(".stages"));
@@ -43,7 +51,7 @@ document.addEventListener("DOMContentLoaded", () => {
       pending.replaceWith(errorExchange(question.value, error.message || UNAVAILABLE));
     } finally {
       form.classList.remove("is-busy");
-      button.disabled = false;
+      button.disabled = reset.disabled = false;
       question.focus();
       scrollToLatest();
     }

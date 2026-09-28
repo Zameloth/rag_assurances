@@ -8,6 +8,9 @@
 
 <section id="conversation" class="conversation" aria-live="polite"></section>
 
+{#- Stateless (SPEC §13.4): the history is the page, so emptying the page forgets it. -#}
+<button type="button" class="reset">Nouvelle conversation</button>
+
 {#- Submitted by app.js to /ask/stream, which reports each pipeline stage as it runs
     (SPEC §13.2) before the answer's partial. -#}
 <form class="ask" action="/ask/stream" method="post">

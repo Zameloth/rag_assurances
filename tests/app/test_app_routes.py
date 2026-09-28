@@ -315,6 +315,14 @@ class TestHistoryRoundTrip:
 
 
 class TestPage:
+    def test_offers_to_clear_the_conversation_without_submitting(self, answer: FakeAnswer) -> None:
+        """History lives only in the page (SPEC §13.4), so clearing it is the page's job —
+        a plain button, never a submit that would post the history it means to drop."""
+        html = _client(answer).get("/").text
+        [button] = re.findall(r'<button[^>]*class="reset"[^>]*>', html)
+        assert 'type="button"' in button
+        assert html.index('id="conversation"') < html.index('class="reset"') < html.index("<form")
+
     def test_renders_the_disclaimer_as_boilerplate(self, answer: FakeAnswer) -> None:
         html = _client(answer).get("/").text
         assert "information, pas conseil" in html.lower()
