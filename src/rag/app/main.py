@@ -7,13 +7,16 @@ contract:
 
 - `POST /api/ask` — the envelope as JSON, documented at `/docs` (SPEC §13.3: the typed
   contract, inspectable by curl).
-- `POST /ask` — the HTML fragment HTMX appends to the conversation.
+- `POST /ask` — the HTML fragment for the conversation, whole, in one response.
+- `POST /ask/stream` — the same fragment as the last event of an SSE stream whose earlier
+  events are the pipeline's own **stage events** (SPEC §13.2, #51). What the page uses.
 
 **Stateless** (SPEC §13.4): no session, no storage. Each rendered exchange carries itself
 back as hidden `history_role`/`history_content` inputs, which the next `/ask` posts with
 the question; `run_chain` trims that untrusted history server-side before any stage sees
 it. No token streaming (SPEC §13.1): a strict `json_schema` response is unreadable until
-the object closes, so the answer arrives whole.
+the object closes, so the answer arrives whole — the stream carries progress, never tokens,
+and the connection *is* the request, so there is no job store to poll either.
 
 Run it with:
 
@@ -22,14 +25,17 @@ Run it with:
 
 from __future__ import annotations
 
+import json
 import logging
-from collections.abc import Callable, Sequence
-from functools import cache
+import queue
+import threading
+from collections.abc import Callable, Iterator, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markdown_it import MarkdownIt
@@ -45,7 +51,7 @@ from rag.config import Settings, load_settings
 from rag.generation.chain import make_generate_fn
 from rag.generation.pipeline import GenerationResult
 from rag.generation.schema import Envelope
-from rag.pipeline import run_chain
+from rag.pipeline import Stage, StageFn, ignore_stage, run_chain
 from rag.retrieval.lookup import load_lookup_keys
 
 __all__ = ["AnswerFn", "AskRequest", "create_app", "make_answer_fn"]
@@ -54,10 +60,11 @@ logger = logging.getLogger(__name__)
 
 _APP_DIR = Path(__file__).parent
 
-# `(question, history)` in, the pipeline's own result out. The real one is `run_chain` over
-# real Qdrant, BGE-M3 and OpenRouter (`make_answer_fn`); tests inject a fake, the same seam
-# `GenerateFn`/`CondenseFn` already are one level down.
-AnswerFn = Callable[[str, Sequence[HistoryTurn]], GenerationResult]
+# `(question, history, on_stage)` in, the pipeline's own result out. The real one is
+# `run_chain` over real Qdrant, BGE-M3 and OpenRouter (`make_answer_fn`); tests inject a
+# fake, the same seam `GenerateFn`/`CondenseFn` already are one level down. `on_stage` hears
+# each stage as it starts — the routes that don't stream pass one that ignores it.
+AnswerFn = Callable[[str, Sequence[HistoryTurn], StageFn], GenerationResult]
 
 # The question becomes a history turn on the next request, where `trim_history` clamps it
 # to this anyway — so accepting more now would only mean answering a question the
@@ -70,6 +77,17 @@ MAX_QUESTION_CHARS = MAX_HISTORY_TURN_CHARS
 _MARKDOWN = MarkdownIt("commonmark", {"html": False})
 
 _UNAVAILABLE = "Le service est momentanément indisponible. Réessayez dans un instant."
+
+# A cold start is silent until BGE-M3 has loaded; an SSE comment this often keeps any proxy
+# between here and the browser from reading that silence as a dead connection.
+HEARTBEAT_SECONDS = 15.0
+
+_STAGE_LABELS = {
+    Stage.CHARGEMENT: "Chargement",
+    Stage.CONDENSATION: "Condensation",
+    Stage.RECHERCHE: "Recherche",
+    Stage.GENERATION: "Génération",
+}
 
 
 class Turn(BaseModel):
@@ -88,32 +106,80 @@ class AskRequest(BaseModel):
 _TURNS = TypeAdapter(list[Turn])
 
 
+def _form_history(
+    history_role: Annotated[list[str], Form()] = [],  # noqa: B006 — FastAPI copies defaults
+    history_content: Annotated[list[str], Form()] = [],  # noqa: B006
+) -> list[Turn]:
+    """The history an HTML form posts back — the hidden inputs each rendered exchange
+    carries (SPEC §13.4), paired up and validated like `/api/ask`'s JSON history."""
+    if len(history_role) != len(history_content):
+        raise HTTPException(status_code=422, detail="history roles and contents differ in length")
+    try:
+        return _TURNS.validate_python(
+            [{"role": r, "content": c} for r, c in zip(history_role, history_content, strict=True)]
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail="malformed history") from exc
+
+
+def load_embedder() -> None:
+    from rag.ingest.embedder import load_model  # deferred: pulls in torch
+
+    load_model()
+
+
 def make_answer_fn(settings: Settings) -> AnswerFn:
-    """`run_chain` over the real stores and models. The lookup-key set loads on the first
-    question rather than at startup, so the app can come up before Qdrant answers (the two
-    wake together — SPEC §14.2); BGE-M3 likewise loads on its first embed."""
+    """`run_chain` over the real stores and models. BGE-M3 and the lookup-key set load on
+    the first question rather than at startup, so the app can come up before Qdrant answers
+    (the two wake together — SPEC §14.2) — and that load is the `chargement` stage,
+    announced only while it actually runs. A load that fails is retried, and announced
+    again, on the next question.
+
+    The load holds a lock: two copies of BGE-M3 on a box with no swap is an OOM kill
+    (SPEC §14), so a question arriving mid-load waits on that load — and says so."""
     client = QdrantClient(settings.qdrant_url)
     condense_fn = make_condense_fn(settings)
     generate_fn = make_generate_fn(settings)
+    warm_up_lock = threading.Lock()
+    loaded_lookup_keys: frozenset[str] | None = None
 
-    @cache
-    def lookup_keys() -> frozenset[str]:
-        return load_lookup_keys(client)
+    def warm_up(on_stage: StageFn) -> frozenset[str]:
+        nonlocal loaded_lookup_keys
+        if loaded_lookup_keys is None:
+            on_stage(Stage.CHARGEMENT)
+            with warm_up_lock:
+                if loaded_lookup_keys is None:
+                    load_embedder()
+                    loaded_lookup_keys = load_lookup_keys(client)
+        return loaded_lookup_keys
 
-    def answer(question: str, history: Sequence[HistoryTurn]) -> GenerationResult:
+    def answer(question: str, history: Sequence[HistoryTurn], on_stage: StageFn) -> GenerationResult:
         from rag.ingest.embedder import embed_batch  # deferred: pulls in torch
 
+        lookup_keys = warm_up(on_stage)
         return run_chain(
             question,
             history,
             client=client,
             embed=embed_batch,
-            lookup_keys=lookup_keys(),
+            lookup_keys=lookup_keys,
             condense_fn=condense_fn,
             generate_fn=generate_fn,
+            on_stage=on_stage,
         )
 
     return answer
+
+
+@dataclass(frozen=True)
+class _Finished:
+    result: GenerationResult | None
+
+
+def _sse(event: str, data: str) -> str:
+    # One `data:` line per line of payload: a bare newline would end the event early.
+    lines = "".join(f"data: {line}\n" for line in data.split("\n"))
+    return f"event: {event}\n{lines}\n"
 
 
 def create_app(
@@ -140,15 +206,23 @@ def create_app(
     templates.env.globals["attribution"] = attribution
     templates.env.filters["markdown"] = lambda text: Markup(_MARKDOWN.render(text))
 
-    def _run(question: str, history: Sequence[Turn]) -> GenerationResult | None:
+    def _run(
+        question: str, history: Sequence[Turn], on_stage: StageFn = ignore_stage
+    ) -> GenerationResult | None:
         turns = [HistoryTurn(role=t.role, content=t.content) for t in history]
         try:
-            return answer(question, turns)
+            return answer(question, turns, on_stage)
         except Exception:
             # OpenRouter, Qdrant or the embedder — no fixed type, and none of it is the
             # client's fault. Logged in full, surfaced as one plain 503.
             logger.exception("pipeline failed for one question")
             return None
+
+    def _partial(question: str, result: GenerationResult | None) -> tuple[str, dict[str, object]]:
+        """The fragment one answered question renders as, on either `/ask` route."""
+        if result is None:
+            return "_error.html", {"question": question, "message": _UNAVAILABLE}
+        return "_exchange.html", {"question": question, "view": build_view(result)}
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def index(request: Request) -> HTMLResponse:
@@ -169,28 +243,49 @@ def create_app(
     def ask(
         request: Request,
         question: Annotated[str, Form(min_length=1, max_length=MAX_QUESTION_CHARS)],
-        history_role: Annotated[list[str], Form()] = [],  # noqa: B006 — FastAPI copies defaults
-        history_content: Annotated[list[str], Form()] = [],  # noqa: B006
+        history: Annotated[list[Turn], Depends(_form_history)],
     ) -> HTMLResponse:
-        if len(history_role) != len(history_content):
-            raise HTTPException(status_code=422, detail="history roles and contents differ in length")
-        try:
-            history = _TURNS.validate_python(
-                [{"role": r, "content": c} for r, c in zip(history_role, history_content, strict=True)]
-            )
-        except ValidationError as exc:
-            raise HTTPException(status_code=422, detail="malformed history") from exc
-
         result = _run(question, history)
-        if result is None:
-            return templates.TemplateResponse(
-                request,
-                "_error.html",
-                {"question": question, "message": _UNAVAILABLE},
-                status_code=503,
-            )
-        return templates.TemplateResponse(
-            request, "_exchange.html", {"question": question, "view": build_view(result)}
+        template, context = _partial(question, result)
+        status_code = 503 if result is None else 200
+        return templates.TemplateResponse(request, template, context, status_code=status_code)
+
+    @app.post("/ask/stream", include_in_schema=False)
+    def ask_stream(
+        question: Annotated[str, Form(min_length=1, max_length=MAX_QUESTION_CHARS)],
+        history: Annotated[list[Turn], Depends(_form_history)],
+    ) -> StreamingResponse:
+        """SPEC §13.2: one `stage` event per stage the pipeline announces, as it announces
+        it, then the rendered exchange as `result` — or the error partial as `error`. The
+        input is validated before the stream opens, so a bad request is still a plain 422."""
+        events: queue.Queue[Stage | _Finished] = queue.Queue()
+
+        def work() -> None:
+            events.put(_Finished(_run(question, history, events.put)))
+
+        def stream() -> Iterator[str]:
+            threading.Thread(target=work, daemon=True).start()
+            while True:
+                try:
+                    event = events.get(timeout=HEARTBEAT_SECONDS)
+                except queue.Empty:
+                    yield ": keepalive\n\n"
+                    continue
+                if isinstance(event, Stage):
+                    payload = {"stage": event.value, "label": _STAGE_LABELS[event]}
+                    yield _sse("stage", json.dumps(payload, ensure_ascii=False))
+                else:
+                    template, context = _partial(question, event.result)
+                    html = templates.get_template(template).render(context)
+                    yield _sse("error" if event.result is None else "result", html)
+                    return
+
+        return StreamingResponse(
+            stream(),
+            media_type="text/event-stream",
+            # `no-cache` per the SSE spec; `X-Accel-Buffering` stops a buffering proxy from
+            # holding every stage until the answer, which would make the indicator a lie.
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
     return app

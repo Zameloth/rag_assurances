@@ -24,7 +24,7 @@ from qdrant_client import models
 
 from rag.ingest.upsert import Embedding
 
-__all__ = ["DENSE_DIM", "MODEL_CACHE_DIR", "MODEL_ID", "embed_batch"]
+__all__ = ["DENSE_DIM", "MODEL_CACHE_DIR", "MODEL_ID", "embed_batch", "load_model"]
 
 MODEL_ID = "BAAI/bge-m3"
 DENSE_DIM = 1024
@@ -39,6 +39,12 @@ def _model() -> BGEM3FlagModel:
     # fp16 buys speed on a GPU this project doesn't have (SPEC §14.4 — CPU-viable by
     # design); fp32 also matches the ~15 MB dense-footprint sanity check (SPEC §4.4).
     return BGEM3FlagModel(MODEL_ID, use_fp16=False, cache_dir=str(MODEL_CACHE_DIR))
+
+
+def load_model() -> None:
+    """Load the weights now rather than on the first embed — for a caller that wants the
+    cold start to be its own announced wait (the app's `chargement` stage, #51)."""
+    _model()
 
 
 def embed_batch(texts: Sequence[str]) -> list[Embedding]:

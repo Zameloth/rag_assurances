@@ -13,13 +13,14 @@ import pytest
 from qdrant_client import QdrantClient
 
 import rag.pipeline as pipeline_module
+from rag.condensation.pipeline import CondenseFn
 from rag.condensation.prompt import MAX_HISTORY_TURN_CHARS, MAX_HISTORY_TURNS, HistoryTurn
 from rag.condensation.prompt import Message as CondensationMessage
 from rag.condensation.schema import CondenserOutput
 from rag.generation.prompt import Message as GenerationMessage
 from rag.generation.schema import Envelope, Reponse
 from rag.ingest.upsert import EmbedFn
-from rag.pipeline import run_chain
+from rag.pipeline import Stage, run_chain
 from rag.retrieval.pipeline import RetrievalResult
 from rag.retrieval.short_circuit import ShortCircuitPath
 
@@ -105,3 +106,94 @@ def test_generation_gets_the_raw_turn_not_the_condensed_query(
     [messages] = seen_by_generation
     assert messages[-1] == ("user", "et si je suis locataire ?")
     assert retrieved_queries == ["franchise si locataire ?"]
+
+
+# --- stage events (SPEC §13.2, #51) --------------------------------------------
+
+_HISTORY = [HistoryTurn(role="user", content="franchise ?"), HistoryTurn(role="assistant", content="...")]
+
+
+def _run_recording_stages(
+    raw_turn: str,
+    history: list[HistoryTurn],
+    *,
+    lookup_keys: frozenset[str] = frozenset(),
+    condense_fn: CondenseFn | None = None,
+) -> list[Stage]:
+    stages: list[Stage] = []
+
+    def default_condense_fn(messages: list[CondensationMessage]) -> CondenserOutput:
+        return CondenserOutput(requete=raw_turn)
+
+    run_chain(
+        raw_turn,
+        history,
+        client=QdrantClient(":memory:"),
+        embed=lambda texts: [],
+        lookup_keys=lookup_keys,
+        condense_fn=condense_fn or default_condense_fn,
+        generate_fn=lambda messages: Reponse(explanation="..."),
+        on_stage=stages.append,
+    )
+    return stages
+
+
+@pytest.mark.usefixtures("retrieved_queries")
+class TestStageEvents:
+    def test_a_follow_up_runs_all_three_chain_stages_in_order(self) -> None:
+        stages = _run_recording_stages("et si je suis locataire ?", _HISTORY)
+        assert stages == [Stage.CONDENSATION, Stage.RECHERCHE, Stage.GENERATION]
+
+    def test_a_first_turn_does_not_claim_to_have_condensed(self) -> None:
+        """Condensation fires only when history exists (ADR-0008)."""
+        assert _run_recording_stages("puis-je résilier ?", []) == [Stage.RECHERCHE, Stage.GENERATION]
+
+    def test_a_short_circuited_follow_up_does_not_claim_to_have_condensed(self) -> None:
+        stages = _run_recording_stages(
+            "Que dit L113-15 sur la résiliation ?", _HISTORY, lookup_keys=frozenset({"L113-15"})
+        )
+        assert stages == [Stage.RECHERCHE, Stage.GENERATION]
+
+    def test_a_failed_condenser_call_still_ran(self) -> None:
+        """`FALLBACK_ERROR` is a call that was made — the wait was real."""
+
+        def failing(messages: list[CondensationMessage]) -> CondenserOutput:
+            raise TimeoutError
+
+        stages = _run_recording_stages("et si je suis locataire ?", _HISTORY, condense_fn=failing)
+        assert stages[0] is Stage.CONDENSATION
+
+    def test_each_stage_is_announced_as_it_starts(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Emitted by the pipeline as it advances, not fabricated around it: each stage's
+        event has already fired when its own work begins, and the next one has not."""
+        stages: list[Stage] = []
+        seen_at: dict[str, list[Stage]] = {}
+
+        def condense_fn(messages: list[CondensationMessage]) -> CondenserOutput:
+            seen_at["condense"] = list(stages)
+            return CondenserOutput(requete="franchise si locataire ?")
+
+        def fake_retrieve(*args: object, **kwargs: object) -> RetrievalResult:
+            seen_at["retrieve"] = list(stages)
+            return RetrievalResult(short_circuit_path=ShortCircuitPath.NO_REFERENCE, contexts=[])
+
+        def generate_fn(messages: list[GenerationMessage]) -> Envelope:
+            seen_at["generate"] = list(stages)
+            return Reponse(explanation="...")
+
+        monkeypatch.setattr(pipeline_module, "retrieve", fake_retrieve)
+        run_chain(
+            "et si je suis locataire ?",
+            _HISTORY,
+            client=QdrantClient(":memory:"),
+            embed=lambda texts: [],
+            lookup_keys=frozenset(),
+            condense_fn=condense_fn,
+            generate_fn=generate_fn,
+            on_stage=stages.append,
+        )
+        assert seen_at == {
+            "condense": [Stage.CONDENSATION],
+            "retrieve": [Stage.CONDENSATION, Stage.RECHERCHE],
+            "generate": [Stage.CONDENSATION, Stage.RECHERCHE, Stage.GENERATION],
+        }

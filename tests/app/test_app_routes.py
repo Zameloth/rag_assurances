@@ -17,6 +17,7 @@ from rag.condensation.prompt import HistoryTurn
 from rag.generation.citation import check_citations
 from rag.generation.pipeline import GenerationResult
 from rag.generation.schema import Envelope, FondementJuridique, Motif, Refus, Reponse
+from rag.pipeline import StageFn
 from rag.retrieval.candidates import Candidate, Provenance, Register
 from rag.retrieval.quota import NO_ARTICLE_MARKER_TEXT
 
@@ -88,7 +89,9 @@ class FakeAnswer:
         self.envelope = envelope
         self.calls: list[tuple[str, tuple[HistoryTurn, ...]]] = []
 
-    def __call__(self, question: str, history: Sequence[HistoryTurn]) -> GenerationResult:
+    def __call__(
+        self, question: str, history: Sequence[HistoryTurn], on_stage: StageFn
+    ) -> GenerationResult:
         self.calls.append((question, tuple(history)))
         return GenerationResult(
             envelope=self.envelope,
@@ -165,7 +168,9 @@ class TestApiAsk:
         assert {"Reponse", "Refus", "Motif"} <= set(schema["components"]["schemas"])
 
     def test_a_pipeline_failure_is_a_503(self) -> None:
-        def failing(question: str, history: Sequence[HistoryTurn]) -> GenerationResult:
+        def failing(
+            question: str, history: Sequence[HistoryTurn], on_stage: StageFn
+        ) -> GenerationResult:
             raise RuntimeError("OpenRouter down")
 
         response = _client(failing).post("/api/ask", json={"question": "q"})
@@ -256,7 +261,9 @@ class TestAskPartials:
         assert 'href="javascript:' not in html
 
     def test_a_pipeline_failure_renders_an_error_partial(self) -> None:
-        def failing(question: str, history: Sequence[HistoryTurn]) -> GenerationResult:
+        def failing(
+            question: str, history: Sequence[HistoryTurn], on_stage: StageFn
+        ) -> GenerationResult:
             raise RuntimeError("OpenRouter down")
 
         response = _client(failing).post("/ask", data={"question": "q"})
@@ -308,6 +315,14 @@ class TestHistoryRoundTrip:
 
 
 class TestPage:
+    def test_offers_to_clear_the_conversation_without_submitting(self, answer: FakeAnswer) -> None:
+        """History lives only in the page (SPEC §13.4), so clearing it is the page's job —
+        a plain button, never a submit that would post the history it means to drop."""
+        html = _client(answer).get("/").text
+        [button] = re.findall(r'<button[^>]*class="reset"[^>]*>', html)
+        assert 'type="button"' in button
+        assert html.index('id="conversation"') < html.index('class="reset"') < html.index("<form")
+
     def test_renders_the_disclaimer_as_boilerplate(self, answer: FakeAnswer) -> None:
         html = _client(answer).get("/").text
         assert "information, pas conseil" in html.lower()
