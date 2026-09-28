@@ -115,7 +115,7 @@ def test_upsert_articles_batches_large_point_sets_across_multiple_upsert_calls(
     failure against the real corpus: a single 2,801-point call serialized to 70 MB against
     a 32 MB limit). Regression-tested at a monkeypatched batch size of 2 rather than by
     generating tens of megabytes of fixture data to reproduce the real threshold."""
-    monkeypatch.setattr(upsert_module, "_UPSERT_BATCH_SIZE", 2)
+    monkeypatch.setattr(upsert_module, "UPSERT_BATCH_SIZE", 2)
     create_collection(qdrant, "articles")
     rows = [
         _article_row(cid=f"LEGIARTI_{i}", id=f"LEGIARTI_{i}_v1", citation_id=f"L100-{i}")

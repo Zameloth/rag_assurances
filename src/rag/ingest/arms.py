@@ -14,15 +14,19 @@ enough over ~900 points, indexing RAM this project cannot spare for nothing.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from qdrant_client import QdrantClient, models
 
 __all__ = [
     "ARTICLES_ALIAS",
     "DENSE_DIM",
     "FICHES_ALIAS",
+    "REGISTER_ALIASES",
     "ensure_articles_collection",
     "ensure_fiches_collection",
     "flip_alias",
+    "flip_aliases",
 ]
 
 # The two SPEC §6.4 stable names, defined once here — this module is their natural single
@@ -31,6 +35,10 @@ __all__ = [
 # queries through them) both import these rather than restating the literals.
 ARTICLES_ALIAS = "articles"
 FICHES_ALIAS = "fiches"
+
+# Each register's stable alias, keyed by the plural collection name — the key the index
+# lock, the release asset names and the restored generations all use.
+REGISTER_ALIASES = {"fiches": FICHES_ALIAS, "articles": ARTICLES_ALIAS}
 
 # BGE-M3's dense output (SPEC §5). Collection-creation callers override it for tests, where
 # the point is collection *shape*, not the real embedder.
@@ -77,16 +85,24 @@ def flip_alias(client: QdrantClient, alias: str, collection_name: str) -> None:
     """Point the stable `alias` at `collection_name`, atomically dropping whichever physical
     collection it pointed at before (SPEC §6.4) — so a switch is a single alias update and
     rollback is instant. A no-op if `alias` already points at `collection_name`."""
+    flip_aliases(client, {alias: collection_name})
+
+
+def flip_aliases(client: QdrantClient, targets: Mapping[str, str]) -> None:
+    """`flip_alias` for several aliases in **one** request, so they move together or not
+    at all — restore's two registers must never serve from two different releases."""
     current = {a.alias_name: a.collection_name for a in client.get_aliases().aliases}
-    if current.get(alias) == collection_name:
-        return
     operations: list[models.AliasOperations] = []
-    if alias in current:
-        delete_op = models.DeleteAliasOperation(delete_alias=models.DeleteAlias(alias_name=alias))
-        operations.append(delete_op)
-    operations.append(
-        models.CreateAliasOperation(
-            create_alias=models.CreateAlias(collection_name=collection_name, alias_name=alias)
+    for alias, collection_name in targets.items():
+        if current.get(alias) == collection_name:
+            continue
+        if alias in current:
+            delete_op = models.DeleteAliasOperation(delete_alias=models.DeleteAlias(alias_name=alias))
+            operations.append(delete_op)
+        operations.append(
+            models.CreateAliasOperation(
+                create_alias=models.CreateAlias(collection_name=collection_name, alias_name=alias)
+            )
         )
-    )
-    client.update_collection_aliases(change_aliases_operations=operations)
+    if operations:
+        client.update_collection_aliases(change_aliases_operations=operations)

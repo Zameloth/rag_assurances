@@ -38,8 +38,9 @@ GENERATION_RETRIEVAL_ARM = "rung1"
 
 class Stage(enum.Enum):
     """SPEC §13.2's staged indicator, one member per wait a visitor can sit through.
-    `CHARGEMENT` is the process warming up (lookup keys, BGE-M3) and is announced by the
-    app, which owns that loading; the other three by `run_chain` as it reaches them."""
+    `CHARGEMENT` is the first question reading the lookup keys (BGE-M3 loads at app
+    startup) and is announced by the app, which owns that read; the other three by
+    `run_chain` as it reaches them."""
 
     CHARGEMENT = "chargement"
     CONDENSATION = "condensation"

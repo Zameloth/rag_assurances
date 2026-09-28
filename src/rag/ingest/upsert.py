@@ -20,7 +20,7 @@ and sparse from the *same* input text, and the two pre-ladder A/Bs need those to
 raw chunk text — never the enriched text — is what `build_article_point`/`build_fiche_point`
 write into the payload either way (SPEC §7: "`text` is always the raw chunk").
 
-Upserting is chunked into `_UPSERT_BATCH_SIZE`-point requests, not one call per collection:
+Upserting is chunked into `UPSERT_BATCH_SIZE`-point requests, not one call per collection:
 a single 1024-dim-fp32-dense-plus-sparse point runs ~25 KB of JSON, so the full `articles`
 collection (2,801 points) serializes past Qdrant's 32 MB REST request cap in one shot
 (measured failure: 70 MB, real corpus, #26). 500 points keeps every request under ~12.5 MB —
@@ -42,6 +42,7 @@ __all__ = [
     "Embedding",
     "EmbedFn",
     "FicheDenseTextFn",
+    "UPSERT_BATCH_SIZE",
     "upsert_articles",
     "upsert_fiches",
 ]
@@ -53,7 +54,7 @@ FicheDenseTextFn = Callable[[FicheMetadata, FicheChunk], str]
 
 # See the module docstring — sized against the measured ~25 KB/point of a real BGE-M3
 # point, not the tiny stub vectors the test suite embeds.
-_UPSERT_BATCH_SIZE = 500
+UPSERT_BATCH_SIZE = 500
 
 
 def upsert_articles(
@@ -115,6 +116,6 @@ def upsert_fiches(
 def _upsert_in_batches(
     client: QdrantClient, collection_name: str, points: list[models.PointStruct]
 ) -> None:
-    for start in range(0, len(points), _UPSERT_BATCH_SIZE):
-        batch = points[start : start + _UPSERT_BATCH_SIZE]
+    for start in range(0, len(points), UPSERT_BATCH_SIZE):
+        batch = points[start : start + UPSERT_BATCH_SIZE]
         client.upsert(collection_name=collection_name, points=batch)

@@ -152,7 +152,8 @@ that choice is a decision recorded in an ADR, not something to infer. `make publ
    tree, since the lock's `git_commit` must name the code that ran;
 2. **scrolls the points back out of the dev Qdrant**, into `data/raw/index/points-{fiches,articles}.parquet`
    — it never re-embeds, so the published vectors are bit-for-bit the ones the ladder scored;
-3. cuts the release (`gh release create index-<date>`, overridable with `TAG=`) with both dumps
+3. cuts the release (`gh release create index-<date>`, overridable with `TAG=` — which must still
+   start with `index-`, the shape restore and `/health` recognise a release by) with both dumps
    and `corpus_manifest.json` — the payloads carry verbatim DILA text, so the dump is a
    redistribution under Licence Ouverte 2.0 and the attribution travels with the artifact;
 4. only then writes `index_lock.json`: tag, commit, the corpus manifest's sha256, embedder ids and
@@ -165,6 +166,44 @@ pinned and the lock records the full config, so `make ingest` then the ladder on
 commit is the reproduction path — but it is *produced* on the machine that ran the ladder. A CI
 rebuild would be a re-derivation on different hardware and a different torch build: numerically
 almost identical, and not the artifact that was scored ([SPEC §15.3](SPEC.md)).
+
+## Restoring the index
+
+On the deploy host, **the app image is the tool** — no checkout, no Python on the host:
+
+```sh
+docker compose run --rm rag-assurances python -m rag.restore
+```
+
+It installs the release named by the `index_lock.json` baked into the image
+([SPEC §15.5](SPEC.md), [ADR-0014](docs/adr/0014-parquet-points-dump-on-a-release-with-alias-flip.md)):
+each register goes into its own generation, `<register>__<release-tag>`; both assets are
+**sha256-checked against the lock before a single point is written**; the post-upsert count is
+checked **before any alias moves**; then the `fiches`/`articles` aliases flip together, in one
+atomic request. A run
+killed at any point leaves the old index serving — re-run it. It is idempotent: a generation whose
+tag and count already match is left live (`already_live`) or flipped to without downloading
+(`retained`). The last two generations per register are kept; older ones are pruned.
+
+It is a **deploy step, never a boot step** — the wake path makes no network call.
+
+**Rollback is one alias flip.** The previous generation is still on disk, so deploy the previous
+image (its lock names the previous tag) and run the same restore: it reports `retained`, downloads
+nothing, and moves both aliases in the one request. In an emergency, without touching the image,
+make the same flip by hand from inside the app container — though `/health` will then report the
+index clause false until the image's lock names that tag too:
+
+```sh
+docker compose run --rm rag-assurances python -c "
+from qdrant_client import QdrantClient; from rag.ingest.arms import flip_aliases
+flip_aliases(QdrantClient('http://qdrant:6333'),
+             {r: f'{r}__index-YYYY-MM-DD' for r in ('fiches', 'articles')})"
+```
+
+`GET /health` is 200 only when **models are loaded AND Qdrant answers AND both aliases serve the
+lock's release tag** ([SPEC §14.3](SPEC.md)), and returns each clause separately so a failure says
+which one. In dev the aliases point at ladder arms rather than a release, so dev `/health` reports
+the index clause false — correctly.
 
 ## Licence
 

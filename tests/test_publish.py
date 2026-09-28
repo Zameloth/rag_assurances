@@ -26,6 +26,7 @@ from rag.publish import (
     RegisterDump,
     ScoresPointer,
     dump_register,
+    load_index_lock,
     publish,
 )
 
@@ -179,6 +180,18 @@ def _lock() -> IndexLock:
     )
 
 
+def test_index_lock_reads_back_what_it_wrote(tmp_path: Path) -> None:
+    path = tmp_path / "index_lock.json"
+    path.write_text(json.dumps(_lock().as_dict()), encoding="utf-8")
+
+    assert load_index_lock(path) == _lock()
+
+
+def test_the_committed_index_lock_loads() -> None:
+    """Restore and `/health` both read it; a hand-edit that breaks the shape must fail here."""
+    assert load_index_lock().release_tag.startswith("index-")
+
+
 def test_index_lock_serializes_every_spec_15_6_field() -> None:
     assert _lock().as_dict() == {
         "release_tag": "index-2026-09-28",
@@ -271,6 +284,7 @@ def _publish(
     release: FakeRelease,
     *,
     chunking_changed: bool = False,
+    tag: str | None = None,
 ) -> IndexLock:
     manifest = tmp_path / "corpus_manifest.json"
     manifest.write_text('{"articles": {}}\n', encoding="utf-8")
@@ -286,7 +300,19 @@ def _publish(
         revision_of=lambda model_id: f"rev-of-{model_id}",
         changed_since=lambda commit, paths: chunking_changed,
         now=NOW,
+        tag=tag,
     )
+
+
+def test_publish_refuses_a_tag_restore_could_not_read_back(scored_index: QdrantClient, tmp_path: Path) -> None:
+    """`/health` reads the release tag out of the generation name and pruning only touches
+    `index-` generations — a `v2` release would install fine and never report healthy."""
+    release = FakeRelease()
+
+    with pytest.raises(PublishError, match="index-"):
+        _publish(scored_index, tmp_path, _write_run(tmp_path, {"embedder": "BAAI/bge-m3"}), release, tag="v2")
+
+    assert release.calls == []
 
 
 def test_publish_cuts_the_release_with_both_dumps_and_the_corpus_manifest(
