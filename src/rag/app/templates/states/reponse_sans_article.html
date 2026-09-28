@@ -1,6 +1,6 @@
 {% import "_macros.html" as m %}
 <div class="answer answer-sans-article" data-state="reponse_sans_article">
-  {{ m.badge("Sans article", "info") }}
+  {{ m.badge(view, "info") }}
   {{ m.explanation(view) }}
   <p class="no-article">{{ view.envelope.aucun_fondement }}</p>
   {{ m.fiches(view) }}

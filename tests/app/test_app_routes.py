@@ -52,7 +52,7 @@ CONTEXTS = [FICHE, ARTICLE]
 ATTRIBUTION = CorpusAttribution(
     sources=(
         SourceAttribution(
-            register="articles",
+            name="Code des assurances",
             producer="DILA",
             licence="Licence Ouverte 2.0",
             licence_url="https://www.etalab.gouv.fr/licence-ouverte",
@@ -62,7 +62,7 @@ ATTRIBUTION = CorpusAttribution(
             mirror_of="https://www.legifrance.gouv.fr/codes/texte_lc/LEGITEXT000006073984/",
         ),
         SourceAttribution(
-            register="fiches",
+            name="Fiches service-public.fr",
             producer="DILA",
             licence="Licence Ouverte 2.0",
             licence_url="https://www.etalab.gouv.fr/licence-ouverte",

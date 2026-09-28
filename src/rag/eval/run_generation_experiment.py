@@ -47,8 +47,7 @@ from rag.eval.schema import GoldenItem
 from rag.generation.pipeline import GenerateFn, GenerationResult
 from rag.generation.prompt import build_context_section
 from rag.ingest.upsert import EmbedFn
-from rag.pipeline import run_chain
-from rag.retrieval.pipeline import DEFAULT_RETRIEVAL_ARM
+from rag.pipeline import GENERATION_RETRIEVAL_ARM, run_chain
 
 __all__ = [
     "GENERATION_RUNG",
@@ -197,7 +196,7 @@ def run_generation_eval(
     generation_provider: str,
     retrieval_config: dict[str, Any],
     dataset_name: str = GENERATION_DATASET_NAME,
-    retrieval_arm: str = DEFAULT_RETRIEVAL_ARM,
+    retrieval_arm: str = GENERATION_RETRIEVAL_ARM,
     max_concurrency: int = MAX_CONCURRENCY,
     judge: Judge | None = None,
 ) -> GenerationRun:
@@ -212,8 +211,8 @@ def run_generation_eval(
     ablatable arm"); `generation_model`/`generation_provider` are the caller's own pinned
     description of what actually ran, since only the caller (which built `generate_fn`)
     knows which `Settings` it was built from. `retrieval_arm` defaults to
-    `DEFAULT_RETRIEVAL_ARM` — the ladder-winning arm, once adopted, is what a generation run
-    should sit on top of, not whichever rung happened to run last.
+    `rag.pipeline.GENERATION_RETRIEVAL_ARM` — the ladder-winning arm, the same one the app
+    serves, not whichever rung happened to run last.
 
     **`generation_provider` pins the requested provider, not a response-verified one.**
     SPEC §12.10 asks for "the resolved provider recorded in every persisted run" for the

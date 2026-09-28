@@ -92,7 +92,7 @@ class TestCitations:
             explanation="...",
             fondement_juridique=[FondementJuridique(article_id="L113-12", gloss="résiliation annuelle")],
         )
-        [citation] = build_view(_result(envelope, [L113_12])).citations
+        [citation] = build_view(_result(envelope, [L113_12])).fondement_juridique
         assert citation.citation_id == "L113-12"
         assert citation.gloss == "résiliation annuelle"
         assert citation.url == "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000041378467"
@@ -111,7 +111,7 @@ class TestCitations:
         result = _result(envelope, [L113_12])
         view = build_view(result)
 
-        assert view.citations == ()
+        assert view.fondement_juridique == ()
         assert view.state is AnswerState.REPONSE_SANS_ARTICLE
         assert isinstance(view.envelope, Reponse)
         assert view.envelope.aucun_fondement == NO_ARTICLE_MARKER_TEXT
@@ -124,7 +124,7 @@ class TestCitations:
             motif=Motif.CONSEIL_ACTION,
             fondement_juridique=[FondementJuridique(article_id="L113-12", gloss="g")],
         )
-        [citation] = build_view(_result(envelope, [L113_12])).citations
+        [citation] = build_view(_result(envelope, [L113_12])).fondement_juridique
         assert citation.citation_id == "L113-12"
 
 

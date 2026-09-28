@@ -31,7 +31,7 @@
     <ul class="sources">
       {% for source in attribution.sources %}
       <li>
-        <span class="source-name">{{ "Code des assurances" if source.register == "articles" else "Fiches service-public.fr" }}</span>
+        <span class="source-name">{{ source.name }}</span>
         — {{ source.producer }},
         <a href="{{ source.licence_url }}" rel="license">{{ source.licence }}</a>.
         Fichier <a href="{{ source.download_url }}">{{ source.filename }}</a>

@@ -1,13 +1,13 @@
-{% macro badge(label, tone) -%}
-<span class="badge badge-{{ tone }}">{{ label }}</span>
+{% macro badge(view, tone) -%}
+<span class="badge badge-{{ tone }}">{{ view.badge }}</span>
 {%- endmacro %}
 
-{% macro citations(view) -%}
-{% if view.citations %}
+{% macro fondement_juridique(view) -%}
+{% if view.fondement_juridique %}
 <section class="panel panel-articles">
   <h3>Fondement juridique</h3>
   <ul>
-    {% for citation in view.citations %}
+    {% for citation in view.fondement_juridique %}
     <li>
       <a class="citation-id" href="{{ citation.url }}" rel="noopener" target="_blank">{{ citation.citation_id }}</a>
       <span class="gloss">{{ citation.gloss }}</span>

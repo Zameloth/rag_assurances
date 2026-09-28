@@ -16,6 +16,7 @@ from rag.generation.citation import repair_for_display
 from rag.generation.pipeline import GenerationResult
 from rag.generation.schema import Envelope, Motif, Refus
 from rag.retrieval.candidates import Register
+from rag.retrieval.quota import NO_ARTICLE_MARKER_ID
 
 __all__ = [
     "AnswerState",
@@ -29,6 +30,13 @@ __all__ = [
 # SPEC §13.5: the article link is derived, never stored — and from `legiarti_version_id`,
 # never `cid`, which points at the article's first version.
 LEGIFRANCE_ARTICLE_URL = "https://www.legifrance.gouv.fr/codes/article_lc/{legiarti_version_id}"
+
+
+_MOTIF_BADGES = {
+    Motif.RECOMMANDATION_PRODUIT: "Recommandation de produit",
+    Motif.CONSEIL_ACTION: "Conseil personnalisé",
+    Motif.HORS_CORPUS: "Hors corpus",
+}
 
 
 class AnswerState(enum.Enum):
@@ -59,11 +67,13 @@ class FicheSource:
 @dataclass(frozen=True)
 class AnswerView:
     """`envelope` is the display copy — repaired when the guardrail fired, so `state` and
-    `citations` are read off it, not off the model's unrepaired output."""
+    `fondement_juridique` are read off it, not off the model's unrepaired output. `badge`
+    is the state's label, with the declined act named on a regulated-act refusal."""
 
     state: AnswerState
+    badge: str
     envelope: Envelope
-    citations: tuple[ArticleCitation, ...]
+    fondement_juridique: tuple[ArticleCitation, ...]
     fiches: tuple[FicheSource, ...]
 
 
@@ -74,13 +84,15 @@ def legifrance_url(legiarti_version_id: str) -> str:
 def build_view(result: GenerationResult) -> AnswerView:
     envelope = repair_for_display(result.envelope, result.citation_outcome)
 
-    # After repair every cited id is in the retrieved context, so this lookup cannot miss.
+    # After repair every cited id is in the retrieved context, and every article payload
+    # carries `legiarti_version_id` (`rag.ingest.payload.build_article_payload` writes it
+    # from the source row's required `id`) — so this lookup cannot miss.
     version_ids = {
         str(c.payload["citation_id"]): str(c.payload["legiarti_version_id"])
         for c in result.contexts
-        if c.register is Register.ARTICLE and "legiarti_version_id" in c.payload
+        if c.register is Register.ARTICLE and c.id != NO_ARTICLE_MARKER_ID
     }
-    citations = tuple(
+    fondement_juridique = tuple(
         ArticleCitation(
             citation_id=f.article_id,
             gloss=f.gloss,
@@ -98,10 +110,12 @@ def build_view(result: GenerationResult) -> AnswerView:
                 date_modified=date.fromisoformat(str(c.payload["date_modified"])),
             )
 
+    state = _state(envelope)
     return AnswerView(
-        state=_state(envelope),
+        state=state,
+        badge=_badge(state, envelope),
         envelope=envelope,
-        citations=citations,
+        fondement_juridique=fondement_juridique,
         fiches=tuple(fiches.values()),
     )
 
@@ -114,3 +128,9 @@ def _state(envelope: Envelope) -> AnswerState:
     if envelope.aucun_fondement is not None:
         return AnswerState.REPONSE_SANS_ARTICLE
     return AnswerState.REPONSE
+
+
+def _badge(state: AnswerState, envelope: Envelope) -> str:
+    if isinstance(envelope, Refus):
+        return _MOTIF_BADGES[envelope.motif]
+    return "Sans article" if state is AnswerState.REPONSE_SANS_ARTICLE else "Réponse"
