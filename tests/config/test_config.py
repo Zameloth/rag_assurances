@@ -17,6 +17,7 @@ def test_reads_every_variable_the_spec_table_lists() -> None:
             "LANGFUSE_BASE_URL": "https://cloud.langfuse.com",
             "LANGFUSE_TRACING": "true",
             "QDRANT_URL": "http://qdrant:6333",
+            "INDEX_RELEASE_URL": "https://example.test/releases/download",
         }
     )
 
@@ -29,6 +30,7 @@ def test_reads_every_variable_the_spec_table_lists() -> None:
     assert settings.langfuse_base_url == "https://cloud.langfuse.com"
     assert settings.langfuse_tracing is True
     assert settings.qdrant_url == "http://qdrant:6333"
+    assert settings.index_release_url == "https://example.test/releases/download"
 
 
 class TestAbsentVariables:
@@ -47,11 +49,12 @@ class TestAbsentVariables:
         assert settings.langfuse_public_key == ""
         assert settings.langfuse_secret_key == ""
 
-    def test_the_two_spec_constants_do_have_defaults(self) -> None:
+    def test_the_three_spec_constants_do_have_defaults(self) -> None:
         settings = Settings.from_env({})
 
         assert settings.langfuse_base_url == "https://cloud.langfuse.com"
         assert settings.qdrant_url == "http://localhost:6333"
+        assert settings.index_release_url == "https://github.com/Zameloth/rag_assurances/releases/download"
 
 
 class TestLangfuseTracing:

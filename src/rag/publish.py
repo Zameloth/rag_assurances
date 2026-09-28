@@ -50,8 +50,10 @@ __all__ = [
     "ReleaseFn",
     "ScoresPointer",
     "dump_register",
+    "load_index_lock",
     "main",
     "publish",
+    "vector_config_fingerprint",
 ]
 
 # `(tag, target commit, assets, notes)` — raises if the release was not cut.
@@ -143,6 +145,22 @@ class IndexLock:
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
 
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> IndexLock:
+        return cls(
+            **{
+                **raw,
+                "embedder": {half: EmbedderPin(**pin) for half, pin in raw["embedder"].items()},
+                "registers": {name: RegisterDump(**dump) for name, dump in raw["registers"].items()},
+                "scores": ScoresPointer(**raw["scores"]),
+            }
+        )
+
+
+def load_index_lock(path: Path = DEFAULT_LOCK_PATH) -> IndexLock:
+    """The committed `index_lock.json` — what restore installs and `/health` checks for."""
+    return IndexLock.from_dict(json.loads(path.read_text(encoding="utf-8")))
+
 
 def dump_register(client: QdrantClient, alias: str, path: Path) -> RegisterDump:
     """Write every point behind `alias` to `path` as Parquet and describe what was written.
@@ -190,7 +208,7 @@ def dump_register(client: QdrantClient, alias: str, path: Path) -> RegisterDump:
         collection=collection,
         points=len(points),
         asset_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
-        vector_config_fingerprint=_vector_config_fingerprint(params, collection),
+        vector_config_fingerprint=vector_config_fingerprint(params, collection),
     )
 
 
@@ -219,7 +237,7 @@ def _scroll_all(client: QdrantClient, alias: str) -> list[models.Record]:
             return points
 
 
-def _vector_config_fingerprint(params: models.CollectionParams, collection: str) -> str:
+def vector_config_fingerprint(params: models.CollectionParams, collection: str) -> str:
     """A sha256 over the named-vector layout — dense width and distance, sparse names and
     modifiers. Restore creates its collection from code (SPEC §15.1), so this is what lets
     it notice that code no longer builds the layout these vectors were written into."""

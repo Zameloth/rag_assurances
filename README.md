@@ -166,6 +166,42 @@ commit is the reproduction path — but it is *produced* on the machine that ran
 rebuild would be a re-derivation on different hardware and a different torch build: numerically
 almost identical, and not the artifact that was scored ([SPEC §15.3](SPEC.md)).
 
+## Restoring the index
+
+On the deploy host, **the app image is the tool** — no checkout, no Python on the host:
+
+```sh
+docker compose run --rm rag-assurances python -m rag.restore
+```
+
+It installs the release named by the `index_lock.json` baked into the image
+([SPEC §15.5](SPEC.md), [ADR-0014](docs/adr/0014-parquet-points-dump-on-a-release-with-alias-flip.md)):
+each register goes into its own generation, `<register>__<release-tag>`; both assets are
+**sha256-checked against the lock before a single point is written**; the post-upsert count is
+checked **before any alias moves**; then the `fiches`/`articles` aliases flip together. A run
+killed at any point leaves the old index serving — re-run it. It is idempotent: a generation whose
+tag and count already match is left live (`already_live`) or flipped to without downloading
+(`retained`). The last two generations per register are kept; older ones are pruned.
+
+It is a **deploy step, never a boot step** — the wake path makes no network call.
+
+**Rollback is one alias flip.** The previous generation is still on disk, so deploy the previous
+image (its lock names the previous tag) and run the same restore: it reports `retained` and
+downloads nothing. In an emergency, without touching the image, flip by hand from inside the app
+container — though `/health` will then report the index clause false until the image matches:
+
+```sh
+docker compose run --rm rag-assurances python -c "
+from qdrant_client import QdrantClient; from rag.ingest.arms import flip_alias
+c = QdrantClient('http://qdrant:6333')
+for r in ('fiches', 'articles'): flip_alias(c, r, f'{r}__index-YYYY-MM-DD')"
+```
+
+`GET /health` is 200 only when **models are loaded AND Qdrant answers AND both aliases serve the
+lock's release tag** ([SPEC §14.3](SPEC.md)), and returns each clause separately so a failure says
+which one. In dev the aliases point at ladder arms rather than a release, so dev `/health` reports
+the index clause false — correctly.
+
 ## Licence
 
 Two licences, because one root file would be a false statement — you can license your code,

@@ -26,6 +26,7 @@ from rag.publish import (
     RegisterDump,
     ScoresPointer,
     dump_register,
+    load_index_lock,
     publish,
 )
 
@@ -177,6 +178,18 @@ def _lock() -> IndexLock:
             run_id="rung1-20260916T181814Z", path="eval/runs/rung1-20260916T181814Z.json", commit="48021c9"
         ),
     )
+
+
+def test_index_lock_reads_back_what_it_wrote(tmp_path: Path) -> None:
+    path = tmp_path / "index_lock.json"
+    path.write_text(json.dumps(_lock().as_dict()), encoding="utf-8")
+
+    assert load_index_lock(path) == _lock()
+
+
+def test_the_committed_index_lock_loads() -> None:
+    """Restore and `/health` both read it; a hand-edit that breaks the shape must fail here."""
+    assert load_index_lock().release_tag.startswith("index-")
 
 
 def test_index_lock_serializes_every_spec_15_6_field() -> None:

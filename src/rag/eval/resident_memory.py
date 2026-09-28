@@ -16,7 +16,7 @@ the OS rather than summing parameter counts). `ru_maxrss` is a **high-water mark
 falls** for the life of the process (`man 2 getrusage`), so it must be read from a process
 that has done *query-shaped* work — one embed call per model, batch size 1, matching
 `retrieve_rungN`'s own `embed([raw_turn])[0]` — never from the arm-build process, whose
-500-point ingest batches (`upsert.py`'s `_UPSERT_BATCH_SIZE`) would bake a transient
+500-point ingest batches (`upsert.py`'s `UPSERT_BATCH_SIZE`) would bake a transient
 bulk-embedding peak into a number meant to describe steady query-time co-residency (SPEC
 §15.7's "two embedding models co-resident at query time"). `scripts/measure_e5_ram.py` is
 the dedicated, build-free script that does this; nothing in this module loads either real

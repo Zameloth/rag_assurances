@@ -1,0 +1,15 @@
+# Only what the Dockerfile copies matters; everything else is kept out of the build
+# context so a secret or a 2 GB model cache never ends up in a layer by accident.
+.env
+.env.*
+.git
+.venv
+data/raw
+eval
+tests
+scripts
+docs
+**/__pycache__
+.mypy_cache
+.pytest_cache
+.ruff_cache

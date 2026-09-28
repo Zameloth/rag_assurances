@@ -7,7 +7,7 @@ side, M3-sparse) — no re-chunking, no alias flip (that is #41's eval-harness j
 a verdict is read).
 
 Resident-memory measurement lives in `scripts/measure_e5_ram.py`, deliberately not here:
-this script's own 500-point ingest batches (`upsert.py`'s `_UPSERT_BATCH_SIZE`) would bake a
+this script's own 500-point ingest batches (`upsert.py`'s `UPSERT_BATCH_SIZE`) would bake a
 transient bulk-embedding peak into a number meant to describe query-time co-residency (SPEC
 §15.7) — see `rag.eval.resident_memory`'s module docstring for why the two have to be
 separate processes.

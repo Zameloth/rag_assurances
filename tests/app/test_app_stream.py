@@ -10,7 +10,9 @@ stage is pinned at the bottom, with every real store and model patched out.
 from __future__ import annotations
 
 import json
+import sys
 import threading
+import types
 from collections.abc import Sequence
 
 import pytest
@@ -167,8 +169,9 @@ class TestTheConnectionIsTheRequest:
 
 
 class TestChargement:
-    """`make_answer_fn` owns the process's cold start, so it — not the chain — announces
-    `chargement`, and only while something is actually being loaded."""
+    """`make_answer_fn` owns the lookup-key read, so it — not the chain — announces
+    `chargement`, and only while that read actually runs. BGE-M3 is not part of it: the
+    app loads it at startup (`tests/app/test_app_health.py`)."""
 
     @pytest.fixture
     def loads(self, monkeypatch: pytest.MonkeyPatch) -> list[str]:
@@ -188,6 +191,8 @@ class TestChargement:
         self.qdrant_asleep = False
         monkeypatch.setattr(main_module, "load_lookup_keys", load_lookup_keys)
         monkeypatch.setattr(main_module, "load_embedder", lambda: loads.append("embedder"))
+        # Imported inside `answer`, and would pull in torch for a function nothing calls.
+        monkeypatch.setitem(sys.modules, "rag.ingest.embedder", types.SimpleNamespace(embed_batch=None))
         monkeypatch.setattr(main_module, "run_chain", run_chain)
         monkeypatch.setattr(main_module, "QdrantClient", lambda url: None)
         monkeypatch.setattr(main_module, "make_condense_fn", lambda settings: None)
@@ -205,7 +210,7 @@ class TestChargement:
         answer("q2", [], second.append)
         assert first == [Stage.CHARGEMENT, Stage.RECHERCHE]
         assert second == [Stage.RECHERCHE]
-        assert loads == ["embedder", "lookup_keys"]
+        assert loads == ["lookup_keys"], "BGE-M3 is loaded at startup, never per question"
 
     def test_a_failed_load_is_retried_and_announced_again(self, loads: list[str]) -> None:
         """Qdrant wakes alongside the app (SPEC §14.2) — a question that beat it is a
@@ -221,14 +226,14 @@ class TestChargement:
     def test_concurrent_first_questions_load_once_and_both_wait_on_it(
         self, loads: list[str], monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """No swap and a ~4.5 GB budget (SPEC §14): two BGE-M3 copies is an OOM kill."""
         release = threading.Event()
 
-        def slow_embedder_load() -> None:
-            loads.append("embedder")
+        def slow_lookup_keys(client: object) -> frozenset[str]:
+            loads.append("lookup_keys")
             release.wait(timeout=5)
+            return frozenset({"L113-12"})
 
-        monkeypatch.setattr(main_module, "load_embedder", slow_embedder_load)
+        monkeypatch.setattr(main_module, "load_lookup_keys", slow_lookup_keys)
         answer = self._answer()
         stages: list[list[Stage]] = [[], []]
         threads = [
@@ -241,5 +246,5 @@ class TestChargement:
         release.set()
         for thread in threads:
             thread.join(timeout=5)
-        assert loads == ["embedder", "lookup_keys"]
+        assert loads == ["lookup_keys"]
         assert stages == [[Stage.CHARGEMENT, Stage.RECHERCHE]] * 2

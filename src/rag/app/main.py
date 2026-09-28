@@ -29,13 +29,14 @@ import json
 import logging
 import queue
 import threading
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import AsyncIterator, Callable, Iterator, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markdown_it import MarkdownIt
@@ -44,6 +45,7 @@ from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 from qdrant_client import QdrantClient
 
 from rag.app.attribution import CorpusAttribution, load_attribution
+from rag.app.health import AliasProbe, check_health, qdrant_aliases
 from rag.app.view import build_view
 from rag.condensation.chain import make_condense_fn
 from rag.condensation.prompt import MAX_HISTORY_TURN_CHARS, HistoryTurn
@@ -52,6 +54,7 @@ from rag.generation.chain import make_generate_fn
 from rag.generation.pipeline import GenerationResult
 from rag.generation.schema import Envelope
 from rag.pipeline import Stage, StageFn, ignore_stage, run_chain
+from rag.publish import load_index_lock
 from rag.retrieval.lookup import load_lookup_keys
 
 __all__ = ["AnswerFn", "AskRequest", "create_app", "make_answer_fn"]
@@ -78,7 +81,11 @@ _MARKDOWN = MarkdownIt("commonmark", {"html": False})
 
 _UNAVAILABLE = "Le service est momentanément indisponible. Réessayez dans un instant."
 
-# A cold start is silent until BGE-M3 has loaded; an SSE comment this often keeps any proxy
+# The `/health` probe's own Qdrant timeout — well inside the container healthcheck's 5 s, so
+# a slow store reads as "unreachable" in the JSON rather than as a probe that timed out.
+HEALTH_QDRANT_TIMEOUT_SECONDS = 2
+
+# A slow stage — generation above all — is silent until it ends; an SSE comment this often keeps any proxy
 # between here and the browser from reading that silence as a dead connection.
 HEARTBEAT_SECONDS = 15.0
 
@@ -129,14 +136,12 @@ def load_embedder() -> None:
 
 
 def make_answer_fn(settings: Settings) -> AnswerFn:
-    """`run_chain` over the real stores and models. BGE-M3 and the lookup-key set load on
-    the first question rather than at startup, so the app can come up before Qdrant answers
-    (the two wake together — SPEC §14.2) — and that load is the `chargement` stage,
-    announced only while it actually runs. A load that fails is retried, and announced
-    again, on the next question.
-
-    The load holds a lock: two copies of BGE-M3 on a box with no swap is an OOM kill
-    (SPEC §14), so a question arriving mid-load waits on that load — and says so."""
+    """`run_chain` over the real stores and models. BGE-M3 is already resident — the app
+    loads it at startup (`create_app`) — but the lookup-key set is read from Qdrant on the
+    first question rather than at startup, so the app can come up before Qdrant answers
+    (the two wake together — SPEC §14.2). That read is the `chargement` stage, announced
+    only while it actually runs; one that fails is retried, and announced again, on the
+    next question. It holds a lock, so concurrent first questions read it once."""
     client = QdrantClient(settings.qdrant_url)
     condense_fn = make_condense_fn(settings)
     generate_fn = make_generate_fn(settings)
@@ -149,7 +154,6 @@ def make_answer_fn(settings: Settings) -> AnswerFn:
             on_stage(Stage.CHARGEMENT)
             with warm_up_lock:
                 if loaded_lookup_keys is None:
-                    load_embedder()
                     loaded_lookup_keys = load_lookup_keys(client)
         return loaded_lookup_keys
 
@@ -171,6 +175,10 @@ def make_answer_fn(settings: Settings) -> AnswerFn:
     return answer
 
 
+def _nothing_to_load() -> None:
+    pass
+
+
 @dataclass(frozen=True)
 class _Finished:
     result: GenerationResult | None
@@ -186,15 +194,45 @@ def create_app(
     *,
     answer: AnswerFn | None = None,
     attribution: CorpusAttribution | None = None,
+    load_models: Callable[[], None] | None = None,
+    aliases: AliasProbe | None = None,
+    release_tag: str | None = None,
 ) -> FastAPI:
-    """Both arguments default to the real thing — `make_answer_fn(load_settings())` and the
-    committed `corpus_manifest.json`."""
-    if answer is None:
-        answer = make_answer_fn(load_settings())
+    """Every argument defaults to the real thing — `make_answer_fn(load_settings())`, the
+    committed `corpus_manifest.json`, the Qdrant aliases and the committed `index_lock.json`.
+
+    `load_models` defaults to loading BGE-M3 only when `answer` does too: the models are
+    the real answer function's, and a fake one has none to load.
+
+    **Models load eagerly at startup and are never unloaded** (SPEC §14.2): the container's
+    lifetime *is* the model's lifetime — no idle timer, no unload path. Startup blocks on
+    the load, so a load that fails fails the process, and Sablier starts a fresh container
+    on the next visit instead of one sitting unhealthy for good. The healthcheck's
+    `start_period`/`retries` are what tolerate the wait.
+    """
+    if load_models is None:
+        load_models = load_embedder if answer is None else _nothing_to_load
+    if answer is None or aliases is None:
+        settings = load_settings()
+        if answer is None:
+            answer = make_answer_fn(settings)
+        if aliases is None:
+            aliases = qdrant_aliases(QdrantClient(settings.qdrant_url, timeout=HEALTH_QDRANT_TIMEOUT_SECONDS))
     if attribution is None:
         attribution = load_attribution()
+    if release_tag is None:
+        release_tag = load_index_lock().release_tag
+
+    models_loaded = threading.Event()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        load_models()
+        models_loaded.set()
+        yield
 
     app = FastAPI(
+        lifespan=lifespan,
         title="rag-assurances",
         description=(
             "Questions de droit des assurances, réponses citant le Code des assurances. "
@@ -223,6 +261,15 @@ def create_app(
         if result is None:
             return "_error.html", {"question": question, "message": _UNAVAILABLE}
         return "_exchange.html", {"question": question, "view": build_view(result)}
+
+    @app.get("/health")
+    def health() -> JSONResponse:
+        """SPEC §14.3: 200 only when models are loaded, Qdrant answers, and the aliases
+        serve the release `index_lock.json` names — 503 otherwise, with each clause."""
+        report = check_health(
+            models_loaded=models_loaded.is_set(), aliases=aliases, release_tag=release_tag
+        )
+        return JSONResponse(report.as_dict(), status_code=200 if report.healthy else 503)
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def index(request: Request) -> HTMLResponse:

@@ -23,10 +23,12 @@ from dotenv import load_dotenv
 
 __all__ = ["ConfigurationError", "PromptLanguage", "Settings", "load_settings"]
 
-# The two defaults that are spec constants rather than choices: §11.3 fixes the Langfuse
-# URL, and §16.1's dev compose fixes where Qdrant answers. Neither identifies a run.
+# The three defaults that are spec constants rather than choices: §11.3 fixes the Langfuse
+# URL, §16.1's dev compose fixes where Qdrant answers, and §15.4 fixes the release channel
+# restore pulls the points dump from. None identifies a run.
 DEFAULT_LANGFUSE_BASE_URL = "https://cloud.langfuse.com"
 DEFAULT_QDRANT_URL = "http://localhost:6333"
+DEFAULT_INDEX_RELEASE_URL = "https://github.com/Zameloth/rag_assurances/releases/download"
 
 
 
@@ -74,6 +76,7 @@ class Settings:
     langfuse_base_url: str
     langfuse_tracing: bool
     qdrant_url: str
+    index_release_url: str = DEFAULT_INDEX_RELEASE_URL
     judge_faithfulness_language: PromptLanguage = DEFAULT_JUDGE_FAITHFULNESS_LANGUAGE
     judge_point_coverage_language: PromptLanguage = DEFAULT_JUDGE_POINT_COVERAGE_LANGUAGE
 
@@ -99,6 +102,7 @@ class Settings:
             langfuse_base_url=env.get("LANGFUSE_BASE_URL") or DEFAULT_LANGFUSE_BASE_URL,
             langfuse_tracing=_parse_bool(env.get("LANGFUSE_TRACING"), name="LANGFUSE_TRACING"),
             qdrant_url=env.get("QDRANT_URL") or DEFAULT_QDRANT_URL,
+            index_release_url=env.get("INDEX_RELEASE_URL") or DEFAULT_INDEX_RELEASE_URL,
             judge_faithfulness_language=_parse_judge_language(
                 env, "JUDGE_FAITHFULNESS_LANGUAGE", DEFAULT_JUDGE_FAITHFULNESS_LANGUAGE
             ),
