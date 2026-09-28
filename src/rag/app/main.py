@@ -31,7 +31,6 @@ import queue
 import threading
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
-from functools import cache
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -52,7 +51,7 @@ from rag.config import Settings, load_settings
 from rag.generation.chain import make_generate_fn
 from rag.generation.pipeline import GenerationResult
 from rag.generation.schema import Envelope
-from rag.pipeline import Stage, StageFn, run_chain
+from rag.pipeline import Stage, StageFn, ignore_stage, run_chain
 from rag.retrieval.lookup import load_lookup_keys
 
 __all__ = ["AnswerFn", "AskRequest", "create_app", "make_answer_fn"]
@@ -134,27 +133,36 @@ def make_answer_fn(settings: Settings) -> AnswerFn:
     the first question rather than at startup, so the app can come up before Qdrant answers
     (the two wake together — SPEC §14.2) — and that load is the `chargement` stage,
     announced only while it actually runs. A load that fails is retried, and announced
-    again, on the next question."""
+    again, on the next question.
+
+    The load holds a lock: two copies of BGE-M3 on a box with no swap is an OOM kill
+    (SPEC §14), so a question arriving mid-load waits on that load — and says so."""
     client = QdrantClient(settings.qdrant_url)
     condense_fn = make_condense_fn(settings)
     generate_fn = make_generate_fn(settings)
+    warm_up_lock = threading.Lock()
+    loaded_lookup_keys: frozenset[str] | None = None
 
-    @cache
-    def lookup_keys() -> frozenset[str]:
-        load_embedder()
-        return load_lookup_keys(client)
+    def warm_up(on_stage: StageFn) -> frozenset[str]:
+        nonlocal loaded_lookup_keys
+        if loaded_lookup_keys is None:
+            on_stage(Stage.CHARGEMENT)
+            with warm_up_lock:
+                if loaded_lookup_keys is None:
+                    load_embedder()
+                    loaded_lookup_keys = load_lookup_keys(client)
+        return loaded_lookup_keys
 
     def answer(question: str, history: Sequence[HistoryTurn], on_stage: StageFn) -> GenerationResult:
         from rag.ingest.embedder import embed_batch  # deferred: pulls in torch
 
-        if lookup_keys.cache_info().currsize == 0:
-            on_stage(Stage.CHARGEMENT)
+        lookup_keys = warm_up(on_stage)
         return run_chain(
             question,
             history,
             client=client,
             embed=embed_batch,
-            lookup_keys=lookup_keys(),
+            lookup_keys=lookup_keys,
             condense_fn=condense_fn,
             generate_fn=generate_fn,
             on_stage=on_stage,
@@ -172,10 +180,6 @@ def _sse(event: str, data: str) -> str:
     # One `data:` line per line of payload: a bare newline would end the event early.
     lines = "".join(f"data: {line}\n" for line in data.split("\n"))
     return f"event: {event}\n{lines}\n"
-
-
-def _ignore_stage(stage: Stage) -> None:
-    pass
 
 
 def create_app(
@@ -203,7 +207,7 @@ def create_app(
     templates.env.filters["markdown"] = lambda text: Markup(_MARKDOWN.render(text))
 
     def _run(
-        question: str, history: Sequence[Turn], on_stage: StageFn = _ignore_stage
+        question: str, history: Sequence[Turn], on_stage: StageFn = ignore_stage
     ) -> GenerationResult | None:
         turns = [HistoryTurn(role=t.role, content=t.content) for t in history]
         try:
@@ -213,6 +217,12 @@ def create_app(
             # client's fault. Logged in full, surfaced as one plain 503.
             logger.exception("pipeline failed for one question")
             return None
+
+    def _partial(question: str, result: GenerationResult | None) -> tuple[str, dict[str, object]]:
+        """The fragment one answered question renders as, on either `/ask` route."""
+        if result is None:
+            return "_error.html", {"question": question, "message": _UNAVAILABLE}
+        return "_exchange.html", {"question": question, "view": build_view(result)}
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     def index(request: Request) -> HTMLResponse:
@@ -236,16 +246,9 @@ def create_app(
         history: Annotated[list[Turn], Depends(_form_history)],
     ) -> HTMLResponse:
         result = _run(question, history)
-        if result is None:
-            return templates.TemplateResponse(
-                request,
-                "_error.html",
-                {"question": question, "message": _UNAVAILABLE},
-                status_code=503,
-            )
-        return templates.TemplateResponse(
-            request, "_exchange.html", {"question": question, "view": build_view(result)}
-        )
+        template, context = _partial(question, result)
+        status_code = 503 if result is None else 200
+        return templates.TemplateResponse(request, template, context, status_code=status_code)
 
     @app.post("/ask/stream", include_in_schema=False)
     def ask_stream(
@@ -271,17 +274,10 @@ def create_app(
                 if isinstance(event, Stage):
                     payload = {"stage": event.value, "label": _STAGE_LABELS[event]}
                     yield _sse("stage", json.dumps(payload, ensure_ascii=False))
-                elif event.result is None:
-                    html = templates.get_template("_error.html").render(
-                        question=question, message=_UNAVAILABLE
-                    )
-                    yield _sse("error", html)
-                    return
                 else:
-                    html = templates.get_template("_exchange.html").render(
-                        question=question, view=build_view(event.result)
-                    )
-                    yield _sse("result", html)
+                    template, context = _partial(question, event.result)
+                    html = templates.get_template(template).render(context)
+                    yield _sse("error" if event.result is None else "result", html)
                     return
 
         return StreamingResponse(

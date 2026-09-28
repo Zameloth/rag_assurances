@@ -72,7 +72,7 @@ async function ask(body, stages) {
   for (;;) {
     const { value, done } = await reader.read();
     if (done) throw new Error(UNAVAILABLE);
-    buffer += value;
+    buffer += value.replace(/\r\n?/g, "\n");
     let end;
     while ((end = buffer.indexOf("\n\n")) !== -1) {
       const { event, data } = parseEvent(buffer.slice(0, end));
@@ -87,8 +87,8 @@ function parseEvent(block) {
   let event = "message";
   const data = [];
   for (const line of block.split("\n")) {
-    if (line.startsWith("event: ")) event = line.slice(7);
-    else if (line.startsWith("data: ")) data.push(line.slice(6));
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) data.push(line.slice(line.startsWith("data: ") ? 6 : 5));
     // Anything else is a `:` comment — the server's heartbeat.
   }
   return { event, data: data.join("\n") };

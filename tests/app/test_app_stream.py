@@ -217,3 +217,29 @@ class TestChargement:
         retried: list[Stage] = []
         answer("q2", [], retried.append)
         assert retried == [Stage.CHARGEMENT, Stage.RECHERCHE]
+
+    def test_concurrent_first_questions_load_once_and_both_wait_on_it(
+        self, loads: list[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No swap and a ~4.5 GB budget (SPEC §14): two BGE-M3 copies is an OOM kill."""
+        release = threading.Event()
+
+        def slow_embedder_load() -> None:
+            loads.append("embedder")
+            release.wait(timeout=5)
+
+        monkeypatch.setattr(main_module, "load_embedder", slow_embedder_load)
+        answer = self._answer()
+        stages: list[list[Stage]] = [[], []]
+        threads = [
+            threading.Thread(target=answer, args=(f"q{i}", [], stages[i].append)) for i in range(2)
+        ]
+        for thread in threads:
+            thread.start()
+        while not all(Stage.CHARGEMENT in s for s in stages):
+            threading.Event().wait(0.01)
+        release.set()
+        for thread in threads:
+            thread.join(timeout=5)
+        assert loads == ["embedder", "lookup_keys"]
+        assert stages == [[Stage.CHARGEMENT, Stage.RECHERCHE]] * 2

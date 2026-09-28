@@ -27,7 +27,7 @@ from rag.generation.prompt import HistoryTurn as GenerationHistoryTurn
 from rag.ingest.upsert import EmbedFn
 from rag.retrieval.pipeline import retrieve
 
-__all__ = ["GENERATION_RETRIEVAL_ARM", "Stage", "StageFn", "run_chain"]
+__all__ = ["GENERATION_RETRIEVAL_ARM", "Stage", "StageFn", "ignore_stage", "run_chain"]
 
 # ADR-0024 — rung 1 stands. What a generation run sits on top of, what the calibration
 # authoring helper's real answers come from, and what the app serves: one constant, so the
@@ -50,8 +50,8 @@ class Stage(enum.Enum):
 StageFn = Callable[[Stage], None]
 
 
-def _ignore_stage(stage: Stage) -> None:
-    pass
+def ignore_stage(stage: Stage) -> None:
+    """The `StageFn` for a caller with no one to show progress to — the eval, say."""
 
 
 def run_chain(
@@ -64,7 +64,7 @@ def run_chain(
     condense_fn: CondenseFn,
     generate_fn: GenerateFn,
     retrieval_arm: str = GENERATION_RETRIEVAL_ARM,
-    on_stage: StageFn = _ignore_stage,
+    on_stage: StageFn = ignore_stage,
 ) -> GenerationResult:
     """Condense, retrieve, generate — exactly as the eval task runs it.
 
