@@ -129,7 +129,7 @@ retention).
 ## Publishing the index
 
 The index ships as a **Parquet points dump on a GitHub Release** — one file per register plus
-`corpus_manifest.json` — and [`index_lock.json`](index_lock.json), committed, points at it
+`corpus_manifest.json` — and `index_lock.json`, committed at the repo root, points at it
 ([SPEC §15](SPEC.md), [ADR-0014](docs/adr/0014-parquet-points-dump-on-a-release-with-alias-flip.md)).
 
 Publishing is a **runbook step, never an event listener** — every trigger for it is already a
@@ -147,8 +147,9 @@ that choice is a decision recorded in an ADR, not something to infer. `make publ
 
 1. **refuses** unless the `articles`/`fiches` aliases point at exactly the arms that run scored —
    an alias left flipped by an interrupted rung-6 run would otherwise ship vectors the scores never
-   measured — and refuses a dirty working tree, since the lock's `git_commit` must name the code
-   that ran;
+   measured — refuses if the corpus or the chunkers changed since that run's `code_git_sha`, since
+   the lock's chunk config and corpus pin are read at publish time, and refuses a dirty working
+   tree, since the lock's `git_commit` must name the code that ran;
 2. **scrolls the points back out of the dev Qdrant**, into `data/raw/index/points-{fiches,articles}.parquet`
    — it never re-embeds, so the published vectors are bit-for-bit the ones the ladder scored;
 3. cuts the release (`gh release create index-<date>`, overridable with `TAG=`) with both dumps

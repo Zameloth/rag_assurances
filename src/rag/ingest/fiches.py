@@ -64,7 +64,6 @@ __all__ = [
     "FicheChunk",
     "chunk_fiche",
     "raw_body_text",
-    "MERGE_FLOOR",
 ]
 
 _DC_NS = "{http://purl.org/dc/elements/1.1/}"
@@ -145,7 +144,7 @@ def in_scope(section_ids: Iterable[str], article_section_ids: set[str]) -> bool:
 
 
 # SPEC §4.1 — "the floor is 100 because the context quota is fixed at 4 fiche slots".
-MERGE_FLOOR = 100
+_MERGE_FLOOR = 100
 
 _BODY_TAGS = frozenset({"Introduction", "Texte", "Conclusion", "ListeSituations"})
 # Chapitre/SousChapitre/Cas carry a payload label onto every chunk under them; Situation
@@ -311,7 +310,7 @@ def _merge(leaves: list[_Leaf]) -> list[_Leaf]:
     groups: list[list[_Leaf]] = [[leaves[0]]]
     for leaf in leaves[1:]:
         current = groups[-1]
-        if current[-1].ctx.boundary_id == leaf.ctx.boundary_id and _group_tokens(current) < MERGE_FLOOR:
+        if current[-1].ctx.boundary_id == leaf.ctx.boundary_id and _group_tokens(current) < _MERGE_FLOOR:
             candidate = [*current, leaf]
             if _group_tokens(candidate) <= BAND:
                 groups[-1] = candidate

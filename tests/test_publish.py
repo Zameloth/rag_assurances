@@ -264,7 +264,14 @@ def scored_index(qdrant: QdrantClient) -> QdrantClient:
     return qdrant
 
 
-def _publish(client: QdrantClient, tmp_path: Path, run: Path, release: FakeRelease) -> IndexLock:
+def _publish(
+    client: QdrantClient,
+    tmp_path: Path,
+    run: Path,
+    release: FakeRelease,
+    *,
+    chunking_changed: bool = False,
+) -> IndexLock:
     manifest = tmp_path / "corpus_manifest.json"
     manifest.write_text('{"articles": {}}\n', encoding="utf-8")
     return publish(
@@ -277,6 +284,7 @@ def _publish(client: QdrantClient, tmp_path: Path, run: Path, release: FakeRelea
         release=release,
         git_sha=_git_sha,
         revision_of=lambda model_id: f"rev-of-{model_id}",
+        changed_since=lambda commit, paths: chunking_changed,
         now=NOW,
     )
 
@@ -371,3 +379,22 @@ def test_publish_writes_no_lock_when_the_release_fails(scored_index: QdrantClien
 
     # A lock naming a release that does not exist would send restore after a 404.
     assert not (tmp_path / "index_lock.json").exists()
+
+
+def test_publish_refuses_when_chunking_moved_since_the_scored_run(
+    scored_index: QdrantClient, tmp_path: Path
+) -> None:
+    # The lock reads chunk_config and the corpus manifest at publish time; if either moved
+    # after the run, the lock would describe an index nobody built.
+    release = FakeRelease()
+
+    with pytest.raises(PublishError, match="changed since"):
+        _publish(
+            scored_index,
+            tmp_path,
+            _write_run(tmp_path, {"embedder": "BAAI/bge-m3"}),
+            release,
+            chunking_changed=True,
+        )
+
+    assert release.calls == []

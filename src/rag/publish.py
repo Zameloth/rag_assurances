@@ -35,7 +35,11 @@ from rag.eval.retrieval_run import load_run, resolve_git_sha
 from rag.ingest.ab_arms import ARTICLE_BREADCRUMB_ARM, FICHE_HEADER_ARM
 from rag.ingest.arms import ARTICLES_ALIAS, FICHES_ALIAS
 from rag.ingest.articles import BAND, STUB_FLOOR
-from rag.ingest.fiches import MERGE_FLOOR
+
+# Private on purpose: making it public would edit a chunker file, which the publish guard
+# below reads as "chunking changed since the scored run" — true of the bytes, false of the
+# behaviour, and it would demand a re-ingest and a full ladder re-run to publish.
+from rag.ingest.fiches import _MERGE_FLOOR as MERGE_FLOOR
 from rag.ingest.pipeline import ARTICLES_ARM, FICHES_ARM, REPO_ROOT
 
 __all__ = [
@@ -65,15 +69,29 @@ _HF_CACHE_DIR = REPO_ROOT / "data" / "raw" / "hf_cache"
 # one is still a run whose shipped index would carry enriched dense vectors.
 _ENRICHED_ARMS = frozenset({ARTICLE_BREADCRUMB_ARM, FICHE_HEADER_ARM})
 
-# Release asset order: the two dumps, then the attribution that must travel with them.
+# Keyed by the plural collection name, as the aliases and the release asset names are.
 _REGISTER_ALIASES = {"fiches": FICHES_ALIAS, "articles": ARTICLES_ALIAS}
 _DEFAULT_ARMS = {"fiches": FICHES_ARM, "articles": ARTICLES_ARM}
 
-
-class PublishError(Exception):
-    """The index behind the aliases is not the one the named run scored."""
+# What decides the chunk population and the payload. `chunk_config` and
+# `corpus_manifest_sha256` are read at publish time, so they are true of the scored index
+# only if none of these moved since the run that scored it.
+_CHUNKING_PATHS = (
+    "data/corpus",
+    "src/rag/ingest/articles.py",
+    "src/rag/ingest/fiches.py",
+    "src/rag/ingest/html_blocks.py",
+    "src/rag/ingest/text_split.py",
+    "src/rag/ingest/tokenizer.py",
+    "src/rag/ingest/payload.py",
+    "src/rag/ingest/lookup_key.py",
+)
 
 _SCROLL_PAGE = 256
+
+
+class PublishError(Exception):
+    """What would be published is not provably the index the named run scored."""
 
 
 @dataclass(frozen=True)
@@ -134,26 +152,27 @@ def dump_register(client: QdrantClient, alias: str, path: Path) -> RegisterDump:
     scroll it in.
     """
     collection = _alias_target(client, alias)
-    dense_params = _dense_params(client, collection)
-    records = sorted(_scroll_all(client, alias), key=lambda record: str(record.id))
+    params = client.get_collection(collection).config.params
+    dense_params = _dense_params(params, collection)
+    points = sorted(_scroll_all(client, alias), key=lambda point: str(point.id))
 
     ids: list[str] = []
     dense: list[list[float]] = []
     sparse_indices: list[list[int]] = []
     sparse_values: list[list[float]] = []
     payloads: list[str] = []
-    for record in records:
-        if not isinstance(record.vector, dict):
-            raise ValueError(f"point {record.id} in {collection} carries no named vectors")
-        dense_vector = record.vector["dense"]
-        sparse_vector = record.vector["sparse"]
+    for point in points:
+        if not isinstance(point.vector, dict):
+            raise ValueError(f"point {point.id} in {collection} carries no named vectors")
+        dense_vector = point.vector["dense"]
+        sparse_vector = point.vector["sparse"]
         if not isinstance(sparse_vector, models.SparseVector):
-            raise ValueError(f"point {record.id} in {collection} has no sparse vector")
-        ids.append(str(record.id))
+            raise ValueError(f"point {point.id} in {collection} has no sparse vector")
+        ids.append(str(point.id))
         dense.append(list(dense_vector))  # type: ignore[arg-type]
         sparse_indices.append(sparse_vector.indices)
         sparse_values.append(sparse_vector.values)
-        payloads.append(json.dumps(record.payload, ensure_ascii=False))
+        payloads.append(json.dumps(point.payload, ensure_ascii=False))
 
     table = pa.table(
         {
@@ -169,9 +188,9 @@ def dump_register(client: QdrantClient, alias: str, path: Path) -> RegisterDump:
 
     return RegisterDump(
         collection=collection,
-        points=len(records),
+        points=len(points),
         asset_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
-        vector_config_fingerprint=_vector_config_fingerprint(client, collection),
+        vector_config_fingerprint=_vector_config_fingerprint(params, collection),
     )
 
 
@@ -182,31 +201,29 @@ def _alias_target(client: QdrantClient, alias: str) -> str:
     raise ValueError(f"no collection sits behind the {alias!r} alias — has `make ingest` run?")
 
 
-def _dense_params(client: QdrantClient, collection: str) -> models.VectorParams:
-    vectors = client.get_collection(collection).config.params.vectors
-    if not isinstance(vectors, dict) or "dense" not in vectors:
+def _dense_params(params: models.CollectionParams, collection: str) -> models.VectorParams:
+    if not isinstance(params.vectors, dict) or "dense" not in params.vectors:
         raise ValueError(f"{collection} has no named `dense` vector")
-    return vectors["dense"]
+    return params.vectors["dense"]
 
 
 def _scroll_all(client: QdrantClient, alias: str) -> list[models.Record]:
-    records: list[models.Record] = []
+    points: list[models.Record] = []
     offset: models.ExtendedPointId | None = None
     while True:
         page, offset = client.scroll(
             alias, limit=_SCROLL_PAGE, offset=offset, with_payload=True, with_vectors=True
         )
-        records.extend(page)
+        points.extend(page)
         if offset is None:
-            return records
+            return points
 
 
-def _vector_config_fingerprint(client: QdrantClient, collection: str) -> str:
+def _vector_config_fingerprint(params: models.CollectionParams, collection: str) -> str:
     """A sha256 over the named-vector layout — dense width and distance, sparse names and
     modifiers. Restore creates its collection from code (SPEC §15.1), so this is what lets
     it notice that code no longer builds the layout these vectors were written into."""
-    params = client.get_collection(collection).config.params
-    dense = _dense_params(client, collection)
+    dense = _dense_params(params, collection)
     sparse = params.sparse_vectors or {}
     layout = {
         "dense": {"size": dense.size, "distance": str(dense.distance)},
@@ -227,6 +244,7 @@ def publish(
     release: ReleaseFn | None = None,
     git_sha: Callable[[Path | None], str] | None = None,
     revision_of: Callable[[str], str] | None = None,
+    changed_since: Callable[[str, Sequence[str]], bool] | None = None,
     now: datetime | None = None,
     tag: str | None = None,
 ) -> IndexLock:
@@ -234,13 +252,16 @@ def publish(
 
     Refuses before dumping anything if an alias points anywhere but the arm that run read —
     a stable alias is only as honest as the last flip, and a rung-6 run interrupted before
-    its `finally` would otherwise ship e5 vectors under rung-1 scores. The lock is written
+    its `finally` would otherwise ship e5 vectors under rung-1 scores. It refuses too if the
+    corpus or the chunkers moved since the run's `code_git_sha`, since `chunk_config` and
+    `corpus_manifest_sha256` are read now, not recovered from then. The lock is written
     last, only once the release exists: a lock naming a tag with no assets behind it is the
     one state restore (#53) cannot recover from on its own.
     """
     release = release or _gh_release
     git_sha = git_sha or (lambda path: resolve_git_sha(repo_root, path=path))
     revision_of = revision_of or _cached_revision
+    changed_since = changed_since or (lambda commit, paths: _changed_since(repo_root, commit, paths))
     now = now or datetime.now(UTC)
 
     header = load_run(run_path).header
@@ -251,9 +272,15 @@ def publish(
     if wrong:
         found = ", ".join(f"{_REGISTER_ALIASES[r]} -> {t} (scored: {expected_arms[r]})" for r, t in wrong.items())
         raise PublishError(f"{header.run_id} did not score the index behind the aliases: {found}")
+    if changed_since(header.code_git_sha, _CHUNKING_PATHS):
+        raise PublishError(
+            f"the corpus or the chunkers changed since {header.run_id} ran at {header.code_git_sha} — "
+            "re-ingest and re-run the ladder before publishing"
+        )
 
+    dump_paths = {register: out_dir / f"points-{register}.parquet" for register in _REGISTER_ALIASES}
     registers = {
-        register: dump_register(client, alias, out_dir / f"points-{register}.parquet")
+        register: dump_register(client, alias, dump_paths[register])
         for register, alias in _REGISTER_ALIASES.items()
     }
     release_tag = tag or f"index-{now:%Y-%m-%d}"
@@ -280,7 +307,8 @@ def publish(
         ),
     )
 
-    assets = [out_dir / f"points-{register}.parquet" for register in registers] + [corpus_manifest_path]
+    # The two dumps, then the attribution that must travel with them (SPEC §15.4).
+    assets = [*dump_paths.values(), corpus_manifest_path]
     release(release_tag, git_commit, assets, _release_notes(lock))
     lock_path.write_text(json.dumps(lock.as_dict(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return lock
@@ -304,9 +332,17 @@ def _gh_release(tag: str, target: str, assets: Sequence[Path], notes: str) -> No
     )
 
 
+def _changed_since(repo_root: Path, commit: str, paths: Sequence[str]) -> bool:
+    diff = subprocess.run(["git", "-C", str(repo_root), "diff", "--quiet", commit, "HEAD", "--", *paths])
+    if diff.returncode not in (0, 1):
+        raise PublishError(f"git diff against {commit} failed — is that commit in this clone?")
+    return diff.returncode == 1
+
+
 def _cached_revision(model_id: str) -> str:
-    """The HF snapshot the ladder actually loaded — the cache's `refs/main`, not the Hub's
-    current head, which may have moved since."""
+    """The snapshot the local HF cache resolves `model_id` to — the one the ladder loaded
+    from on this machine, unless the cache was refreshed since. Not the Hub's current head,
+    which may have moved."""
     ref = _HF_CACHE_DIR / f"models--{model_id.replace('/', '--')}" / "refs" / "main"
     if not ref.exists():
         raise PublishError(f"no cached snapshot of {model_id} under {_HF_CACHE_DIR}")
