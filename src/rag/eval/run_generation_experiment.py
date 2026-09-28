@@ -24,7 +24,6 @@ from those same evaluations — each judge call is made once, never re-run for p
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -36,7 +35,7 @@ from langfuse.api import DatasetItem
 from langfuse.experiment import ExperimentItem
 from qdrant_client import QdrantClient
 
-from rag.condensation.pipeline import CondenseFn, condense
+from rag.condensation.pipeline import CondenseFn
 from rag.condensation.prompt import HistoryTurn as CondensationHistoryTurn
 from rag.config import load_settings
 from rag.eval.generation_metrics import ItemGenerationScore, score_item
@@ -45,19 +44,16 @@ from rag.eval.judge import Judge, JudgedMetric, JudgeScore, render_answer
 from rag.eval.langfuse_sync import GENERATION_DATASET_NAME, reconstruct_generation_item
 from rag.eval.retrieval_run import RunHeader, resolve_git_sha
 from rag.eval.schema import GoldenItem
-from rag.generation.pipeline import GenerateFn, GenerationResult, generate
-from rag.generation.prompt import HistoryTurn as GenerationHistoryTurn
+from rag.generation.pipeline import GenerateFn, GenerationResult
 from rag.generation.prompt import build_context_section
 from rag.ingest.upsert import EmbedFn
-from rag.retrieval.pipeline import DEFAULT_RETRIEVAL_ARM, retrieve
+from rag.pipeline import GENERATION_RETRIEVAL_ARM, run_chain
 
 __all__ = [
-    "GENERATION_RETRIEVAL_ARM",
     "GENERATION_RUNG",
     "MAX_CONCURRENCY",
     "MIN_CONCURRENCY",
     "JudgeRunError",
-    "run_chain",
     "run_generation_eval",
 ]
 
@@ -74,11 +70,6 @@ MAX_CONCURRENCY = 10
 # (`RunHeader.arm`, `RunHeader.generation_model`/`generation_provider`), so `rung` is this
 # one constant rather than a per-call parameter with nothing yet to vary it.
 GENERATION_RUNG = "generation"
-
-# ADR-0024 — rung 1 stands. What a generation run sits on top of, and what the calibration
-# authoring helper's real answers come from: one constant, so the answers calibrated against
-# are answers the generation eval would actually score.
-GENERATION_RETRIEVAL_ARM = "rung1"
 
 _SCORE_FIELDS = ("state_correct", "citation_valid", "citation_correctness")
 _BOOLEAN_SCORE_FIELDS = frozenset({"state_correct", "citation_valid"})
@@ -175,26 +166,6 @@ def _with_judged(score: ItemGenerationScore, judged: _JudgedItem | None) -> Item
     )
 
 
-def run_chain(
-    raw_turn: str,
-    history: Sequence[CondensationHistoryTurn],
-    *,
-    client: QdrantClient,
-    embed: EmbedFn,
-    lookup_keys: AbstractSet[str],
-    condense_fn: CondenseFn,
-    generate_fn: GenerateFn,
-    retrieval_arm: str = DEFAULT_RETRIEVAL_ARM,
-) -> GenerationResult:
-    """The full chain for one turn — condense, retrieve, generate — exactly as the eval
-    task runs it. Shared with the calibration authoring helper (#47), whose clean answers
-    must be real pipeline answers, not a second code path's."""
-    condensation = condense(raw_turn, history, lookup_keys, condense_fn)
-    retrieval = retrieve(client, embed, condensation.query, lookup_keys, arm=retrieval_arm)
-    generation_history = tuple(GenerationHistoryTurn(role=turn.role, content=turn.content) for turn in history)
-    return generate(raw_turn, retrieval, generate_fn, history=generation_history)
-
-
 def _golden_item_from(item: DatasetItem) -> GoldenItem:
     # `item.id` is `generation_dataset_item_id`'s Langfuse-specific id, not the golden-set
     # id (#46, confirmed live: the generation dataset can't reuse the retrieval dataset's
@@ -225,7 +196,7 @@ def run_generation_eval(
     generation_provider: str,
     retrieval_config: dict[str, Any],
     dataset_name: str = GENERATION_DATASET_NAME,
-    retrieval_arm: str = DEFAULT_RETRIEVAL_ARM,
+    retrieval_arm: str = GENERATION_RETRIEVAL_ARM,
     max_concurrency: int = MAX_CONCURRENCY,
     judge: Judge | None = None,
 ) -> GenerationRun:
@@ -240,8 +211,8 @@ def run_generation_eval(
     ablatable arm"); `generation_model`/`generation_provider` are the caller's own pinned
     description of what actually ran, since only the caller (which built `generate_fn`)
     knows which `Settings` it was built from. `retrieval_arm` defaults to
-    `DEFAULT_RETRIEVAL_ARM` — the ladder-winning arm, once adopted, is what a generation run
-    should sit on top of, not whichever rung happened to run last.
+    `rag.pipeline.GENERATION_RETRIEVAL_ARM` — the ladder-winning arm, the same one the app
+    serves, not whichever rung happened to run last.
 
     **`generation_provider` pins the requested provider, not a response-verified one.**
     SPEC §12.10 asks for "the resolved provider recorded in every persisted run" for the

@@ -8,8 +8,9 @@ contexts, `rag.generation.pipeline.generate` calls the real `GenerateFn`
 guardrail outcome prints as-is, exactly what an eval run would see, not the demo-repaired
 copy (`rag.generation.citation.repair_for_display`).
 
-Deliberately not the app (SPEC §13, still "empty until the app ticket") — this is
-`rag.query`'s counterpart one stage further down the pipeline, same injection seam.
+Deliberately not the app (`rag.app`, SPEC §13), which runs the full chain with
+condensation — this is `rag.query`'s counterpart one stage further down the pipeline, same
+injection seam.
 """
 
 from __future__ import annotations

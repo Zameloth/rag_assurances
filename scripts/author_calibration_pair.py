@@ -43,9 +43,9 @@ from rag.eval.calibration_authoring import (
 )
 from rag.eval.judge import render_answer
 from rag.eval.paths import CALIBRATION_SET_PATH, GOLDEN_SET_PATH, REPO_ROOT
-from rag.eval.run_generation_experiment import GENERATION_RETRIEVAL_ARM, run_chain
 from rag.eval.schema import load_golden_set
 from rag.generation.chain import make_generate_fn
+from rag.pipeline import GENERATION_RETRIEVAL_ARM, run_chain
 from rag.retrieval.lookup import load_lookup_keys
 
 

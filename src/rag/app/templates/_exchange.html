@@ -1,0 +1,10 @@
+<article class="exchange">
+  <p class="question">{{ question }}</p>
+  {% include "states/" ~ view.state.value ~ ".html" %}
+  {#- The next turn's history, carried by the page (SPEC §13.4) — prose only, never the
+      citation list (SPEC §10.6). -#}
+  <input type="hidden" name="history_role" value="user">
+  <input type="hidden" name="history_content" value="{{ question }}">
+  <input type="hidden" name="history_role" value="assistant">
+  <input type="hidden" name="history_content" value="{{ view.envelope.explanation }}">
+</article>

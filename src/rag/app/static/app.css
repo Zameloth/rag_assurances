@@ -1,0 +1,240 @@
+/* rag-assurances — a reading surface, not a chat skin. Legal text reads best set like a
+   document: serif prose, a narrow measure, citations set apart in the margin's voice. */
+
+:root {
+  --paper: #f7f4ee;
+  --surface: #fffdf9;
+  --ink: #1d1b18;
+  --ink-soft: #5b564e;
+  --rule: #ddd6c9;
+  --accent: #1f4e79;
+  --accent-soft: #e3ecf5;
+  --ok: #2f6b3a;
+  --ok-soft: #e2f0e3;
+  --info: #7a5a12;
+  --info-soft: #f6ecd2;
+  --warn: #8a3b12;
+  --warn-soft: #f7e3d7;
+  --muted: #5b564e;
+  --muted-soft: #ebe7df;
+  --serif: "Iowan Old Style", "Charter", "Source Serif Pro", Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #16181b;
+    --surface: #1e2125;
+    --ink: #ece8e1;
+    --ink-soft: #a8a298;
+    --rule: #34383e;
+    --accent: #8fb8e0;
+    --accent-soft: #22303e;
+    --ok: #8fcf99;
+    --ok-soft: #1f3324;
+    --info: #e2c27a;
+    --info-soft: #362d17;
+    --warn: #f0a57e;
+    --warn-soft: #3a2519;
+    --muted: #a8a298;
+    --muted-soft: #2a2d31;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 17px/1.6 var(--serif);
+}
+
+a { color: var(--accent); text-underline-offset: .15em; }
+a:hover { text-decoration-thickness: 2px; }
+
+.shell {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 3rem 1rem 2rem;
+}
+
+.masthead { margin-bottom: 2rem; }
+.kicker {
+  margin: 0 0 .4rem;
+  font: 600 .75rem/1 var(--sans);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.masthead h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 5vw, 2.6rem);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+.lede { margin: .8rem 0 0; color: var(--ink-soft); }
+
+.disclaimer {
+  margin: 0 0 2rem;
+  padding: .8rem 1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  font: .9rem/1.5 var(--sans);
+}
+
+/* --- conversation ------------------------------------------------------------------- */
+
+.conversation { display: grid; gap: 2rem; }
+.conversation:empty { display: none; }
+
+.exchange { display: grid; gap: .9rem; }
+
+.question {
+  justify-self: end;
+  max-width: 85%;
+  margin: 0;
+  padding: .6rem .9rem;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--ink);
+  color: var(--paper);
+  font: .95rem/1.5 var(--sans);
+  white-space: pre-wrap;
+}
+
+.answer {
+  padding: 1.2rem 1.3rem 1.3rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.badge {
+  display: inline-block;
+  margin-bottom: .7rem;
+  padding: .2rem .55rem;
+  border-radius: 999px;
+  font: 600 .72rem/1.4 var(--sans);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.badge-ok { background: var(--ok-soft); color: var(--ok); }
+.badge-info { background: var(--info-soft); color: var(--info); }
+.badge-warn { background: var(--warn-soft); color: var(--warn); }
+.badge-muted { background: var(--muted-soft); color: var(--muted); }
+
+.answer-reponse { border-top: 3px solid var(--ok); }
+.answer-sans-article { border-top: 3px solid var(--info); }
+.answer-refus { border-top: 3px solid var(--warn); }
+.answer-hors-corpus { border-top: 3px solid var(--muted); }
+
+.explanation > :first-child { margin-top: 0; }
+.explanation > :last-child { margin-bottom: 0; }
+.explanation p, .explanation ul, .explanation ol { margin: 0 0 .8rem; }
+.explanation ul, .explanation ol { padding-left: 1.3rem; }
+.explanation li + li { margin-top: .35rem; }
+
+.refusal-line, .no-article {
+  margin: 0 0 .8rem;
+  font: italic .95rem/1.5 var(--serif);
+  color: var(--ink-soft);
+}
+.no-article { margin: .9rem 0 0; }
+
+.panel {
+  margin-top: 1.2rem;
+  padding-top: .9rem;
+  border-top: 1px solid var(--rule);
+  font: .9rem/1.5 var(--sans);
+}
+.panel h3 {
+  margin: 0 0 .5rem;
+  font: 600 .72rem/1 var(--sans);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.panel ul { margin: 0; padding: 0; list-style: none; display: grid; gap: .45rem; }
+.panel li { display: grid; grid-template-columns: minmax(6.5rem, max-content) 1fr; gap: .8rem; }
+.panel-fiches li { grid-template-columns: 1fr; gap: 0; }
+
+.citation-id { font: 600 .88rem/1.5 var(--mono); white-space: nowrap; }
+.gloss { color: var(--ink); }
+.updated { color: var(--ink-soft); font-size: .82rem; }
+
+.error { margin: 0; color: var(--warn); font-family: var(--sans); }
+
+/* --- the ask form ------------------------------------------------------------------- */
+
+.ask {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: .6rem;
+  margin: 2rem -1rem 0;
+  padding: 1rem;
+  background: linear-gradient(to bottom, transparent, var(--paper) 25%);
+}
+.ask textarea {
+  flex: 1;
+  min-width: 0;
+  resize: vertical;
+  padding: .7rem .8rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 1rem/1.5 var(--sans);
+}
+.ask textarea:focus-visible, .ask button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.ask button {
+  align-self: stretch;
+  padding: 0 1.2rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--surface);
+  font: 600 .95rem/1 var(--sans);
+  cursor: pointer;
+}
+.ask button:disabled { opacity: .6; cursor: progress; }
+.ask .busy { display: none; }
+.ask.htmx-request .idle { display: none; }
+.ask.htmx-request .busy { display: inline; }
+
+/* --- footer ------------------------------------------------------------------------- */
+
+.colophon {
+  margin-top: 3rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--rule);
+  font: .8rem/1.6 var(--sans);
+  color: var(--ink-soft);
+}
+.colophon a { color: inherit; }
+.snapshot { margin: 0 0 .5rem; font-weight: 600; color: var(--ink); }
+.sources { margin: 0; padding: 0; list-style: none; }
+.source-name { font-weight: 600; }
+.api-note { margin: .6rem 0 0; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 30rem) {
+  body { font-size: 16px; }
+  .shell { padding-top: 2rem; }
+  .panel li { grid-template-columns: 1fr; gap: 0; }
+  .question { max-width: 100%; }
+}
