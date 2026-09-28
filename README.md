@@ -156,7 +156,7 @@ that choice is a decision recorded in an ADR, not something to infer. `make publ
    and `corpus_manifest.json` — the payloads carry verbatim DILA text, so the dump is a
    redistribution under Licence Ouverte 2.0 and the attribution travels with the artifact;
 4. only then writes `index_lock.json`: tag, commit, the corpus manifest's sha256, embedder ids and
-   the HF snapshot revisions actually loaded, chunk config, enrichment flag, per-register
+   the HF snapshot revisions in the local model cache, chunk config, enrichment flag, per-register
    collection / point count / asset sha256 / vector-layout fingerprint, and the ladder rung with
    the commit that added its scores.
 
