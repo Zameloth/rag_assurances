@@ -1,4 +1,4 @@
-"""The web front: FastAPI + Jinja/HTMX + SSE (SPEC §13).
+"""The web front: FastAPI + Jinja/HTMX (SPEC §13, #50). Entry point: `rag.app.main`.
 
-Empty until the app ticket. Build order step 11.
+Staged SSE progress (#51) and `/health` (#53) land in their own tickets.
 """

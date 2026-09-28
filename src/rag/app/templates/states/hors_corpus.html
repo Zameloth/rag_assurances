@@ -1,0 +1,8 @@
+{% import "_macros.html" as m %}
+<div class="answer answer-hors-corpus" data-state="hors_corpus">
+  {{ m.badge("Hors corpus", "muted") }}
+  <p class="refusal-line">Cette question sort du champ couvert : le Code des assurances et les fiches
+    assurance de service-public.fr.</p>
+  {{ m.explanation(view) }}
+  {{ m.citations(view) }}
+</div>

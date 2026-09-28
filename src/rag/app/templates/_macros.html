@@ -1,0 +1,39 @@
+{% macro badge(label, tone) -%}
+<span class="badge badge-{{ tone }}">{{ label }}</span>
+{%- endmacro %}
+
+{% macro citations(view) -%}
+{% if view.citations %}
+<section class="panel panel-articles">
+  <h3>Fondement juridique</h3>
+  <ul>
+    {% for citation in view.citations %}
+    <li>
+      <a class="citation-id" href="{{ citation.url }}" rel="noopener" target="_blank">{{ citation.citation_id }}</a>
+      <span class="gloss">{{ citation.gloss }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{%- endmacro %}
+
+{% macro fiches(view) -%}
+{% if view.fiches %}
+<section class="panel panel-fiches">
+  <h3>Pour aller plus loin</h3>
+  <ul>
+    {% for fiche in view.fiches %}
+    <li>
+      <a href="{{ fiche.url }}" rel="noopener" target="_blank">{{ fiche.title }}</a>
+      <span class="updated">service-public.fr, mise à jour le {{ fiche.date_modified.strftime("%d/%m/%Y") }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{%- endmacro %}
+
+{% macro explanation(view) -%}
+<div class="explanation">{{ view.envelope.explanation | markdown }}</div>
+{%- endmacro %}

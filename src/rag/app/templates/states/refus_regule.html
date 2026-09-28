@@ -1,0 +1,11 @@
+{% import "_macros.html" as m %}
+{#- SPEC §10.4: the refusal line is recommending, not explaining — so the informational
+    part is still answered, with its citations. -#}
+<div class="answer answer-refus" data-state="refus_regule">
+  {{ m.badge("Recommandation de produit" if view.envelope.motif.value == "recommandation_produit" else "Conseil personnalisé", "warn") }}
+  <p class="refusal-line">Cet assistant n'est pas habilité à recommander un contrat ou une démarche.
+    Voici ce que dit la règle.</p>
+  {{ m.explanation(view) }}
+  {{ m.citations(view) }}
+  {{ m.fiches(view) }}
+</div>

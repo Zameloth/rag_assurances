@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="disclaimer" role="note">
+  <strong>Information, pas conseil.</strong>
+  Cet assistant explique les règles applicables ; il ne recommande ni contrat, ni démarche.
+  Pour une décision qui vous engage, adressez-vous à votre assureur ou à un professionnel.
+</p>
+
+<section id="conversation" class="conversation" aria-live="polite"></section>
+
+<form class="ask" hx-post="/ask" hx-target="#conversation" hx-swap="beforeend show:bottom"
+      hx-include="#conversation" hx-disabled-elt="find button" hx-indicator="this">
+  <label for="question" class="visually-hidden">Votre question</label>
+  <textarea id="question" name="question" rows="2" required maxlength="{{ max_question_chars }}"
+            placeholder="Ex. : Puis-je résilier mon assurance habitation à tout moment ?"></textarea>
+  <button type="submit">
+    <span class="idle">Demander</span>
+    <span class="busy" aria-hidden="true">Recherche…</span>
+  </button>
+</form>
+{% endblock %}

@@ -50,13 +50,20 @@ dependencies = [
     # Named directly (FlagEmbedding would pull it in anyway) so [tool.uv.sources] below
     # has a direct dependency to pin to the CPU wheel index.
     "torch>=2.0",
+    # SPEC §13/#50 — the app: FastAPI + Jinja/HTMX, served by uvicorn. Runtime, not a dev
+    # group: the container runs `rag.app`, and the annotation helper (#33) reuses the same
+    # stack. `python-multipart` is what FastAPI parses the HTMX form posts with.
+    "fastapi>=0.141.1",
+    "jinja2>=3.1.6",
+    "uvicorn[standard]>=0.52.1",
+    "python-multipart>=0.0.20",
+    # #50 — the generation model writes light Markdown in `explanation`. Rendered, not
+    # prompted away: changing the prompt would change the measured system.
+    "markdown-it-py>=3.0",
 ]
 
 [tool.uv]
-# Unlike `fetch` (network calls, heavy binary deps, never imported by tests), `annotate`
-# backs real route-tested code (`tests/test_annotate_app.py`) — CI needs it installed to
-# typecheck and test `rag.eval.annotate_app`, so it is a default group, not an opt-in one.
-default-groups = ["dev", "annotate"]
+default-groups = ["dev"]
 
 # #31 — `optimum`'s own `transformers` pin is stricter than FlagEmbedding's, and uv's
 # default universal resolution would otherwise downgrade `transformers` project-wide (every
@@ -79,14 +86,6 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [dependency-groups]
-# #33 — the annotation helper is a hand-run local tool, never imported by the pipeline
-# stages, but its FastAPI + Jinja stack (SPEC §13, reused early rather than inventing a
-# second one) is exercised by the test suite, unlike `fetch`'s scripts below.
-annotate = [
-    "fastapi>=0.141.1",
-    "jinja2>=3.1.6",
-    "uvicorn[standard]>=0.52.1",
-]
 dev = [
     "pytest>=8.0",
     "mypy>=1.11",
