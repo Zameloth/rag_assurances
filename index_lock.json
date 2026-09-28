@@ -1,0 +1,42 @@
+{
+  "release_tag": "index-2026-09-28",
+  "built_at": "2026-09-28T16:24:30Z",
+  "git_commit": "e67150fedbbe96a4a75fe31c6559d880fb347ecf",
+  "corpus_manifest_sha256": "dca58af105f8e4aeb15a4ab5b48a6802889ff711ab8e23b20fbe6c7742c09bd3",
+  "embedder": {
+    "dense": {
+      "id": "BAAI/bge-m3",
+      "revision": "5617a9f61b028005a4858fdac845db406aefb181"
+    },
+    "sparse": {
+      "id": "BAAI/bge-m3",
+      "revision": "5617a9f61b028005a4858fdac845db406aefb181"
+    }
+  },
+  "chunk_config": {
+    "band": 512,
+    "merge_floor": 100,
+    "stub_floor": 32
+  },
+  "enrichment": false,
+  "registers": {
+    "fiches": {
+      "collection": "fiches__m3__c512__v1",
+      "points": 849,
+      "asset_sha256": "a94b80e459c3e113e1633b3306497476b3b50ca1104343149f2a6b86adf2c595",
+      "vector_config_fingerprint": "5022efc3ea64bde5cd57cdc709d59aed6849bb7f73893ccc7a57c6d52f758b7d"
+    },
+    "articles": {
+      "collection": "articles__m3__c512__v1",
+      "points": 2801,
+      "asset_sha256": "10c89dc4d2d582c39ec6271f5d753ab48b34b49183098526ff5746c583a7fe61",
+      "vector_config_fingerprint": "5022efc3ea64bde5cd57cdc709d59aed6849bb7f73893ccc7a57c6d52f758b7d"
+    }
+  },
+  "ladder_rung": "rung1",
+  "scores": {
+    "run_id": "rung1-20260916T181814Z",
+    "path": "eval/runs/rung1-20260916T181814Z.json",
+    "commit": "48021c998f874893ecb7e267436172daead49621"
+  }
+}
