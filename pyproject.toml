@@ -60,6 +60,10 @@ dependencies = [
     # #50 — the generation model writes light Markdown in `explanation`. Rendered, not
     # prompted away: changing the prompt would change the measured system.
     "markdown-it-py>=3.0",
+    # SPEC §15.2/#52 — the published index is a Parquet points dump. Runtime, not the
+    # `fetch` group: `make publish-index` writes it, and restore (#53) reads it inside the
+    # app image, which installs no optional group.
+    "pyarrow>=17",
 ]
 
 [tool.uv]
@@ -97,7 +101,6 @@ dev = [
 # dependencies are not part of the default `uv sync` and are installed only when someone
 # actually runs `uv sync --group fetch` to refresh the corpus.
 fetch = [
-    "pyarrow>=17",
     "httpx>=0.27",
 ]
 # SPEC §9.4/§14.4, #31 — int8 ONNX dynamic quantisation is a deploy-time RAM lever for the
@@ -135,9 +138,8 @@ python_version = "3.12"
 strict = true
 
 [[tool.mypy.overrides]]
-# Not installed by default (see the `fetch` group above), so mypy cannot see its stubs
-# without `uv sync --group fetch`. Silencing missing-import here still typechecks
-# everything scripts/fetch_articles.py does with the values pyarrow returns.
+# pyarrow ships no stubs. Silencing missing-import here still typechecks everything
+# rag.publish and scripts/fetch_articles.py do with the values pyarrow returns.
 module = "pyarrow.*"
 ignore_missing_imports = true
 

@@ -1,6 +1,6 @@
 # Entry points, with the four pipeline target names fixed by SPEC §16.1.
 #
-# The four are stubbed until their ticket lands, but they are named now and on purpose:
+# The ones still stubbed wait for their ticket, but they are named now and on purpose:
 # the runbooks in SPEC §15.3 and §15.7 already spell them, so a later ticket that
 # invented its own name would leave the spec describing commands that do not exist.
 # A stub exits non-zero rather than succeeding quietly — a no-op `make deploy` that
@@ -56,8 +56,11 @@ ingest: ## Corpus -> chunks -> BGE-M3 -> Qdrant (SPEC §4-§7)
 ladder: ## Run the six-rung retrieval ablation ladder (SPEC §12.8)
 	$(call todo,7,the eval harness — eval/ — writing per-rung scores to eval/runs/)
 
-publish-index: ## Parquet points dump -> index_lock.json -> GitHub Release (SPEC §15.3)
-	$(call todo,12,the points dump the ladder already scored -> index_lock.json -> gh release create)
+# RUN names the eval/runs/<run-id>.json that scored the index being shipped — no default,
+# because which run chose the deployed arm is a decision (ADR-0024), not something to infer.
+publish-index: ## Dump the scored index -> GitHub Release -> index_lock.json (RUN=eval/runs/<id>.json)
+	@test -n "$(RUN)" || { echo "usage: make publish-index RUN=eval/runs/<run-id>.json [TAG=index-YYYY-MM-DD]"; exit 1; }
+	uv run python -m rag.publish --run $(RUN) $(if $(TAG),--tag $(TAG))
 
 deploy: ## Pull, restore, up, verify (SPEC §15.7)
 	$(call todo,12,compose pull -> compose run --rm rag-assurances python -m rag.restore \
