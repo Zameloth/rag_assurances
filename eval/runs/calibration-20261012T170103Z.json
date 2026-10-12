@@ -1,0 +1,214 @@
+{
+  "header": {
+    "run_id": "calibration-20261012T170103Z",
+    "judge_model": "anthropic/claude-sonnet-5",
+    "judge_providers": [
+      "Anthropic"
+    ],
+    "judge_prompt_languages": {
+      "faithfulness": "en",
+      "point_coverage": "fr"
+    },
+    "pass_threshold": 1.0,
+    "calibration_set_git_sha": "2f1ef7b9ab561b177cfe19a01e3bf4d7cb70205e",
+    "code_git_sha": "83d1c628ede27945039a561b39f68212970fe131",
+    "timestamp": "2026-10-12T17:02:33.996734+00:00"
+  },
+  "pairs": [
+    {
+      "golden_id": "gs-043",
+      "archetype": "fabricated_citation",
+      "metric": "faithfulness",
+      "clean_score": 0.8,
+      "faulted_score": 0.5,
+      "detected": true,
+      "clean_error": "false_fail",
+      "faulted_error": null,
+      "clean_reasoning": "Deconstructing the answer into atomic statements: (1) L'article L113-2 oblige à informer l'assureur en cas de changement de voiture - this is an inference/application not explicitly stated in context, which only speaks generally of 'circonstances nouvelles' without mentioning vehicle changes specifically, but it's a reasonable application of the rule, though not directly supported verbatim; (2) Ce changement constitue une circonstance nouvelle pouvant aggraver les risques ou en créer de nouveaux - supported by the general principle in alinéa 3°, though the specific example of car change is an extrapolation; (3) Déclaration par lettre recommandée ou envoi recommandé électronique - directly supported by context; (4) Délai de quinze jours à partir du moment où on en a eu connaissance - directly supported by context; (5) Fondement juridique section repeats the same claims about L113-2 covering vehicle change specifically - this specific example (changement de véhicule) is not explicitly mentioned in the text, it's an extrapolation. Overall most core legal mechanics (declaration obligation, 15-day deadline, registered letter method) are directly supported, but the specific application to 'changement de voiture' is an inference not explicitly stated in the context, slightly reducing strict faithfulness.",
+      "faulted_reasoning": "Statement 1 (L113-2 obliges informing insurer of circumstance changes) is supported. Statement 2 (changing car is a new circumstance that may aggravate risk, per paragraph 3) is a reasonable interpretation but not explicitly stated in context - context doesn't mention car change specifically, so this is an inference not directly supported. Statement 3 (must declare by registered letter within 15 days) is directly supported. Statement 4 (L113-15-2 allows resiliation after one year) is not supported at all since this article is not mentioned in the context. Thus 2 out of 4 statements are fully supported, giving a score of 0.5.",
+      "providers": [
+        "Anthropic"
+      ]
+    },
+    {
+      "golden_id": "gs-013",
+      "archetype": "fabricated_citation",
+      "metric": "faithfulness",
+      "clean_score": 0.7,
+      "faulted_score": 0.5,
+      "detected": true,
+      "clean_error": "false_fail",
+      "faulted_error": null,
+      "clean_reasoning": "Breaking the answer into atomic statements: (1) The DO insurance taken out by the initial project owner/seller continues to cover new owners for the remaining duration of the decennial guarantee — supported by L242-1 which states the insurance is for the owner's account or successive owners. (2) This insurance is automatically transferred to the buyer — NOT supported; the context only states automatic transfer for 'assurance habitation', not for assurance dommages-ouvrage; this is an unsupported extrapolation/conflation. (3) It guarantees damages covered by the decennial guarantee of constructors, without seeking liability — supported by the DO fiche and L242-1. (4) It ends at the term of 10 years following reception of works, in line with the legal duration of the decennial guarantee — supported by the décennale guarantee period described in the fiches. (5) L242-1 of the Code des assurances imposes DO insurance for construction works, guaranteeing payment of repair works falling under the decennial guarantee — supported. (6) It specifies that this insurance is taken out for the account of successive owners, ensuring continuity of coverage after sale — supported by the text 'pour son compte ou pour celui des propriétaires successifs'. However, the claim of 'automatic transfer' of DO insurance specifically (as opposed to habitation insurance) is not stated in the context, making this a partially unfaithful claim mixed with correct information.",
+      "faulted_reasoning": "Several claims (DO coverage content, 10-year decennial duration, L242-1's mention of successive owners, no fault-finding requirement) are supported by context, but the claim of 'automatic transfer to the acquirer' is only supported for habitation insurance (not DO) in context, and the citation to 'L121-10' is fabricated since it does not appear anywhere in the provided context, making roughly half of the atomic statements unsupported.",
+      "providers": [
+        "Anthropic"
+      ]
+    },
+    {
+      "golden_id": "gs-037",
+      "archetype": "claim_absent_from_context",
+      "metric": "faithfulness",
+      "clean_score": 0.71,
+      "faulted_score": 0.63,
+      "detected": true,
+      "clean_error": "false_fail",
+      "faulted_error": null,
+      "clean_reasoning": "Most statements (EU coverage, minimum civil liability, checking optional guarantees, green card not required with plate as proof) are supported by context; however, the specific mention of 'Espagne' is an unsupported inference since context never names Spain, and the final 'Aucun fondement' note about Code des assurances is not grounded in the context either. Out of 7 atomic statements, 5 are supported and 2 are not, giving a score of ~0.71.",
+      "faulted_reasoning": "Breaking the answer into atomic statements: (1) French auto insurance automatically covers EU countries, (2) Spain is part of the EU, (3) coverage abroad is limited to a period of 30 or 90 days renewable once, (4) minimum coverage is civil liability covering damages to third parties, (5) advisable to check with insurer about additional guarantees (theft, fire, material damage) and their limitations in Spain, (6) one can request an international insurance card (green card), (7) the green card is not mandatory to drive in Spain since the French license plate suffices as proof of insurance, (8) no specific article of the Code des assurances is cited in the context. Statement 1 is supported (EU countries covered automatically via responsabilité civile). Statement 2 (Spain is EU) is general knowledge not explicitly stated in context but reasonable - context doesn't mention Spain specifically, treating as not directly supported. Statement 3 is contradicted: the 30-90 day renewable period applies to non-green-card, non-EU countries (assurance frontière), not to EU travel, which is actually unlimited for France-in-EU-country travel (6 months rule applies to foreigners coming to France, not French going abroad) - this is a factual error/misapplication, not supported. Statement 4 is supported. Statement 5 is supported. Statement 6 is supported (carte internationale d'assurance can be requested). Statement 7 is supported (plaque d'immatriculation suffices for EU countries, green card not required). Statement 8 is a meta-statement about lack of legal basis, which is true and consistent with context (context doesn't cite any Code des assurances article), so supported as an accurate observation.",
+      "providers": [
+        "Anthropic"
+      ]
+    },
+    {
+      "golden_id": "gs-010",
+      "archetype": "dropped_expected_point",
+      "metric": "point_coverage",
+      "clean_score": 1.0,
+      "faulted_score": 0.6666666666666666,
+      "detected": true,
+      "clean_error": null,
+      "faulted_error": null,
+      "clean_reasoning": "1: La réponse mentionne explicitement une amende jusqu'à 3 750 €.; 2: La réponse indique clairement la suspension/annulation du permis et la confiscation du véhicule comme peines complémentaires.; 3: La réponse cite explicitement les travaux d'intérêt général et le stage de sensibilisation à la sécurité routière parmi les peines complémentaires.",
+      "faulted_reasoning": "1: La réponse mentionne explicitement une amende pouvant aller jusqu'à 3 750 €.; 2: La réponse mentionne la suspension ou annulation du permis de conduire ainsi que la confiscation du véhicule.; 3: La réponse ne mentionne ni travaux d'intérêt général ni stage de sensibilisation parmi les peines complémentaires.",
+      "providers": [
+        "Anthropic"
+      ]
+    },
+    {
+      "golden_id": "gs-016",
+      "archetype": "dropped_expected_point",
+      "metric": "point_coverage",
+      "clean_score": 0.6666666666666666,
+      "faulted_score": 0.6666666666666666,
+      "detected": false,
+      "clean_error": "false_fail",
+      "faulted_error": null,
+      "clean_reasoning": "1: La réponse affirme explicitement que le piéton est indemnisé pour ses dommages corporels même si l'accident est de sa faute.; 2: La réponse mentionne une indemnisation intégrale des dommages corporels indépendamment de la responsabilité, bien qu'elle présente aussi des exceptions, le principe d'indemnisation intégrale sans égard à la faute est affirmé.; 3: La réponse mentionne deux exceptions (faute volontaire ET faute inexcusable), ce qui contredit l'affirmation que seule la faute intentionnelle exclut l'indemnisation.",
+      "faulted_reasoning": "1: La réponse affirme explicitement que le piéton sera indemnisé pour ses dommages corporels même si l'accident est de sa faute.; 2: La réponse mentionne une indemnisation intégrale des dommages corporels quelle que soit la responsabilité de la victime, mais ne précise pas explicitement que la responsabilité du conducteur n'est pas non plus prise en compte.; 3: La réponse ne mentionne pas la faute intentionnelle ou la tentative de suicide comme seule exception possible à l'indemnisation.",
+      "providers": [
+        "Anthropic"
+      ]
+    },
+    {
+      "golden_id": "gs-046",
+      "archetype": "fabricated_citation",
+      "metric": "faithfulness",
+      "clean_score": 0.7,
+      "faulted_score": 0.7,
+      "detected": false,
+      "clean_error": "false_fail",
+      "faulted_error": null,
+      "clean_reasoning": "Breaking the answer into atomic statements: (1) L121-12 traite de la subrogation de l'assureur - supported. (2) Quand l'assureur indemnise pour un dommage causé par un tiers, il se substitue à l'assuré pour récupérer la somme auprès du responsable - supported by text on subrogation dans les droits et actions contre les tiers. (3) Exemple d'un autre conducteur responsable d'un accident - this specific example (car accident) is not mentioned in context, it's an illustrative addition not directly supported but is a reasonable generic illustration, not explicitly contradicted but not grounded either - unsupported as factual claim from context. (4) C'est l'assureur du responsable qui devra rembourser l'assureur de l'assuré - this is an inference not explicitly stated in context (context says subrogation dans les droits de l'assuré contre les tiers, not specifically 'assureur du responsable') - partially unsupported/extrapolated. (5) Ce n'est pas l'assuré qui reçoit l'indemnité du tiers directement - somewhat supported as logical consequence but not explicit. (6) La subrogation ne s'applique pas si le responsable fait partie des personnes vivant habituellement au foyer de l'assuré (famille, employé) sauf malveillance - supported directly by context exceptions. (7) Fondement juridique summary - supported. Overall most core legal points are supported, but the added example and the specific claim about 'assureur du responsable' remboursant are extrapolations beyond the text.",
+      "faulted_reasoning": "Statements 1-5 (about subrogation mechanics, the substitution process, and the foyer exception) are supported by the context's text on Article L121-12; however, the claim citing 'L124-4' about the responsible driver's insurer guaranteeing reimbursement is not mentioned anywhere in the provided context, making it unsupported, and the example of 'another driver' is an unsupported illustrative addition not found in the text.",
+      "providers": [
+        "Anthropic"
+      ]
+    },
+    {
+      "golden_id": "gs-044",
+      "archetype": "claim_absent_from_context",
+      "metric": "faithfulness",
+      "clean_score": 1.0,
+      "faulted_score": 0.86,
+      "detected": true,
+      "clean_error": null,
+      "faulted_error": null,
+      "clean_reasoning": "Toutes les affirmations de la réponse (absence de nullité en cas de bonne foi, option de maintien avec augmentation de prime acceptée, option de résiliation sous 10 jours avec restitution de prime, réduction proportionnelle de l'indemnité en cas de découverte après sinistre) sont directement et fidèlement tirées du texte de l'article L113-9 cité dans le contexte, sans ajout d'informations non présentes.",
+      "faulted_reasoning": "Breaking the answer into atomic statements: (1) L113-9 applies when there's an error/omission without bad faith - supported. (2) Before a claim, insurer can maintain contract with increased premium accepted by insured - supported. (3) Before a claim, insurer can cancel contract 10 days after notification by registered letter - supported. (4) Insurer restitutes portion of premium paid for period insurance no longer applies - supported. (5) The insured has fifteen days from discovery of the error to report it themselves to the insurer by registered letter - NOT supported, this detail does not appear anywhere in the provided context. (6) After a claim, indemnity is reduced proportionally to the rate of premiums paid versus rate of premiums that should have been paid - supported. (7) L113-9 protects the insured against nullity of the contract while allowing the insurer to adjust conditions or reduce indemnity - supported. Out of 7 statements, 6 are supported and 1 (the fifteen-day self-reporting obligation) is fabricated/unsupported by the context, giving a score of 6/7 ≈ 0.857.",
+      "providers": [
+        "Anthropic"
+      ]
+    },
+    {
+      "golden_id": "gs-032",
+      "archetype": "dropped_expected_point",
+      "metric": "point_coverage",
+      "clean_score": 1.0,
+      "faulted_score": 0.6666666666666666,
+      "detected": true,
+      "clean_error": null,
+      "faulted_error": null,
+      "clean_reasoning": "1: La réponse indique clairement que la garantie catastrophe naturelle ne s'applique que si un arrêté reconnaît l'état de catastrophe naturelle, ce qui implique que sans cette reconnaissance, les dégâts d'inondation ne sont pas automatiquement couverts par cette garantie (bien que d'autres garanties comme dégâts des eaux puissent s'appliquer dans certains cas).; 2: La réponse précise explicitement que la garantie catastrophe naturelle est automatiquement incluse dans les contrats multirisques habitation couvrant les dommages aux biens.; 3: La réponse mentionne explicitement que la garantie ne s'applique que si un arrêté interministériel reconnaît l'état de catastrophe naturelle pour la commune.",
+      "faulted_reasoning": "1: La réponse distingue clairement le cas où l'inondation est reconnue catastrophe naturelle (couverture automatique de la garantie CatNat) et le cas où elle ne l'est pas (dépend de la garantie dégâts des eaux), ce qui implique que sans reconnaissance officielle, la couverture n'est pas automatique sous le régime CatNat.; 2: La réponse précise explicitement que la garantie catastrophe naturelle est incluse dans les contrats multirisques habitation couvrant les dommages aux biens.; 3: La réponse ne mentionne jamais la nécessité d'un arrêté interministériel reconnaissant l'état de catastrophe naturelle dans la commune, elle parle seulement de 'si l'inondation est considérée comme une catastrophe naturelle' sans préciser le mécanisme de reconnaissance officielle.",
+      "providers": [
+        "Anthropic"
+      ]
+    },
+    {
+      "golden_id": "gs-054",
+      "archetype": "refusal_without_explanation",
+      "metric": "point_coverage",
+      "clean_score": 1.0,
+      "faulted_score": 0.3333333333333333,
+      "detected": true,
+      "clean_error": null,
+      "faulted_error": null,
+      "clean_reasoning": "1: La réponse refuse explicitement de recommander un assureur ou produit spécifique.; 2: La réponse affirme le droit de choisir un autre assureur sous réserve que les garanties minimales exigées soient respectées.; 3: La réponse mentionne explicitement les délais de carence et les franchises comme éléments de comparaison des contrats, en plus du coût.",
+      "faulted_reasoning": "1: La réponse refuse explicitement de recommander un assureur ou produit spécifique.; 2: La réponse ne mentionne pas la liberté de choisir un autre assureur que celui de la banque ni la condition d'équivalence des garanties.; 3: La réponse ne parle pas du délai de carence ou de franchise comme critères de comparaison des contrats.",
+      "providers": [
+        "Anthropic"
+      ]
+    },
+    {
+      "golden_id": "gs-045",
+      "archetype": "claim_absent_from_context",
+      "metric": "faithfulness",
+      "clean_score": 1.0,
+      "faulted_score": 0.85,
+      "detected": true,
+      "clean_error": null,
+      "faulted_error": null,
+      "clean_reasoning": "Breaking the answer into atomic statements: (1) L113-15-2 facilitates cancellation of auto insurance after one year without fees - supported. (2) You can cancel at any time after the first year without waiting for annual renewal - supported by 'après expiration d'un délai d'un an... résilier sans frais ni pénalités'. (3) The new insurer can perform cancellation formalities, ensuring continuous coverage - supported for auto insurance specifically. (4) Cancellation takes effect one month after notification - supported. (5) The notification can be from the new insurer - supported, as the new insurer handles formalities. (6) You only pay premium for period covered - supported. (7) Insurer must refund within 30 days or legal interest applies - supported. All statements are well supported by the context, giving a score of 1.",
+      "faulted_reasoning": "Statement breakdown: (1) L113-15-2 facilite résiliation assurance auto après un an sans frais ni pénalités - supported. (2) Résiliation possible à tout moment après la première année sans attendre échéance annuelle - supported (contrat tacitement reconductible, résiliable après délai d'un an). (3) L'assuré doit informer l'assureur au moins deux mois à l'avance par lettre recommandée - NOT supported, context says notification takes effect one month after receipt, no mention of two months notice or recommended letter requirement. (4) Nouvel assureur peut effectuer les formalités de résiliation en assurant continuité de couverture - supported. (5) Résiliation prend effet un mois après réception de la notification - supported. (6) L'assuré ne paie que la partie de prime correspondant à la période couverte - supported. (7) L'assureur doit rembourser le solde sous 30 jours, sinon intérêts légaux s'appliquent - supported. (8) Fondement juridique summary - supported overall. One fabricated detail (two months notice, lettre recommandée) is unsupported, reducing faithfulness score accordingly.",
+      "providers": [
+        "Anthropic"
+      ]
+    },
+    {
+      "golden_id": "gs-051",
+      "archetype": "refusal_without_explanation",
+      "metric": "point_coverage",
+      "clean_score": 1.0,
+      "faulted_score": 0.3333333333333333,
+      "detected": true,
+      "clean_error": null,
+      "faulted_error": null,
+      "clean_reasoning": "1: La réponse refuse explicitement de recommander une assurance ou un contrat spécifique, invoquant le motif de recommandation de produit.; 2: La réponse précise qu'une fois la proposition d'indemnisation acceptée, le paiement doit intervenir dans le délai prévu au contrat, généralement 1 mois.; 3: La réponse mentionne la possibilité de saisir le médiateur de l'assurance en cas de désaccord persistant, puis d'engager une action en justice.",
+      "faulted_reasoning": "1: La réponse indique explicitement qu'elle ne peut pas conseiller une assurance spécifique.; 2: La réponse ne mentionne aucun délai légal ou contractuel de remboursement.; 3: La réponse ne parle pas de médiateur de l'assurance ni de recours judiciaire.",
+      "providers": [
+        "Anthropic"
+      ]
+    },
+    {
+      "golden_id": "gs-015",
+      "archetype": "fabricated_citation",
+      "metric": "faithfulness",
+      "clean_score": 0.95,
+      "faulted_score": 0.85,
+      "detected": true,
+      "clean_error": "false_fail",
+      "faulted_error": null,
+      "clean_reasoning": "Nearly all atomic statements (BCT role, process, documents, timeline, refusal reasons, scope limited to civil liability, L125-6 content) are directly supported by the context; only the final sentence drawing a general analogy between L125-6 (natural catastrophes) and auto insurance is an inference not explicitly stated in the context, slightly reducing full faithfulness.",
+      "faulted_reasoning": "Most statements about BCT process, documents, timelines are directly supported by the fiches. The claim about L212-1 instituting the BCT for auto RC is not supported by the context (L212-1 is not provided; only L215-1 is about housing insurance). The explanation linking L125-6 (catastrophes naturelles) to auto RC is an inference not stated in context, making it unsupported/fabricated reasoning, though clearly labeled as an extrapolation. Overall about 11 of 13 atomic statements are supported.",
+      "providers": [
+        "Anthropic"
+      ]
+    }
+  ],
+  "summary": {
+    "pairs": 12,
+    "detected": 10,
+    "detection_required": 10,
+    "false_passes": {
+      "faithfulness": 0,
+      "point_coverage": 0
+    },
+    "false_fails": {
+      "faithfulness": 5,
+      "point_coverage": 1
+    },
+    "lenient": false,
+    "passed": true
+  }
+}
