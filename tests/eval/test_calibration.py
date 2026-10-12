@@ -392,3 +392,24 @@ class TestRunCalibration:
         assert persisted["pairs"][0]["golden_id"] == "gs-002"
         assert persisted["pairs"][0]["detected"] is True
         assert persisted["summary"]["passed"] is True
+
+    def test_an_uncommitted_set_fails_before_any_judge_call(self, tmp_path: Path) -> None:
+        # The run header pins the set's commit; resolving it after scoring would bill every
+        # judge call and then throw the scores away.
+        _git(tmp_path, "init")
+        _git(tmp_path, "config", "user.email", "t@example.com")
+        _git(tmp_path, "config", "user.name", "T")
+        _git(tmp_path, "commit", "--allow-empty", "-m", "code")
+        calibration_set_path = tmp_path / "judge-set.yaml"
+        dump_calibration_set([_pair()], calibration_set_path)
+
+        with pytest.raises(ValueError, match="no commit touches"):
+            run_calibration(
+                load_calibration_set(calibration_set_path),
+                _judge({}),  # no scripted scores: any judge call raises AssertionError instead
+                run_id="calibration-test",
+                repo_root=tmp_path,
+                calibration_set_path=calibration_set_path,
+                runs_dir=tmp_path / "runs",
+            )
+        assert not (tmp_path / "runs").exists()
