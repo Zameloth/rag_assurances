@@ -42,13 +42,13 @@ RUN uv sync --frozen --no-dev --no-install-project
 # reaches the Hub: a load that needed a file left out fails now, not on a visitor's wake —
 # which is what the load below checks, ahead of the code so a code change skips it.
 COPY --from=weights /hf_cache ./data/raw/hf_cache
+COPY index_lock.json ./
+COPY docker/check_weights.py /tmp/
 ENV HF_HUB_OFFLINE=1 \
     HF_HUB_DISABLE_TELEMETRY=1
-RUN python -c "from FlagEmbedding import BGEM3FlagModel; \
-BGEM3FlagModel('BAAI/bge-m3', use_fp16=False, cache_dir='data/raw/hf_cache')"
+RUN python /tmp/check_weights.py
 
 COPY src ./src
-COPY index_lock.json ./
 COPY data/corpus/corpus_manifest.json data/corpus/LICENSE.md ./data/corpus/
 # Installed in place, not as a wheel: the package finds `index_lock.json`, the corpus
 # manifest and its `data/raw/hf_cache` model cache relative to the checkout root.

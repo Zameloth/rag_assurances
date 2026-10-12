@@ -23,6 +23,10 @@ x-secrets: &secrets
   LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:?absent from .env}
   LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:?absent from .env}
 
+# Where the app and restore reach Qdrant: compose-internal, never published.
+x-store: &store
+  QDRANT_URL: http://qdrant:6333
+
 services:
   rag-assurances:
     build: .
@@ -32,8 +36,7 @@ services:
     # when Sablier starts it — Docker restarting it at once would only repeat the kill.
     mem_limit: 6g
     environment:
-      <<: *secrets
-      QDRANT_URL: http://qdrant:6333
+      <<: [*secrets, *store]
       # The arm the generation eval measured (eval/runs/generation-mistral-large-2512-*).
       GENERATION_MODEL: mistralai/mistral-large-2512
       GENERATION_PROVIDER: mistral/eu
@@ -130,11 +133,13 @@ services:
   # than `run rag-assurances`, so the one-off container carries no Traefik or Sablier label
   # — Traefik would route visitors to it, and Sablier would count it in the group.
   restore:
-    image: rag-assurances # built by `rag-assurances` above
+    # The same build and tag as `rag-assurances`, so the service builds on its own too —
+    # without `build:`, a `run` before any `build` would try to pull an image no registry has.
+    build: .
+    image: rag-assurances
     profiles: [restore]
     command: ["python", "-m", "rag.restore"]
-    environment:
-      QDRANT_URL: http://qdrant:6333
+    environment: *store
     depends_on:
       qdrant:
         condition: service_healthy

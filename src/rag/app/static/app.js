@@ -78,7 +78,7 @@ function scrollToLatest() {
 async function untilAwake(stages) {
   const deadline = Date.now() + WAKE_TIMEOUT_MS;
   let announced = false;
-  while (!(await appAnswers())) {
+  while (!(await isAppAwake())) {
     if (!announced) {
       showStage(stages, { stage: "reveil", label: "Réveil" });
       announced = true;
@@ -92,7 +92,7 @@ async function untilAwake(stages) {
 // container is awake and the request is worth sending: dev's /health reports the index clause
 // false by design, and a real failure is the answer route's to report, in its own words.
 // Anything else is the waiting page, or no answer while the tunnel or container comes up.
-async function appAnswers() {
+async function isAppAwake() {
   try {
     const response = await fetch("/health", { cache: "no-store" });
     return response.headers.get("content-type")?.startsWith("application/json") ?? false;

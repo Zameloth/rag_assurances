@@ -225,6 +225,7 @@ What `self-host` is given:
 | | |
 |---|---|
 | Repository | `Zameloth/rag_assurances`, branch `main`, public |
+| Public URL | `https://rag.theo-eloy.fr` |
 | Secrets (`.env`) | `OPENROUTER_API_KEY` — prod's own key, **with a credit limit set on the OpenRouter dashboard** ([SPEC §14.5](SPEC.md)); `LANGFUSE_PUBLIC_KEY`; `LANGFUSE_SECRET_KEY` |
 | Sleep | yes — Sablier group **`rag`**, to add to `veille.yml` |
 | Override | `docker compose build && docker compose --profile restore run --rm restore && docker compose up -d --wait --remove-orphans` |
@@ -254,7 +255,8 @@ you cannot relicense the Code des assurances ([SPEC §16.2](SPEC.md)).
 
 ## Notes
 
-Configuration is read from `.env` and nowhere else ([SPEC §16.3](SPEC.md)); `.env.example` is the
-committed template and documents every variable. `LANGFUSE_TRACING` is **off by default** — the free
+Configuration is read from the environment and nowhere else ([SPEC §16.3](SPEC.md)): `.env` in dev,
+whose committed template `.env.example` documents every variable; in prod the host's `.env` holds the
+secrets and `compose.yml` sets the rest. `LANGFUSE_TRACING` is **off by default** — the free
 tier fails on interactive debugging long before it fails on the ladder ([SPEC §11.2](SPEC.md)) — and
 **on in prod** ([SPEC §14.7](SPEC.md)).

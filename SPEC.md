@@ -1978,7 +1978,9 @@ statement**: you can license your code, you cannot relicense the Code des assura
 ### 16.3 Configuration
 
 `.env` at the repo root, **gitignored**, loaded via `python-dotenv`; `.env.example` is the committed
-template. Every spec snippet reads config from the environment, never inline. Chosen over `pass`/keyring
+template. Every spec snippet reads config from the environment, never inline. **In prod** the host writes a
+`.env` holding the secrets only, and `compose.yml`'s `environment:` sets everything else — the code still
+reads the environment and nothing else, but which arm prod runs is reviewed in git (§14.1, ADR-0026). Chosen over `pass`/keyring
 and shell-profile exports: both add a step to every run and every snippet, for a solo project with no
 shared secrets. Rotation is a key-regenerate plus one file edit.
 
@@ -1992,7 +1994,7 @@ shared secrets. Rotation is a key-regenerate plus one file edit.
 | `LANGFUSE_SECRET_KEY` | `sk-lf-…` — shown once at creation |
 | `LANGFUSE_BASE_URL` | `https://cloud.langfuse.com` — **not `LANGFUSE_HOST`** |
 | `LANGFUSE_TRACING` | **false in dev**, true in prod, forced true inside `run_experiment` |
-| `QDRANT_URL` | compose-internal |
+| `QDRANT_URL` | `http://qdrant:6333` in prod, set by `compose.yml` |
 
 ### 16.4 `corpus_manifest.json` — one file, two jobs, script-emitted
 
