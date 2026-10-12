@@ -13,6 +13,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
+from langchain_core.callbacks import BaseCallbackHandler
 
 import rag.generation.chain as chain_module
 from rag.config import Settings
@@ -176,9 +177,11 @@ class _FakeInvokeChain:
     def __init__(self, result: _EnvelopeContainer) -> None:
         self._result = result
         self.received: list[Any] | None = None
+        self.config: Any = None
 
-    def invoke(self, messages: list[Any]) -> _EnvelopeContainer:
+    def invoke(self, messages: list[Any], config: Any = None) -> _EnvelopeContainer:
         self.received = messages
+        self.config = config
         return self._result
 
 
@@ -222,3 +225,24 @@ def test_generate_fn_never_leaks_the_envelope_container(monkeypatch: pytest.Monk
     result = generate_fn([("user", "question")])
 
     assert not isinstance(result, _EnvelopeContainer)
+
+
+def test_generate_fn_passes_its_callbacks_on_every_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The app's Langfuse handler (SPEC §11.1) reaches the call itself — the only place a
+    LangChain handler can see it."""
+    fake_chain = _FakeInvokeChain(_EnvelopeContainer(envelope=Reponse(explanation="texte")))
+    monkeypatch.setattr(chain_module, "_build_chain", lambda settings: fake_chain)
+    handler = BaseCallbackHandler()
+
+    chain_module.make_generate_fn(_settings(), callbacks=[handler])([("user", "question")])
+
+    assert fake_chain.config == {"callbacks": [handler]}
+
+
+def test_generate_fn_passes_no_callbacks_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_chain = _FakeInvokeChain(_EnvelopeContainer(envelope=Reponse(explanation="texte")))
+    monkeypatch.setattr(chain_module, "_build_chain", lambda settings: fake_chain)
+
+    chain_module.make_generate_fn(_settings())([("user", "question")])
+
+    assert fake_chain.config == {"callbacks": []}

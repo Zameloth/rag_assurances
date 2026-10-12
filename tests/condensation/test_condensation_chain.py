@@ -13,6 +13,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
+from langchain_core.callbacks import BaseCallbackHandler
 
 import rag.condensation.chain as chain_module
 from rag.condensation.chain import OPENROUTER_BASE_URL, _to_langchain_messages
@@ -178,9 +179,11 @@ class _FakeInvokeChain:
     def __init__(self, result: CondenserOutput | Exception) -> None:
         self._result = result
         self.received: list[Any] | None = None
+        self.config: Any = None
 
-    def invoke(self, messages: list[Any]) -> CondenserOutput:
+    def invoke(self, messages: list[Any], config: Any = None) -> CondenserOutput:
         self.received = messages
+        self.config = config
         if isinstance(self._result, Exception):
             raise self._result
         return self._result
@@ -213,3 +216,13 @@ def test_condense_fn_propagates_call_failures_rather_than_swallowing_them(
 
     with pytest.raises(TimeoutError, match="pinned endpoint down"):
         condense_fn([("user", "question")])
+
+
+def test_condense_fn_passes_its_callbacks_on_every_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_chain = _FakeInvokeChain(CondenserOutput(requete="Une question autonome ?"))
+    monkeypatch.setattr(chain_module, "_build_chain", lambda settings: fake_chain)
+    handler = BaseCallbackHandler()
+
+    chain_module.make_condense_fn(_settings(), callbacks=[handler])([("user", "question")])
+
+    assert fake_chain.config == {"callbacks": [handler]}

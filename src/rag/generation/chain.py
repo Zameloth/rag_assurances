@@ -13,9 +13,11 @@ the skeleton only: signatures and the seam, not the chain itself.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from functools import lru_cache
 from typing import cast
 
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
@@ -104,14 +106,19 @@ def _cached_chain(settings: Settings) -> Runnable[list[BaseMessage], _EnvelopeCo
     return _build_chain(settings)
 
 
-def make_generate_fn(settings: Settings) -> GenerateFn:
+def make_generate_fn(
+    settings: Settings, *, callbacks: Sequence[BaseCallbackHandler] = ()
+) -> GenerateFn:
     """The `GenerateFn` `rag.generation.pipeline.generate` expects: `list[Message] ->
-    Envelope`. Built once per `settings`, reused across calls."""
+    Envelope`. Built once per `settings`, reused across calls.
+
+    `callbacks` ride along on every call — the app's Langfuse handler when prod tracing is
+    on (SPEC §11.1: the call then traces as a generation observation), nothing otherwise."""
     chain = _cached_chain(settings)
 
     def generate_fn(messages: list[Message]) -> Envelope:
         # `.envelope` unwraps `_EnvelopeContainer` — the container never leaves this module.
         lc_messages = _to_langchain_messages(messages)
-        return chain.invoke(lc_messages).envelope
+        return chain.invoke(lc_messages, config={"callbacks": list(callbacks)}).envelope
 
     return generate_fn

@@ -1747,8 +1747,10 @@ limit bounds the volume. An unobservable deployed app would be a strange look fo
 choice was justified by observability. Tiebreak if the budget tightens: **eval wins, prod tracing goes
 off** — one line in `compose.yml`.
 
-*As of #54 the flag reaches the app but the serving path opens no Langfuse trace yet*; wiring it is a
-Langfuse change of its own.
+**Wired in `rag.app.tracing` (#54)**: one `ask` trace per question, tagged `app` — the condenser and
+generation calls as generation observations through LangChain's callback handler (§11.1), retrieval as a
+`retriever` observation through `run_chain`'s `retrieve_fn` seam, which passes `retrieve` itself, wrapped,
+so the traced path is the measured one. About 9 units a question.
 
 ---
 

@@ -68,8 +68,10 @@ operator's command, and the Uptime-Kuma keyword monitor.
 - **The RAM rule is moot.** Rung 1 ships (ADR-0024) — BGE-M3 alone, no reranker — and the host has
   32 GB. `mem_limit` stays (6 GB app, 1 GB Qdrant) for its other job: a blown budget kills this
   container, not a neighbour. No restart policy, so an OOM kill waits for the next visit.
-- **Prod tracing is configured, not yet wired.** `LANGFUSE_TRACING=true` reaches the app, but the
-  serving path opens no Langfuse trace today; that wiring is a Langfuse change of its own.
+- **Prod tracing is one `ask` trace per question** (`rag.app.tracing`): the condenser and
+  generation calls as generation observations via LangChain's callback handler, retrieval as a
+  `retriever` observation through a `retrieve_fn` seam on `run_chain` — `retrieve` itself, wrapped,
+  so the served path stays the measured one. ~9 units a question.
 - **The OpenRouter credit cap is a dashboard act**: prod gets its own key, with a credit limit.
 - **Bots get no link preview** — a shared link renders bare. The same trade SPEC §14.5 made.
 - **Migrating dev**: the dev store's project name changed, so the old container must be removed
