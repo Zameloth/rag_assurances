@@ -21,11 +21,15 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-__all__ = ["ConfigurationError", "PromptLanguage", "Settings", "load_settings"]
+__all__ = ["OPENROUTER_BASE_URL", "ConfigurationError", "PromptLanguage", "Settings", "load_settings"]
 
 # The three defaults that are spec constants rather than choices: §11.3 fixes the Langfuse
 # URL, §16.1's dev compose fixes where Qdrant answers, and §15.4 fixes the release channel
 # restore pulls the points dump from. None identifies a run.
+# Lives here, not in `rag.generation.chain`, so eval tooling that must stay independent of
+# the retrieval pipeline (ADR-0020) can reach it without importing the generation package
+# (which pulls in `rag.retrieval`).
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_LANGFUSE_BASE_URL = "https://cloud.langfuse.com"
 DEFAULT_QDRANT_URL = "http://localhost:6333"
 DEFAULT_INDEX_RELEASE_URL = "https://github.com/Zameloth/rag_assurances/releases/download"

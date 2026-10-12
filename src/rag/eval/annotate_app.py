@@ -37,7 +37,7 @@ from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, SecretStr
 
-from rag.config import Settings, load_settings
+from rag.config import OPENROUTER_BASE_URL, Settings, load_settings
 from rag.eval.corpus import (
     ArticleRow,
     fiche_chunk_texts,
@@ -57,7 +57,6 @@ from rag.eval.schema import (
     load_golden_set,
 )
 from rag.eval.validate import GoldenSetValidationError, validate_golden_set_against_corpus
-from rag.generation.chain import OPENROUTER_BASE_URL
 
 __all__ = ["create_app"]
 

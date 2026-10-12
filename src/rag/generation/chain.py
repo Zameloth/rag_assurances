@@ -23,16 +23,12 @@ from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, SecretStr
 
-from rag.config import Settings
+from rag.config import OPENROUTER_BASE_URL, Settings
 from rag.generation.pipeline import GenerateFn
 from rag.generation.prompt import Message
 from rag.generation.schema import Envelope
 
 __all__ = ["OPENROUTER_BASE_URL", "make_generate_fn"]
-
-# Not a `Settings` field, unlike the Qdrant/Langfuse URLs — those genuinely differ dev vs
-# prod; OpenRouter's endpoint doesn't move with the environment.
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 _ROLE_TO_MESSAGE_CLS: dict[str, type[BaseMessage]] = {
     "system": SystemMessage,
