@@ -15,6 +15,7 @@ from __future__ import annotations
 import enum
 from collections.abc import Callable, Sequence
 from collections.abc import Set as AbstractSet
+from typing import Protocol
 
 from qdrant_client import QdrantClient
 
@@ -25,9 +26,16 @@ from rag.condensation.schema import CondenserOutput
 from rag.generation.pipeline import GenerateFn, GenerationResult, generate
 from rag.generation.prompt import HistoryTurn as GenerationHistoryTurn
 from rag.ingest.upsert import EmbedFn
-from rag.retrieval.pipeline import retrieve
+from rag.retrieval.pipeline import RetrievalResult, retrieve
 
-__all__ = ["GENERATION_RETRIEVAL_ARM", "Stage", "StageFn", "ignore_stage", "run_chain"]
+__all__ = [
+    "GENERATION_RETRIEVAL_ARM",
+    "RetrieveFn",
+    "Stage",
+    "StageFn",
+    "ignore_stage",
+    "run_chain",
+]
 
 # ADR-0024 — rung 1 stands. What a generation run sits on top of, what the calibration
 # authoring helper's real answers come from, and what the app serves: one constant, so the
@@ -55,6 +63,21 @@ def ignore_stage(stage: Stage) -> None:
     """The `StageFn` for a caller with no one to show progress to — the eval, say."""
 
 
+class RetrieveFn(Protocol):
+    """`rag.retrieval.pipeline.retrieve`'s own shape — the seam the app's prod tracing wraps
+    in a `retriever` observation (`rag.app.tracing`) without a second code path."""
+
+    def __call__(
+        self,
+        client: QdrantClient,
+        embed: EmbedFn,
+        raw_turn: str,
+        lookup_keys: AbstractSet[str],
+        *,
+        arm: str,
+    ) -> RetrievalResult: ...
+
+
 def run_chain(
     raw_turn: str,
     history: Sequence[HistoryTurn],
@@ -66,6 +89,7 @@ def run_chain(
     generate_fn: GenerateFn,
     retrieval_arm: str = GENERATION_RETRIEVAL_ARM,
     on_stage: StageFn = ignore_stage,
+    retrieve_fn: RetrieveFn | None = None,
 ) -> GenerationResult:
     """Condense, retrieve, generate — exactly as the eval task runs it.
 
@@ -77,6 +101,10 @@ def run_chain(
     `on_stage` hears each stage as it starts. `CONDENSATION` is announced from inside the
     condenser call itself, so a turn that skips condensation (no history, or a resolved
     short-circuit — ADR-0008) never claims to have condensed.
+
+    `retrieve_fn` is `retrieve` itself (`None`) everywhere but on a traced app, which passes
+    the same function wrapped in an observation — the retrieval that runs is the same either
+    way.
     """
     history = trim_history(history)
 
@@ -86,7 +114,9 @@ def run_chain(
 
     condensation = condense(raw_turn, history, lookup_keys, announced_condense_fn)
     on_stage(Stage.RECHERCHE)
-    retrieval = retrieve(client, embed, condensation.query, lookup_keys, arm=retrieval_arm)
+    retrieval = (retrieve_fn or retrieve)(
+        client, embed, condensation.query, lookup_keys, arm=retrieval_arm
+    )
     generation_history = tuple(
         GenerationHistoryTurn(role=turn.role, content=turn.content) for turn in history
     )

@@ -30,11 +30,14 @@ make up                  # dev Qdrant, reachable at QDRANT_URL
 make check               # mypy, then the test suite
 ```
 
-`make` on its own lists every target. Of the four pipeline targets, `ingest` is real — it needs
+`make` on its own lists every target. Of the three pipeline targets, `ingest` is real — it needs
 `make up` first, and downloads the BGE-M3 weights into gitignored `data/raw/` on its first run —
-and so is `publish-index` (see [Publishing the index](#publishing-the-index)). `ladder` and
-`deploy` are named now and stubbed until their ticket lands; each exits non-zero and prints the
-command it will run.
+and so is `publish-index` (see [Publishing the index](#publishing-the-index)). `ladder` is named
+and stubbed; it exits non-zero and prints the command it will run. There is no `deploy` target:
+the host deploys (see [Deploying](#deploying)).
+
+`make up` runs `compose.dev.yml`. The root `compose.yml` is **prod** — plain `docker compose` picks
+it up, so don't run it bare for dev.
 
 The suite is green without a live store: anything needing the real engine takes the `qdrant_server`
 fixture and skips when nothing answers at `QDRANT_URL`. Everything else uses `QdrantClient(":memory:")`,
@@ -172,7 +175,7 @@ almost identical, and not the artifact that was scored ([SPEC §15.3](SPEC.md)).
 On the deploy host, **the app image is the tool** — no checkout, no Python on the host:
 
 ```sh
-docker compose run --rm rag-assurances python -m rag.restore
+docker compose --profile restore run --rm restore
 ```
 
 It installs the release named by the `index_lock.json` baked into the image
@@ -194,7 +197,7 @@ make the same flip by hand from inside the app container — though `/health` wi
 index clause false until the image's lock names that tag too:
 
 ```sh
-docker compose run --rm rag-assurances python -c "
+docker compose --profile restore run --rm restore python -c "
 from qdrant_client import QdrantClient; from rag.ingest.arms import flip_aliases
 flip_aliases(QdrantClient('http://qdrant:6333'),
              {r: f'{r}__index-YYYY-MM-DD' for r in ('fiches', 'articles')})"
@@ -204,6 +207,40 @@ flip_aliases(QdrantClient('http://qdrant:6333'),
 lock's release tag** ([SPEC §14.3](SPEC.md)), and returns each clause separately so a failure says
 which one. In dev the aliases point at ladder arms rather than a release, so dev `/health` reports
 the index clause false — correctly.
+
+## Deploying
+
+The demo runs at **`rag.theo-eloy.fr`** on aspire, a self-hosted laptop behind Traefik v3.7, reached
+only through a Cloudflare Tunnel, asleep via Sablier when nobody is looking
+([SPEC §14](SPEC.md), [ADR-0026](docs/adr/0026-self-hosted-on-aspire-the-repo-prepares-the-host-deploys.md)).
+**This repo prepares; it does not deploy** — the infra repo `self-host` clones it on every new commit
+to `main`, writes its `.env`, and runs it. Everything it needs is in [`compose.yml`](compose.yml):
+two services, `rag-assurances` and `qdrant`, Qdrant on an internal network, no published port, a
+`mem_limit` on each, both in Sablier group `rag`, and the bot 403, rate limits and wake middleware
+as labels. The BGE-M3 weights are baked into the image at the revision `index_lock.json` pins, so a
+wake makes no network call.
+
+What `self-host` is given:
+
+| | |
+|---|---|
+| Repository | `Zameloth/rag_assurances`, branch `main`, public |
+| Public URL | `https://rag.theo-eloy.fr` |
+| Secrets (`.env`) | `OPENROUTER_API_KEY` — prod's own key, **with a credit limit set on the OpenRouter dashboard** ([SPEC §14.5](SPEC.md)); `LANGFUSE_PUBLIC_KEY`; `LANGFUSE_SECRET_KEY` |
+| Sleep | yes — Sablier group **`rag`**, to add to `veille.yml` |
+| Override | `docker compose build && docker compose --profile restore run --rm restore && docker compose up -d --wait --remove-orphans` |
+| Probe | the group's wake through Sablier's blocking API: 200 once `/health` is — models loaded, Qdrant up, aliases on the lock's release |
+
+The override is the [SPEC §15.7](SPEC.md) ordering: restore before `up`, because a new image whose
+lock names a release Qdrant doesn't hold is unhealthy until it does; and `--wait`, so the deploy fails
+loudly when `/health` isn't 200 rather than leaving a permanent waiting page for the monitor to find.
+
+**The served arm is the measured one.** SPEC §14.4's pre-registered rule — prod runs the
+ladder-winning arm if it fits the RAM budget, otherwise the cheapest that does, with the divergence
+written here — resolved with **no divergence**: rung 1 won the ladder
+([ADR-0024](docs/adr/0024-ladder-rungs-4-6-run-rerank-and-quota-guard-fail-e5-is-a-wash-rung-1-stands.md)),
+BGE-M3 alone, and prod runs it with the generation arm the generation eval scored
+(`mistralai/mistral-large-2512`).
 
 ## Licence
 
@@ -218,6 +255,8 @@ you cannot relicense the Code des assurances ([SPEC §16.2](SPEC.md)).
 
 ## Notes
 
-Configuration is read from `.env` and nowhere else ([SPEC §16.3](SPEC.md)); `.env.example` is the
-committed template and documents every variable. `LANGFUSE_TRACING` is **off by default** — the free
-tier fails on interactive debugging long before it fails on the ladder ([SPEC §11.2](SPEC.md)).
+Configuration is read from the environment and nowhere else ([SPEC §16.3](SPEC.md)): `.env` in dev,
+whose committed template `.env.example` documents every variable; in prod the host's `.env` holds the
+secrets and `compose.yml` sets the rest. `LANGFUSE_TRACING` is **off by default** — the free
+tier fails on interactive debugging long before it fails on the ladder ([SPEC §11.2](SPEC.md)) — and
+**on in prod** ([SPEC §14.7](SPEC.md)).

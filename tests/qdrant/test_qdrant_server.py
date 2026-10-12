@@ -1,4 +1,4 @@
-"""The dev store from docker-compose.yml, when it is up.
+"""The dev store from compose.dev.yml, when it is up.
 
 Skipped otherwise — see the `qdrant_server` fixture. What is asserted here is what local
 mode cannot vouch for: that the *engine* accepts the SPEC §6.3–§6.4 collection shape.

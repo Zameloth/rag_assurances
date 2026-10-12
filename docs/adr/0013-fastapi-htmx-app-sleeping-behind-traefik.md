@@ -1,6 +1,6 @@
 # ADR-0013 — A FastAPI + HTMX typed-object renderer, sleeping behind the existing Traefik
 
-- **Status**: Accepted — 2026-08-03
+- **Status**: Accepted — 2026-08-03. Deployment premise superseded by [ADR-0026](0026-self-hosted-on-aspire-the-repo-prepares-the-host-deploys.md) (2026-10-12).
 - **Ticket**: [#13](https://github.com/Zameloth/rag_assurances/issues/13)
 - **Spec**: [`SPEC.md` §13](../../SPEC.md#13-application), [§14](../../SPEC.md#14-deployment)
 

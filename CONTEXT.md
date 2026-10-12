@@ -133,10 +133,11 @@ and must be answered from both.
 | **the pipeline is a library** | `compare.py` and the web app share one code path; the app adds no logic. Non-negotiable — otherwise the evaluated system and the served system drift. |
 | **stateless** | The app holds no session. History is client-side and posted back each turn — and is therefore **untrusted input**, trimmed server-side. |
 | **stage events** | The SSE progress signal (*chargement → condensation → recherche → génération*). **Not token streaming**, which was rejected: a strict `json_schema` response streams as unreadable raw JSON. |
-| **sleep / the group** | Container-level sleep via Sablier. **Both app and Qdrant** are in group `rag`; the group name must be globally unique across the VPS. |
+| **the host** | aspire, a self-hosted laptop reached only through a Cloudflare Tunnel. The repo **prepares** (`compose.yml`); the infra repo `self-host` **deploys** it. Replaced the VPS (ADR-0026). |
+| **sleep / the group** | Container-level sleep via Sablier. **Both app and Qdrant** are in group `rag`; the group name must be globally unique across the host. |
 | **`/health`** | Three clauses: **models loaded AND Qdrant reachable AND alias target matches `index_lock.json`.** Sablier closes its waiting page on this signal, so anything omitted is handed to a visitor as a failure. |
-| **the RAM budget** | **~4.5 GB** — what is free *with the other demo awake*, on a box with **no swap**. The constraint is **concurrency, not capacity**, and the enforcer is an OOM killer that picks its own victim. |
-| **the pre-registered arm rule** | Prod runs the ladder-winning arm **if it fits**; else the cheapest that does, with the divergence recorded in the README. Never discovered at deploy time. |
+| **the RAM budget** | *Historical* — **~4.5 GB** on the VPS, free *with the other demo awake*, on a box with **no swap**. Moot on the 32 GB host; `mem_limit` remains to keep a blow-up local. |
+| **the pre-registered arm rule** | Prod runs the ladder-winning arm **if it fits**; else the cheapest that does, with the divergence recorded in the README. Never discovered at deploy time. Resolved with **no divergence**: rung 1 ships. |
 | **the points dump** | The delivery artifact — one Parquet file per register on a GitHub Release. **Not a Qdrant snapshot**: `indexing_threshold=0` means there is no built index to preserve. |
 | **the alias flip** | How a restored index goes live: upsert into `<register>__<release-tag>`, verify the count, then move the stable alias. Atomic, so a partial write never acquires the alias. |
 | **`index_lock.json`** | The committed provenance pointer — release tag, `corpus_manifest_sha256`, embedder, chunk config, per-register count and asset sha256, ladder rung. |

@@ -1,4 +1,4 @@
-"""The dev store from docker-compose.yml, when it is up (#25).
+"""The dev store from compose.dev.yml, when it is up (#25).
 
 Skipped otherwise — see the `qdrant_server` fixture. What is asserted here is what local
 mode cannot vouch for (see `test_arms.py`'s module docstring): `indexing_threshold`

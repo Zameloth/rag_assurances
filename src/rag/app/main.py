@@ -46,6 +46,7 @@ from qdrant_client import QdrantClient
 
 from rag.app.attribution import CorpusAttribution, load_attribution
 from rag.app.health import AliasProbe, check_health, qdrant_aliases
+from rag.app.tracing import make_tracing, untraced_turn
 from rag.app.view import build_view
 from rag.condensation.chain import make_condense_fn
 from rag.condensation.prompt import MAX_HISTORY_TURN_CHARS, HistoryTurn
@@ -141,10 +142,17 @@ def make_answer_fn(settings: Settings) -> AnswerFn:
     first question rather than at startup, so the app can come up before Qdrant answers
     (the two wake together — SPEC §14.2). That read is the `chargement` stage, announced
     only while it actually runs; one that fails is retried, and announced again, on the
-    next question. It holds a lock, so concurrent first questions read it once."""
+    next question. It holds a lock, so concurrent first questions read it once.
+
+    With `LANGFUSE_TRACING` on — prod (SPEC §14.7) — each question is one Langfuse trace
+    (`rag.app.tracing`); the chain that runs inside it is the same."""
     client = QdrantClient(settings.qdrant_url)
-    condense_fn = make_condense_fn(settings)
-    generate_fn = make_generate_fn(settings)
+    tracing = make_tracing(settings)
+    callbacks = tracing.callbacks if tracing is not None else ()
+    retrieve_fn = tracing.retrieve_fn if tracing is not None else None
+    turn = tracing.turn if tracing is not None else untraced_turn
+    condense_fn = make_condense_fn(settings, callbacks=callbacks)
+    generate_fn = make_generate_fn(settings, callbacks=callbacks)
     warm_up_lock = threading.Lock()
     loaded_lookup_keys: frozenset[str] | None = None
 
@@ -157,20 +165,26 @@ def make_answer_fn(settings: Settings) -> AnswerFn:
                     loaded_lookup_keys = load_lookup_keys(client)
         return loaded_lookup_keys
 
-    def answer(question: str, history: Sequence[HistoryTurn], on_stage: StageFn) -> GenerationResult:
+    def answer(
+        question: str, history: Sequence[HistoryTurn], on_stage: StageFn
+    ) -> GenerationResult:
         from rag.ingest.embedder import embed_batch  # deferred: pulls in torch
 
         lookup_keys = warm_up(on_stage)
-        return run_chain(
-            question,
-            history,
-            client=client,
-            embed=embed_batch,
-            lookup_keys=lookup_keys,
-            condense_fn=condense_fn,
-            generate_fn=generate_fn,
-            on_stage=on_stage,
-        )
+        with turn(question, history) as record:
+            result = run_chain(
+                question,
+                history,
+                client=client,
+                embed=embed_batch,
+                lookup_keys=lookup_keys,
+                condense_fn=condense_fn,
+                generate_fn=generate_fn,
+                on_stage=on_stage,
+                retrieve_fn=retrieve_fn,
+            )
+            record(result)
+            return result
 
     return answer
 

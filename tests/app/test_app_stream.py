@@ -195,8 +195,8 @@ class TestChargement:
         monkeypatch.setitem(sys.modules, "rag.ingest.embedder", types.SimpleNamespace(embed_batch=None))
         monkeypatch.setattr(main_module, "run_chain", run_chain)
         monkeypatch.setattr(main_module, "QdrantClient", lambda url: None)
-        monkeypatch.setattr(main_module, "make_condense_fn", lambda settings: None)
-        monkeypatch.setattr(main_module, "make_generate_fn", lambda settings: None)
+        monkeypatch.setattr(main_module, "make_condense_fn", lambda settings, **_: None)
+        monkeypatch.setattr(main_module, "make_generate_fn", lambda settings, **_: None)
         return loads
 
     def _answer(self) -> AnswerFn:

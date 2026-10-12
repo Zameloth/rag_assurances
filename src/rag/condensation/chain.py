@@ -18,9 +18,11 @@ directly.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from functools import lru_cache
 from typing import cast
 
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
@@ -98,9 +100,12 @@ def _cached_chain(settings: Settings) -> Runnable[list[BaseMessage], CondenserOu
     return _build_chain(settings)
 
 
-def make_condense_fn(settings: Settings) -> CondenseFn:
+def make_condense_fn(
+    settings: Settings, *, callbacks: Sequence[BaseCallbackHandler] = ()
+) -> CondenseFn:
     """The `CondenseFn` `rag.condensation.pipeline.condense` expects: `list[Message] ->
-    CondenserOutput`. Built once per `settings`, reused across calls.
+    CondenserOutput`. Built once per `settings`, reused across calls. `callbacks` ride
+    along on every call, as in `rag.generation.chain.make_generate_fn`.
 
     Any call failure (timeout, pinned endpoint down, a malformed response) propagates as
     whatever exception the chain raises — `condense()` is what catches it and turns it into
@@ -111,6 +116,6 @@ def make_condense_fn(settings: Settings) -> CondenseFn:
 
     def condense_fn(messages: list[Message]) -> CondenserOutput:
         lc_messages = _to_langchain_messages(messages)
-        return chain.invoke(lc_messages)
+        return chain.invoke(lc_messages, config={"callbacks": list(callbacks)})
 
     return condense_fn

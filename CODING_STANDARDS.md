@@ -38,7 +38,7 @@ real gap worth raising for `/domain-modeling`.
 
 ## Architectural rules (from ADRs / SPEC — hard violations, not judgement calls)
 
-- **Config only from `.env`, never inline** (SPEC §16.3, [ADR-0012](docs/adr/0012-langfuse-cloud-and-tracing-gates.md)).
+- **Config only from the environment, never inline in code** (SPEC §16.3, [ADR-0012](docs/adr/0012-langfuse-cloud-and-tracing-gates.md)): `.env` in dev; in prod the host's `.env` for the secrets and `compose.yml`'s `environment:` for the rest ([ADR-0026](docs/adr/0026-self-hosted-on-aspire-the-repo-prepares-the-host-deploys.md)).
 - **Qdrant via the native `qdrant-client`, never a LangChain `VectorStore` wrapper** (SPEC §6.1,
   [ADR-0005](docs/adr/0005-qdrant-two-collections-behind-aliases.md)).
 - **No physical collection name in code** — an index-bearing arm is addressed through its stable

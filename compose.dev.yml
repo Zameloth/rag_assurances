@@ -1,9 +1,13 @@
 # Dev Qdrant, reachable at QDRANT_URL (SPEC §6.3 — server everywhere, not embedded).
+# Run through `make up`/`down`/`logs`/`clean`, which pass `-f compose.dev.yml`.
 #
-# This is the development store only. The deploy topology of SPEC §14.1 is a different
-# file: two services on two networks, no published ports, Traefik and Sablier labels,
-# mem_limit on both. Nothing here should be copied there — the published port below is
-# exactly what prod must not have.
+# This is the development store only. The deploy topology of SPEC §14.1 is `compose.yml`,
+# the file `docker compose` picks up by default — the one the host clones and runs. Nothing
+# here should be copied there: the published port below is exactly what prod must not have.
+
+# Its own project name, so a `docker compose up` of the prod file in this same checkout never
+# sees the dev store as an orphan of its project, or the other way round.
+name: rag-assurances-dev
 
 services:
   qdrant:
@@ -34,3 +38,6 @@ services:
 
 volumes:
   qdrant-dev-storage:
+    # The name this volume had while the project was named after the directory — kept, so
+    # renaming the project did not strand an already-ingested dev store.
+    name: rag_assurances_qdrant-dev-storage

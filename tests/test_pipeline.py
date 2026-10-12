@@ -20,7 +20,7 @@ from rag.condensation.schema import CondenserOutput
 from rag.generation.prompt import Message as GenerationMessage
 from rag.generation.schema import Envelope, Reponse
 from rag.ingest.upsert import EmbedFn
-from rag.pipeline import Stage, run_chain
+from rag.pipeline import GENERATION_RETRIEVAL_ARM, Stage, run_chain
 from rag.retrieval.pipeline import RetrievalResult
 from rag.retrieval.short_circuit import ShortCircuitPath
 
@@ -197,3 +197,34 @@ class TestStageEvents:
             "retrieve": [Stage.CONDENSATION, Stage.RECHERCHE],
             "generate": [Stage.CONDENSATION, Stage.RECHERCHE, Stage.GENERATION],
         }
+
+
+def test_an_injected_retrieve_fn_is_the_retrieval_that_runs(retrieved_queries: list[str]) -> None:
+    """The traced app's seam (`rag.app.tracing`): passed, it replaces `retrieve` outright —
+    with the condensed query and the same arm — rather than running beside it."""
+    seen: list[tuple[str, str]] = []
+
+    def retrieve_fn(
+        client: QdrantClient,
+        embed: EmbedFn,
+        raw_turn: str,
+        lookup_keys: AbstractSet[str],
+        *,
+        arm: str,
+    ) -> RetrievalResult:
+        seen.append((raw_turn, arm))
+        return RetrievalResult(short_circuit_path=ShortCircuitPath.NO_REFERENCE, contexts=[])
+
+    run_chain(
+        "et si je suis locataire ?",
+        _HISTORY,
+        client=QdrantClient(":memory:"),
+        embed=lambda texts: [],
+        lookup_keys=frozenset(),
+        condense_fn=lambda messages: CondenserOutput(requete="franchise si locataire ?"),
+        generate_fn=lambda messages: Reponse(explanation="..."),
+        retrieve_fn=retrieve_fn,
+    )
+
+    assert seen == [("franchise si locataire ?", GENERATION_RETRIEVAL_ARM)]
+    assert retrieved_queries == []

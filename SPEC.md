@@ -1599,37 +1599,53 @@ actually be designed.
 
 ## 14. Deployment
 
-**The author's own VPS, via docker-compose, behind the existing Traefik v2.11, sleeping via Sablier.**
+**aspire, a self-hosted 32 GB laptop, via docker-compose, behind its Traefik v3.7, reached only through a
+Cloudflare Tunnel, sleeping via Sablier** ([ADR-0026](docs/adr/0026-self-hosted-on-aspire-the-repo-prepares-the-host-deploys.md)).
+
+*Retargeted 2026-10-12 from the author's VPS (Traefik v2.11, 7.7 GB, no swap, Uptime-Kuma).* The
+decisions below that only made sense there are marked as such rather than deleted, because the reasoning
+is still why the labels look the way they do.
+
+**This repo prepares; it does not deploy.** A separate infra repo, `self-host`, lists the project in its
+catalogue, clones it, writes a `.env` at its root, and runs the deploy sequence (§15.7) on every new commit
+to `main`. Traefik, Sablier, the tunnel and the monitoring all live there. **This repo carries
+`compose.yml` and its labels only — no CD, no `make deploy`.**
 
 ### 14.1 Compose topology
 
-Two services, `rag-assurances` and `qdrant`.
+`compose.yml` at the root — the file `docker compose` picks by default. The dev store is
+`compose.dev.yml`, behind `make up`. Two long-running services, `rag-assurances` and `qdrant`, plus a
+one-off `restore` behind a profile (§15.5).
 
-- **Only `rag-assurances` joins the external `web` network.** Qdrant sits on a dedicated internal
-  network. **No `ports:` published anywhere** — Traefik joins the container over `web`.
-- **The service name must be globally unique across the VPS** — Traefik router/service names are
-  global, hence `rag-assurances`, not `app`.
-- `env_file: [.env]` beside the compose file.
+- **Only `rag-assurances` joins the external `web` network.** Qdrant sits on a dedicated `internal`
+  network. **No `ports:` published anywhere** — the tunnel is the only public path, and Traefik joins the
+  container over `web` (`traefik.docker.network=web`, since the app is on two networks).
+- **Router, middleware and service names must be globally unique across the host** — they are Traefik's,
+  shared by every project — hence the `rag-` prefix on all of them, and `rag-assurances`, not `app`.
+- **Only secrets come from `.env`** (`OPENROUTER_API_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`),
+  each referenced as `${VAR:?}` so compose refuses to start without it. The model ids, `QDRANT_URL` and
+  `LANGFUSE_TRACING` are written in `compose.yml`: which arm prod runs is in git.
 - **`mem_limit` on both containers** (§14.4).
+- **The BGE-M3 weights are in the image**, at the revision `index_lock.json` pins, and the runtime is
+  `HF_HUB_OFFLINE=1`: the wake path makes no network call (§15.5).
 
-Traefik discovers services by Docker label; Let's Encrypt is automatic via OVH DNS challenge;
-HTTP→HTTPS is redirected globally. Host is `rag.theo-eloy.fr`, app port **8000**.
+Cloudflare terminates TLS; Traefik receives plain HTTP with the `Host` header kept — so no certresolver
+and no HTTPS redirect in the labels. Host is `rag.theo-eloy.fr`, app port **8000**.
 
 ### 14.2 Sleep
 
 **Both containers carry `sablier.enable` and `sablier.group=rag`.** The group name must be **globally
-unique across the VPS**.
+unique across the host**.
 
-Qdrant sleeps *with* the app. Leaving a datastore outside the group would keep it awake permanently
-and erode the benefit — and although at our scale Qdrant is only ~150–200 MB, the budget is tight
-enough that 200 MB is no longer noise and the cost of compliance is near zero. Sablier acts through the
-Docker API, not the network, so group membership and network isolation are independent.
+Qdrant sleeps *with* the app. Leaving a datastore outside the group would keep it awake permanently and
+erode the benefit, and the cost of compliance is near zero. Sablier acts through the Docker API, not the
+network, so group membership and network isolation are independent.
 
-**The app loads models eagerly at startup and never unloads.** The container's lifetime *is* the
-model's lifetime: no idle timer, no unload path, no dependence on allocator behaviour. In-process
-unloading was considered and **reversed** — it is *more* application code (timer, thread-safe unload
-against a request arriving mid-unload, reload logic), and `del` + `gc.collect()` returning ~4.6 GB to
-the OS is not guaranteed, while a stopped container returns it with certainty.
+**The app loads models eagerly at startup and never unloads.** The container's lifetime *is* the model's
+lifetime: no idle timer, no unload path, no dependence on allocator behaviour. In-process unloading was
+considered and **reversed** — it is *more* application code (timer, thread-safe unload against a request
+arriving mid-unload, reload logic), and `del` + `gc.collect()` returning the weights to the OS is not
+guaranteed, while a stopped container returns them with certainty.
 
 Middleware, defined **once** on one container of the group:
 
@@ -1644,10 +1660,10 @@ dynamic.refreshFrequency = 10s
 
 **`traefik.docker.allownonrunning=true` is mandatory** — without it Traefik drops the route the moment
 the container stops and answers 404, so the wake middleware is never reached and sleep becomes a
-permanent outage.
+permanent outage. (It needs Traefik ≥ v3.6, which is why the host runs v3.7.)
 
-The Sablier plugin and daemon live in a **separate infra repo** and are **already installed**; this repo
-carries labels only.
+**No restart policy.** A container the OOM killer took stays down until the next visit, when Sablier
+starts it; Docker restarting it at once would only repeat the kill.
 
 ### 14.3 `/health` — three clauses
 
@@ -1655,95 +1671,86 @@ carries labels only.
 models loaded  AND  Qdrant reachable  AND  alias target == index_lock.json
 ```
 
-Sablier closes its waiting page on this signal, so **anything the definition omits is handed to a
-visitor as a failure**: without models-loaded they land on an app still loading and take a 502; without
-Qdrant-reachable the store is still coming up and the first query fails; without the alias check a
-forgotten restore serves a stale or empty index.
+Sablier closes its waiting page on this signal (the image's healthcheck), so **anything the definition
+omits is handed to a visitor as a failure**: without models-loaded they land on an app still loading and
+take a 502; without Qdrant-reachable the store is still coming up and the first query fails; without the
+alias check a forgotten restore serves a stale or empty index.
 
 Healthcheck: `interval: 10s`, `timeout: 5s`, `retries: 30`, `start_period: 30s` — tolerating a long
 model load.
 
-### 14.4 RAM — the constraint is concurrency, not capacity
+### 14.4 RAM
 
-The VPS has **7.7 GB and no swap**. Infra holds 1.5 GB permanently; a second demo holds 0.8 GB while
-awake. So **~6.1 GB is available with the other demos asleep, ~5.3 GB with the other demo awake**.
+*On the VPS this section was the binding constraint*: 7.7 GB, no swap, ~4.5 GB free with the other demo
+awake, enforced by an OOM killer that chooses its own victim — possibly Traefik. It carried a
+pre-registered rule:
 
-BGE-M3 and `bge-reranker-v2-m3` are 568M params each, ~2.3 GB apiece in fp32 — but **4.6 GB counts
-weights only**. It omits the Python/torch runtime (several hundred MB before a weight loads), Qdrant,
-and **transient cross-encoder activations** — reranking 40–80 candidates at 512 tokens is a batch whose
-activations are hundreds of MB on top of resident weights. **Realistic peak with both models:
-~5.2–5.5 GB.**
+> **Prod runs the ladder-winning arm if it fits a ~4.5 GB budget. If it doesn't, prod runs the cheapest arm
+> that does, and the divergence between the measured system and the demoed one is recorded in the README —
+> never discovered at deploy time.**
 
-So the full reranker does not fail outright; it makes **the two demos mutually exclusive**, and the
-enforcement mechanism is an **OOM killer with no swap that chooses its own victim** — possibly Traefik.
+**The rule resolved with no divergence**, on either host. The ladder's winner is **rung 1** (ADR-0024) —
+BGE-M3 alone, no reranker — measured at well under the old budget (rung 4, BGE-M3 *plus* the reranker,
+peaked at 3,581 MB). aspire has 32 GB. The demoed system is the measured one.
 
-**Two consequences:**
+**`mem_limit` per container stays** — 6 GB on the app, 1 GB on Qdrant — for the job it always had beside
+the budget: if something blows up, this container dies deterministically and Sablier restarts it on the
+next visit, and the blast radius stays local rather than reaching a neighbour on the same host.
 
-1. **`mem_limit` per container.** If the budget is blown, this container dies deterministically and
-   Sablier restarts it on the next visit; the blast radius stays local. Cheap, and independent of how
-   the ladder turns out.
-2. **A pre-registered rule**, resolvable only once the ladder runs:
-
-> **Prod runs the ladder-winning arm if it fits a ~4.5 GB budget — i.e. with the other demo awake. If it
-> doesn't, prod runs the cheapest arm that does, and the divergence between the measured system and the
-> demoed one is recorded in the README — never discovered at deploy time.**
-
-The levers, in order: `gte-multilingual-reranker-base` (306M), or **int8 ONNX quantisation** of the full
-reranker.
-
-**Sleep drives the idle cost to zero**, so only peak matters. The index itself (15.1 MB) is a rounding
-error. **The local-model set is closed at BGE-M3 + reranker** — the condenser went to API (§8.2), and it
-was the last discretionary resident model.
+**The local-model set is closed at BGE-M3** — the condenser went to API (§8.2), and the reranker did not
+win its rung.
 
 ### 14.5 Exposure
 
 Public, with three guards. Sleep makes this a **spend** question, not only a security one: every crawler
-and link-preview bot would otherwise wake ~5 GB of models, and generation is a priced API call.
+and link-preview bot would otherwise wake the models, and generation is a priced API call.
 
-1. **Bot rejection at Traefik.** v2.11 supports `HeadersRegexp` in router rules, so a higher-priority
-   router matching bot user-agents returns **403 without ever waking the container**. Label-only, no
-   extra service. **Insisted on regardless of the rest** — without it, sleep is defeated by exactly the
-   traffic that gains nothing from waking. **Write it as a denylist, not an allowlist of real browsers**
-   (§14.6).
-2. **Traefik `rateLimit`** on the route.
-3. **A hard OpenRouter credit cap** — the one control that fails safe when middleware is misconfigured.
+1. **Bot rejection at Traefik.** A router matching bot user-agents with `HeaderRegexp` at priority 1000,
+   whose service is `noop@internal` and whose only middleware is an `ipAllowList` no client address can
+   match, returns **403 without ever waking the container** — Traefik has no static-response middleware,
+   and this is the label-only way to get one. **Insisted on regardless of the rest** — without it, sleep
+   is defeated by exactly the traffic that gains nothing from waking. **Written as a denylist, not an
+   allowlist of real browsers**: `curl` stays welcome, since inspecting the typed contract with it is the
+   point of `/api/ask` (§13.3).
+2. **Traefik `rateLimit`**, ahead of the Sablier middleware so a refused request neither wakes the group
+   nor extends its session: a generous one on the whole host, and **six a minute per visitor on the three
+   ask routes**, the ones that spend. **Keyed on `CF-Connecting-IP`** — behind the tunnel every request's
+   remote address is cloudflared's, and keying on that would make every visitor share one bucket.
+3. **A hard OpenRouter credit cap** — prod's own key, with a credit limit set on the OpenRouter dashboard.
+   The one control that fails safe when middleware is misconfigured.
 
 `robots.txt` was deferred: the app must be awake to serve it, so it would need a tiny always-up static
-container. The 403 does the work.
+container. The 403 does the work. *Price*: a shared link renders without a preview card.
 
-**Authelia is a one-label escape hatch.** The VPS runs Authelia with 2FA TOTP as `authelia@docker`. Not
-used — it would ruin a shareable portfolio link — but recorded as the lever if spend gets ugly. **If ever
-enabled it must sit *before* `sablier` in the middleware chain**, or an unauthenticated request wakes the
-models. Middleware order is the difference between a gate and a doorbell.
+*On the VPS, Authelia was a recorded one-label escape hatch; aspire runs no SSO, so it is gone. Were an
+auth middleware ever added, it must sit before `rag-sablier` in the chain, or an unauthenticated request
+wakes the models.*
 
 ### 14.6 Monitoring
 
-**Uptime-Kuma, HTTP(s) keyword monitor, 6 h interval, 3 retries at 60 s.**
+**`self-host`'s, not this repo's.** The group `rag` goes in its `veille.yml`: Prometheus probes it through
+**Sablier's blocking API** every 30 min, with a one-minute session — 200 only once the group is ready,
+which means only once the image's healthcheck, i.e. §14.3's `/health`, passes. That is stronger than the
+keyword monitor it replaces.
 
-The reasoning is mechanism-specific: with Sablier's `dynamic` strategy the probe **never hangs** — the
-waiting page returns **200** immediately, just without the keyword. The failure mode is a fast negative,
-not a timeout, so **retries are the correct knob and request timeout is irrelevant**. A cold start is
-~30–90 s; 3 × 60 s gives ~2× margin. More retries buy no cold-start tolerance and directly delay alerting.
+*The VPS design was an Uptime-Kuma keyword monitor* (6 h, 3 retries at 60 s), whose whole subtlety was that
+the Sablier waiting page answers **200**, so the keyword had to be on the real app page and *not* on the
+interstitial. Probing the blocking API sidesteps that: the public route of a sleeping project is never
+probed at all, so neither the waiting page nor the bot filter is in the probe's path.
 
-**The keyword must appear on the real app page and NOT on the Sablier waiting page**, or the monitor
-reports green on a demo that only ever serves an interstitial. This is the whole reason a plain HTTP
-monitor is wrong here.
-
-Each probe wakes the group for a full 10-minute session: 4 probes/day ≈ 40 min/day of awake time, the
-price of knowing the demo works.
-
-**Uptime-Kuma is not caught by the bot filter** — its user-agent is `Uptime-Kuma/<version>`, containing
-no `bot|crawler|spider`, so a **denylist** regex passes it untouched. If it runs on the same VPS, exempt
-it **by source IP** rather than user-agent; a local address is a far more stable exemption than a version
-string.
-
-**Uptime-Kuma at 6 h is an outage detector, never a deploy check** (§15.6).
+**The 30-minute probe is an outage detector, never a deploy check** — the deploy checks itself (§15.7).
 
 ### 14.7 Tracing in prod
 
-**On.** ~19k units/month of headroom remain, and the rate limit bounds the volume. An unobservable
-deployed app would be a strange look for a project whose stack choice was justified by observability.
-Tiebreak if the budget tightens: **eval wins, prod tracing goes off**.
+**On** — `LANGFUSE_TRACING: "true"` in `compose.yml`. ~19k units/month of headroom remain, and the rate
+limit bounds the volume. An unobservable deployed app would be a strange look for a project whose stack
+choice was justified by observability. Tiebreak if the budget tightens: **eval wins, prod tracing goes
+off** — one line in `compose.yml`.
+
+**Wired in `rag.app.tracing` (#54)**: one `ask` trace per question, tagged `app` — the condenser and
+generation calls as generation observations through LangChain's callback handler (§11.1), retrieval as a
+`retriever` observation through `run_chain`'s `retrieve_fn` seam, which passes `retrieve` itself, wrapped,
+so the traced path is the measured one. About 9 units a question.
 
 ---
 
@@ -1809,7 +1816,7 @@ documented runbook step. The ordering is:
 **GitHub Release assets**: `points-fiches.parquet`, `points-articles.parquet`, and **`corpus_manifest.json`**
 on a tagged release, pulled over https.
 
-Pull-based: nothing on the VPS needs inbound access, no SSH key lives in any CI, and a rebuilt box re-fetches
+Pull-based: nothing on the host needs inbound access, no SSH key lives in any CI, and a rebuilt box re-fetches
 from anywhere. Public repo, so no auth on the pull and a reader can inspect the artifact. The 2 GB per-file
 cap is irrelevant, and release assets do not count against repository size.
 
@@ -1828,10 +1835,12 @@ refresh, 25 MB of unchanged vectors in every code deploy).
 ### 15.5 Restore
 
 ```
-docker compose run --rm rag-assurances python -m rag.restore
+docker compose --profile restore run --rm restore
 ```
 
-**The app image is the tool** — no repo checkout, no Python and no qdrant-client on the host.
+**The app image is the tool** — no repo checkout, no Python and no qdrant-client on the host. `restore` is
+its own compose service on that image, behind a profile, so the one-off container carries none of the
+app's Traefik or Sablier labels — `run rag-assurances` would put it in the route and in the group.
 
 Restore upserts into **`<register>__<release-tag>`** (e.g. `fiches__index-2026-08-03`) and flips the stable
 alias only after verification. Names are short, time-ordered and traceable to their release; `index_lock.json`
@@ -1842,7 +1851,7 @@ place it can drift and lie.)*
 **The previous generation stays on disk** (~25 MB per register). Rollback is one alias flip and **zero bytes
 downloaded**. Prune to the last two.
 
-**Sleep-safety comes free.** An SSH-driven restore does not pass through Traefik, so it does not refresh the
+**Sleep-safety comes free.** A restore run by the host does not pass through Traefik, so it does not refresh the
 Sablier session, and the group can be stopped mid-run. The danger is not duration — 3,687 upserts is seconds
 — it is the **partial write**. Because restore writes into a *new* collection and flips the alias only after
 verifying the count, **a mid-run kill leaves the alias pointing at the old collection**: nothing is broken,
@@ -1882,32 +1891,38 @@ whose whole job is to be believed.
 ### 15.7 Mismatch — fail loud, with the ordering scripted
 
 Code and index are independently deployable, so they can disagree. With `/health` strict, a deploy that pulls
-the image and forgets the restore yields a **permanent Sablier waiting page** — and a 6-hour monitor interval
-means the demo could be dead for most of a day.
+the image and forgets the restore yields a **permanent Sablier waiting page** — and a monitor probing every
+30 minutes, or the VPS's every 6 hours, finds out late.
 
 Serving a stale index with a warning was rejected: it makes the demoed system knowingly not the measured
 system, and if the payload schema has moved the new code may break at query time anyway — later and far less
 legibly than a health failure.
 
+The sequence is **run by the host, not by this repo** (§14, ADR-0026) — handed to `self-host` as the
+project's override, and recorded in the header of `compose.yml`:
+
 ```
-make deploy
- ├─ compose pull
- ├─ compose run --rm rag-assurances python -m rag.restore   # no-op if tag+count match
- ├─ compose up -d
- └─ curl -f https://rag.theo-eloy.fr/health                 # non-zero exit ⇒ known now
+docker compose build
+docker compose --profile restore run --rm restore     # no-op if tag+count match
+docker compose up -d --wait --remove-orphans          # non-zero unless every container is healthy
 ```
 
 Restore is **idempotent** — matching tag and count is a no-op — so the sequence is safe to re-run. The final
-`curl -f` is the real correction to the monitoring story: the deploy must verify itself.
+`--wait` is the real correction to the monitoring story: **the deploy must verify itself**, and since the
+app's healthcheck *is* §14.3's `/health`, waiting for healthy is waiting for that 200. *The VPS design
+ended on `curl -f https://rag.theo-eloy.fr/health` instead*; through a tunnel that tests the tunnel too —
+which the host probes on its own — and needs the host to resolve its own public name, while `--wait` tests
+exactly the `/health` a deploy can break. `build`, not `pull`: the host builds from the clone, and there is
+no registry.
 
 **"Which arm ships" decomposes into two things**, and conflating them is a mistake worth naming:
 
 - **Index-bearing** — embedder, chunk config, enrichment flag. Fixed in the published artifact.
 - **Runtime** — reranker, per-leg weights, relevance floor, expansion cap. Config on the running app.
 
-**§14.4's RAM rule is entirely runtime** and has no bearing on the published index — **with one exception**:
-if **rung 6 wins**, two embedding models become co-resident at query time. That is the single index-bearing
-arm the ~4.5 GB budget could veto.
+**§14.4's RAM rule was entirely runtime** and had no bearing on the published index — **with one exception**:
+had **rung 6 won**, two embedding models would have been co-resident at query time, the single index-bearing
+arm the ~4.5 GB budget could veto. It did not win (ADR-0024).
 
 ---
 
@@ -1921,8 +1936,10 @@ arm the ~4.5 GB budget could veto.
 ├── CONTEXT.md                    ← domain glossary
 ├── README.md
 ├── LICENSE                       ← MIT, code only
-├── Makefile                      ← ingest · ladder · publish-index · deploy
-├── docker-compose.yml
+├── Makefile                      ← ingest · ladder · publish-index
+├── compose.yml                   ← prod, §14.1 — what the host runs
+├── compose.dev.yml               ← the dev store
+├── Dockerfile                    ← app image, BGE-M3 weights baked in
 ├── index_lock.json               ← §15.6
 ├── .env.example                  ← §16.3
 ├── docs/
@@ -1963,7 +1980,9 @@ statement**: you can license your code, you cannot relicense the Code des assura
 ### 16.3 Configuration
 
 `.env` at the repo root, **gitignored**, loaded via `python-dotenv`; `.env.example` is the committed
-template. Every spec snippet reads config from the environment, never inline. Chosen over `pass`/keyring
+template. Every spec snippet reads config from the environment, never inline. **In prod** the host writes a
+`.env` holding the secrets only, and `compose.yml`'s `environment:` sets everything else — the code still
+reads the environment and nothing else, but which arm prod runs is reviewed in git (§14.1, ADR-0026). Chosen over `pass`/keyring
 and shell-profile exports: both add a step to every run and every snippet, for a solo project with no
 shared secrets. Rotation is a key-regenerate plus one file edit.
 
@@ -1977,7 +1996,7 @@ shared secrets. Rotation is a key-regenerate plus one file edit.
 | `LANGFUSE_SECRET_KEY` | `sk-lf-…` — shown once at creation |
 | `LANGFUSE_BASE_URL` | `https://cloud.langfuse.com` — **not `LANGFUSE_HOST`** |
 | `LANGFUSE_TRACING` | **false in dev**, true in prod, forced true inside `run_experiment` |
-| `QDRANT_URL` | compose-internal |
+| `QDRANT_URL` | `http://qdrant:6333` in prod, set by `compose.yml` |
 
 ### 16.4 `corpus_manifest.json` — one file, two jobs, script-emitted
 
@@ -2017,7 +2036,7 @@ And, if §14.4's rule fires: **the divergence between the measured arm and the d
 
 ## 17. Open questions
 
-Four things are genuinely undecided. None blocks the build; each is recorded with what would settle it.
+Four things were genuinely undecided. None blocks the build; each is recorded with what would settle it, and the ones since settled say so.
 
 ### 17.1 The upstream fetch route
 
@@ -2034,6 +2053,9 @@ PISTE OAuth vs DILA bulk vs the HF parquet, for the hand-run occasional fetch sc
   document**.
 
 ### 17.2 Whether prod can afford the ladder-winning reranker arm
+
+**Resolved: there is no reranker arm to afford** — rung 1 won (ADR-0024), and the host moved to 32 GB
+(§14.4). Kept for the record of what was open.
 
 **There is nothing left to decide** — §14.4's rule is pre-registered and no discussion can resolve it,
 because it needs numbers the ladder has not produced. It is listed here only because it is not yet
@@ -2061,6 +2083,12 @@ real: load the page, idle past the 10-minute session, then submit.
 
 **Two acceptable fixes, both small — a build-time choice**: Sablier's **blocking** strategy scoped to the
 `/ask` route, or a client-side `/health` pre-flight before submit.
+
+**Resolved (#54): the pre-flight.** Before each submit the page GETs `/health`; while what comes back is not
+the app's JSON it shows a « Réveil » stage and asks again every 3 s, up to 3 min, then sends. Any JSON
+answer counts as awake — a 503 included, since dev's `/health` is 503 by design and a genuine failure is
+the answer route's to report. Blocking lost on two counts: Cloudflare cuts an origin response at **100 s**,
+which a cold start can approach, and the visitor would watch a frozen indicator rather than a named wait.
 
 ---
 
@@ -2185,8 +2213,9 @@ The dependencies are real; this order avoids re-doing work.
     → judge calibration (detection ≥ 10/12, no systematic leniency) → generation eval arms.
 11. **App.** FastAPI + Jinja/HTMX, four state partials, SSE stage events, dual endpoints, `/health` with all
     three clauses.
-12. **Deploy.** compose + Traefik/Sablier labels + `mem_limit` → `make publish-index` at the tail of the
-    ladder run → `index_lock.json` → `make deploy`. Record any §14.4 arm divergence in the README.
+12. **Deploy preparation.** compose + Traefik/Sablier labels + `mem_limit` → `make publish-index` at the
+    tail of the ladder run → `index_lock.json` → the project handed to `self-host`, which deploys it
+    (§15.7). Record any §14.4 arm divergence in the README.
 
 ---
 
