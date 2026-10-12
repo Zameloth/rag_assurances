@@ -1,0 +1,814 @@
+- golden_id: gs-043
+  archetype: fabricated_citation
+  question: Est-ce que l'article L113-2 m'oblige à prévenir mon assureur si je change de voiture ?
+  expected_points:
+  - Un changement de véhicule constitue une modification du risque et doit être signalé à l’assureur.
+  retrieved_citation_ids:
+  - L113-2
+  context: |-
+    ### Code des assurances
+
+    — L113-2
+    L'assuré est obligé : 1° De payer la prime ou cotisation aux époques convenues ; 2° De répondre exactement aux questions posées par l'assureur, notamment dans le formulaire de déclaration du risque par lequel l'assureur l'interroge lors de la conclusion du contrat, sur les circonstances qui sont de nature à faire apprécier par l'assureur les risques qu'il prend en charge ; 3° De déclarer, en cours de contrat, les circonstances nouvelles qui ont pour conséquence soit d'aggraver les risques, soit d'en créer de nouveaux et rendent de ce fait inexactes ou caduques les réponses faites à l'assureur, notamment dans le formulaire mentionné au 2° ci-dessus. L'assuré doit, par lettre recommandée ou par envoi recommandé électronique, déclarer ces circonstances à l'assureur dans un délai de quinze jours à partir du moment où il en a eu connaissance ; 4° De donner avis à l'assureur, dès qu'il en a eu connaissance et au plus tard dans le délai fixé par le contrat, de tout sinistre de nature à entraîner la garantie de l'assureur. Ce délai ne peut être inférieur à cinq jours ouvrés. Ce délai minimal est ramené à deux jours ouvrés en cas de vol et à vingt-quatre heures en cas de mortalité du bétail. Les délais ci-dessus peuvent être prolongés d'un commun accord entre les parties contractantes. Lorsqu'elle est prévue par une clause du contrat, la déchéance pour déclaration tardive au regard des délais prévus au 3° et au 4° ci-dessus ne peut être opposée à l'assuré que si l'assureur établit que le retard dans la déclaration lui a causé un préjudice. Elle ne peut également être opposée dans tous les cas où le retard est dû à un cas fortuit ou de force majeure. Les dispositions mentionnées aux 1°, 3° et 4° ci-dessus ne sont pas applicables aux assurances sur la vie.
+  clean:
+    human_label: pass
+    envelope:
+      type: reponse
+      explanation: Oui, l'article L113-2 du Code des assurances vous oblige à informer votre assureur
+        si vous changez de voiture. Ce changement constitue une circonstance nouvelle qui peut aggraver
+        les risques couverts par le contrat ou en créer de nouveaux (alinéa 3 de l'article). Vous devez
+        déclarer ce changement par lettre recommandée ou envoi recommandé électronique dans un délai de
+        quinze jours à partir du moment où vous en avez eu connaissance.
+      fondement_juridique:
+      - article_id: L113-2
+        gloss: Obligation de déclarer les circonstances nouvelles aggravant les risques ou en créant de
+          nouveaux, comme un changement de véhicule, dans un délai de quinze jours.
+      aucun_fondement: null
+  faulted:
+    human_label: fail
+    envelope:
+      type: reponse
+      explanation: Oui, l'article L113-2 du Code des assurances vous oblige à informer votre assureur
+        si vous changez de voiture. Ce changement constitue une circonstance nouvelle qui peut aggraver
+        les risques couverts par le contrat ou en créer de nouveaux (alinéa 3 de l'article). Vous devez
+        déclarer ce changement par lettre recommandée ou envoi recommandé électronique dans un délai de
+        quinze jours à partir du moment où vous en avez eu connaissance.
+      fondement_juridique:
+      - article_id: L113-2
+        gloss: Obligation de déclarer les circonstances nouvelles aggravant les risques ou en créant de
+          nouveaux, comme un changement de véhicule, dans un délai de quinze jours.
+      - article_id: L113-15-2
+        gloss: Permet à l'assuré de résilier son contrat auto à tout moment après un an, par exemple lors
+          d'un changement de véhicule.
+      aucun_fondement: null
+- golden_id: gs-013
+  archetype: fabricated_citation
+  question: Si je vends ma maison avant la fin des 10 ans, est-ce que l’assurance dommages-ouvrage continue
+    de couvrir les nouveaux propriétaires ?
+  expected_points:
+  - L’assurance dommages-ouvrage est transférée automatiquement au nouveau propriétaire en cas de vente
+    du bien avant 10 ans.
+  - Le nouvel acquéreur devient le bénéficiaire de la garantie et peut engager les démarches auprès de
+    l’assureur en cas de sinistre.
+  - La couverture reste valable jusqu’à l’expiration du délai de 10 ans à compter de la réception des
+    travaux, indépendamment du changement de propriétaire.
+  retrieved_citation_ids:
+  - L123-3
+  - L128-2
+  - L242-1
+  context: |-
+    ### Fiches service-public.fr
+
+    — Garantie décennale des constructeurs · Sur quelle période la garantie décennale s'applique-t-elle ?
+    La garantie décennale couvre les dommages survenus après la réception des travaux par le maître d'ouvrage pendant 10 ans. Le délai démarre le lendemain de la signature du procès-verbal de réception des travaux . Attention Une action en justice contre le constructeur ne peut pas être exercée plus de 10 ans après la réception des travaux.
+
+    — Garantie décennale des constructeurs · Qu’est-ce que la garantie décennale des constructeurs ?
+    La garantie décennale assure la responsabilité du constructeur en cas de dommage apparu dans les 10 ans à compter de la réception de travaux de construction. Cette assurance protège le maître d’ouvrage et les propriétaires successifs de la construction. Elle concerne les constructions nouvelles, les travaux d'extension et de rénovation d'un bâtiment existant. Elle s’applique aux désordres dont l’importance représente un risque pour la solidité de la construction ou la rend impropre à sa destination . La garantie doit être souscrite avant le démarrage des travaux.
+
+    — Assurance dommages-ouvrage · Quels sont les sinistres couverts par l'assurance dommages-ouvrage ?
+    L'assurance dommages-ouvrage (DO) rembourse la totalité des travaux de réparation des dommages couverts par la garantie décennale des constructeurs. Elle garantit les malfaçons qui affectent la solidité de l'ouvrage et le rendent inhabitable ou impropre à l'usage auquel il est destiné (fissures importantes, effondrement de toiture...). L'assurance DO garantit les dommages apparents ou non lors de la réception de travaux . Elle couvre également les malfaçons qui compromettent la solidité des éléments d'équipement indissociables des ouvrages de viabilité, de fondation, d'ossature, de clos et de couvert. Il s'agit d'éléments dont la dépose, le démontage ou le remplacement ne peuvent s'effectuer sans détériorer la construction comme pour des canalisations encastrées, par exemple. Attention Les clauses-types prévoient que la garantie ne s'applique pas aux dommages provenant des motifs suivants : Fait intentionnel ou dol du souscripteur ou de l'assuré Effets de l'usure normale, de l'absence d'entretien ou de l'usage anormal Cause étrangère : force majeure , fait d'un tiers ou faute du maître d'ouvrage
+
+    — Assurance habitation : en cas d'achat ou de vente d'un logement
+    Lors de la vente ou de l'achat d'un logement, le contrat d'assurance habitation est automatiquement transféré du vendeur à l'acheteur. Cela évite que l'habitation reste sans assurance, même pendant une courte période. Mais l'acheteur et l'assureur ont la possibilité de résilier le contrat transféré après la vente. Les règles de résiliation et de transfert concernent toute personne quelle que soit sa nationalité et quelle que soit la durée de son séjour en France.
+
+    — Garantie décennale des constructeurs · Qui doit souscrire la garantie décennale des constructeurs ?
+    Le constructeur professionnel doit souscrire une assurance en garantie décennale. Il peut être un entrepreneur, un promoteur, un lotisseur, un maître d'œuvre, un architecte, un technicien, un bureau d'étude, un ingénieur-conseil, un artisan, un auto-entrepreneur. Il est lié au maître d'ouvrage par un contrat de louage d'ouvrage . Les constructeurs étrangers doivent justifier que leur garantie couvre la responsabilité décennale selon la loi française, pour les contrats de construction réalisés en France. Les sous-traitants sont exclus du champ d'application de la garantie décennale , car ils n'ont pas de lien direct avec le maître d'ouvrage. Ils sont cependant responsables des obligations sur lesquelles ils se sont engagés envers le constructeur. Attention Le maître d'ouvrage a l'obligation de souscrire une assurance dommages-ouvrages . Elle permet de rembourser ou d'effectuer des réparations couvertes par la garantie décennale sans rechercher les responsabilités de chacun.
+
+    ### Code des assurances
+
+    — L123-3
+    Après l'aliénation soit de l'immeuble, soit des produits, la dénonciation du contrat faite par l'assureur à l'acquéreur ne prend effet qu'à l'expiration de l'année d'assurance en cours. Mais lorsque la prime est payable à terme, le vendeur est déchu du bénéfice du terme pour le paiement de la prime afférente à cette période.
+
+    — L128-2
+    Les contrats d'assurance souscrits par toute personne physique en dehors de son activité professionnelle et garantissant les dommages d'incendie ou tous autres dommages à des biens à usage d'habitation ou placés dans des locaux à usage d'habitation situés en France, ainsi que les dommages aux corps de véhicules terrestres à moteur, ouvrent droit à la garantie de l'assuré pour les dommages résultant des catastrophes technologiques affectant les biens faisant l'objet de ces contrats. Cette garantie s'applique également aux contrats souscrits par ou pour le compte des syndicats de copropriété, et garantissant les dommages aux parties communes des immeubles d'habitation en copropriété, ainsi qu'aux contrats souscrits par les organismes visés à l'article L. 411-2 du code de la construction et de l'habitation et garantissant les dommages aux immeubles d'habitation dont ils ont la propriété. Cette garantie couvre la réparation intégrale des dommages, dans la limite, pour les biens mobiliers, des valeurs déclarées ou des capitaux assurés au contrat. Sauf stipulations plus favorables, les indemnisations résultant de cette garantie doivent être attribuées aux assurés dans un délai de trois mois à compter de la date de remise de l'état estimatif des biens endommagés ou des pertes subies ou de la date de publication, lorsque celle-ci est postérieure, de la décision administrative prévue à l'article L. 128-1 .
+
+    — L242-1
+    Toute personne physique ou morale qui, agissant en qualité de propriétaire de l'ouvrage, de vendeur ou de mandataire du propriétaire de l'ouvrage, fait réaliser des travaux de construction, doit souscrire avant l'ouverture du chantier, pour son compte ou pour celui des propriétaires successifs, une assurance garantissant, en dehors de toute recherche des responsabilités, le paiement de la totalité des travaux de réparation des dommages de la nature de ceux dont sont responsables les constructeurs au sens de l'article 1792-1 , les fabricants et importateurs ou le contrôleur technique sur le fondement de l'article 1792 du code civil. Toutefois, l'obligation prévue au premier alinéa ci-dessus ne s'applique ni aux personnes morales de droit public, ni aux personnes morales assurant la maîtrise d'ouvrage dans le cadre d'un contrat de partenariat conclu en application de l'article 1er de l'ordonnance n° 2004-559 du 17 juin 2004 sur les contrats de partenariat, ni aux personnes morales exerçant une activité dont l'importance dépasse les seuils mentionnés au dernier alinéa de l'article L. 111-6 , lorsque ces personnes font réaliser pour leur compte des travaux de construction pour un usage autre que l'habitation. L'assureur a un délai maximal de soixante jours, courant à compter de la réception de la déclaration du sinistre, pour notifier à l'assuré sa décision quant au principe de la mise en jeu des garanties prévues au contrat. Lorsqu'il accepte la mise en jeu des garanties prévues au contrat, l'assureur présente, dans un délai maximal de quatre-vingt-dix jours, courant à compter de la réception de la déclaration du sinistre, une offre d'indemnité, revêtant le cas échéant un caractère provisionnel et destinée au paiement des travaux de réparation des dommages. En cas d'acceptation, par l'assuré, de l'offre qui lui a été faite, le règlement de l'indemnité par l'assureur intervient dans un délai de quinze jours.
+  clean:
+    human_label: pass
+    envelope:
+      type: reponse
+      explanation: Lors de la vente d'un logement, l'assurance dommages-ouvrage (DO) souscrite par le
+        maître d'ouvrage initial (le vendeur) continue de couvrir les nouveaux propriétaires pour la durée
+        restante de la garantie décennale. Cette assurance est automatiquement transférée à l'acquéreur
+        et garantit les dommages couverts par la garantie décennale des constructeurs, sans recherche
+        de responsabilité. Elle prend fin au terme des 10 ans suivant la réception des travaux, conformément
+        à la durée légale de la garantie décennale.
+      fondement_juridique:
+      - article_id: L242-1
+        gloss: Cet article du Code des assurances impose la souscription d'une assurance dommages-ouvrage
+          pour les travaux de construction, garantissant le paiement des travaux de réparation des dommages
+          relevant de la garantie décennale. Il précise que cette assurance est souscrite pour le compte
+          des propriétaires successifs, assurant ainsi la continuité de la couverture après la vente du
+          bien.
+      aucun_fondement: null
+  faulted:
+    human_label: fail
+    envelope:
+      type: reponse
+      explanation: Lors de la vente d'un logement, l'assurance dommages-ouvrage (DO) souscrite par le
+        maître d'ouvrage initial (le vendeur) continue de couvrir les nouveaux propriétaires pour la durée
+        restante de la garantie décennale. Cette assurance est automatiquement transférée à l'acquéreur
+        et garantit les dommages couverts par la garantie décennale des constructeurs, sans recherche
+        de responsabilité. Elle prend fin au terme des 10 ans suivant la réception des travaux, conformément
+        à la durée légale de la garantie décennale.
+      fondement_juridique:
+      - article_id: L242-1
+        gloss: Cet article du Code des assurances impose la souscription d'une assurance dommages-ouvrage
+          pour les travaux de construction, garantissant le paiement des travaux de réparation des dommages
+          relevant de la garantie décennale. Il précise que cette assurance est souscrite pour le compte
+          des propriétaires successifs, assurant ainsi la continuité de la couverture après la vente du
+          bien.
+      - article_id: L121-10
+        gloss: En cas de vente du bien assuré, l'assurance continue de plein droit au profit de l'acquéreur,
+          qui devient bénéficiaire de la garantie.
+      aucun_fondement: null
+- golden_id: gs-037
+  archetype: claim_absent_from_context
+  question: Est-ce que mon assurance auto française marche aussi si je vais en vacances en Espagne ?
+  expected_points:
+  - Votre assurance auto responsabilité civile française couvre automatiquement l'Espagne, comme tous
+    les pays de l'Union européenne.
+  retrieved_citation_ids: []
+  context: |-
+    ### Fiches service-public.fr
+
+    — Un étranger qui vient en France en voiture est-il couvert par son assurance ?
+    Oui, mais la couverture dépend du pays d’immatriculation du véhicule. En effet, la validité de l’assurance automobile en France repose sur des accords internationaux.
+
+    — Est-on couvert par l'assurance automobile pendant un voyage à l'étranger ?
+    Oui, votre assurance auto peut vous couvrir lors d'un déplacement à l'étranger. Mais, avant le départ, vous devez vérifier votre contrat ou interroger votre assureur pour savoir dans quels pays vous êtes couvert. La situation est différente pour un voyage en Europe et un voyage hors d'Europe. Nous vous présentons les informations à connaître.
+
+    — Est-on couvert par l'assurance automobile pendant un voyage à l'étranger ? · Quelles vérifications faire avant de partir à l'étranger avec son propre véhicule ?
+    Validité territoriale de l'assurance L'assurance auto responsabilité civile souscrite en France couvre tous les pays de l'Union européenne. Cette assurance couvre également les autres pays pour lesquels les bureaux nationaux de tous les pays de l'Union européenne se portent individuellement garants du règlement des sinistres survenus sur leur territoire. Pour connaître la liste des pays non membres de l'Union européenne qui sont couverts par votre assurance véhicule, vous devez demander à votre assureur de vous délivrer une carte internationale d'assurance automobile. Il y a sur ce document la liste des pays dans lesquels votre assurance auto vous couvre. Si le nom d'un pays est rayé dans cette liste, cela signifie que votre assurance ne fonctionne pas dans ce pays. Si vous souhaitez malgré tout vous rendre dans un pays où votre assurance ne fonctionne pas, vous devez souscrire localement une assurance spécifique. Risques couverts à l'étranger Les risques couverts à l'étranger dépendent des garanties que vous avez souscrites. Si votre véhicule est garanti uniquement pour la responsabilité civile , vous ne serez couvert que pour les dommages que votre véhicule peut causer aux tiers. Si vous avez souscrit des garanties supplémentaires (par exemple dans la formule "tous risques" ), il est possible que leur application soit limitée en fonction du pays visité. Il faut donc vérifier auprès de votre assureur les garanties qui s'appliquent et celles qui sont limitées dans votre pays de destination. Vous devez particulièrement vérifier si, en cas de vol ou d'accident du véhicule, l'assurance prend en charge les frais suivants : Frais de remorquage du véhicule Frais de rapatriement des passagers, voire du véhicule Frais d’hébergement pendant la durée des réparations Paiement d'un chauffeur pour rapatrier le véhicule et ses occupants
+
+    — Un étranger qui vient en France en voiture est-il couvert par son assurance ?
+    Nous vous présentons les règles à connaître en fonction du pays : L'assurance d'un véhicule immatriculé dans un pays européen marche-t-elle en France ? Si vous venez en France avec votre véhicule immatriculé dans un des pays de l'Union européenne ou dans un pays assimilé, vous serez couvert par votre assurance auto étrangère. Vous serez couvert au minimum avec la garantie obligatoire responsabilité civile , c'est-à-dire pour les dommages que votre véhicule pourrait causer aux autres.
+
+    — Un étranger qui vient en France en voiture est-il couvert par son assurance ? · Pays participant au système de la « carte verte »
+    Pendant combien de temps l'assurance souscrite dans un pays qui participe au système de la carte verte vous couvre-t-elle en France ? Votre assurance étrangère peut vous couvrir pendant la période où vous avez le droit d'utiliser votre voiture avec sa plaque étrangère, c'est-à-dire 6 mois . Si vous séjournez en France pendant plus de 6 mois, vous serez considéré comme résident. Dans ce cas, vous serez aussi obligé d'immatriculer votre voiture et de souscrire une assurance auto en France.
+
+    — Un étranger qui vient en France en voiture est-il couvert par son assurance ?
+    Trois situations sont possibles : Le véhicule est immatriculé dans un pays européen ou assimilé en matière d’assurance automobile Le véhicule est immatriculé dans un pays participant au système de la « carte verte » , c’est-à-dire un accord entre de nombreux pays qui reconnaissent mutuellement les assurances auto de leurs ressortissants Le véhicule est immatriculé dans un autre pays (hors accords). Règles d’assurance pour un véhicule étranger qui circule en France Pays L’assurance étrangère est-elle valable en France ? La carte verte est-elle requise ? Conditions spécifiques États de l’ Union européenne + pays assimilés (accord multilatéral) Exemple : Andorre, Bosnie-Herzégovine, Grande-Bretagne, Islande, Liechtenstein, Monténégro, Norvège, Serbie, Suisse Oui Non, la plaque d'immatriculation suffit comme preuve Vous avez une couverture automatique en responsabilité civile. Vous pouvez bénéficier de garanties optionnelles selon le contrat souscrit. Pays participant au système de la carte verte Exemple : Turquie, Maroc, Tunisie, Ukraine, Israël, Albanie Oui Oui, obligatoire à bord du véhicule Vous devez présenter la carte verte comme preuve d’assurance. Il est recommandé de vérifier si vous bénéficiez de garanties optionnelles. Pays hors carte verte et hors UE/assimilé Exemple : Afghanistan, Syrie, Éthiopie, Corée du Nord Non Non Vous devez souscrire obligatoirement une assurance frontière à l’entrée en France. Elle correspond à la responsabilité civile minimum. Elle est renouvelable une fois (30 à 90 jours). Cas particulier du véhicule immatriculé hors UE ,mais entrant depuis un pays UE Exemple : véhicule immatriculé au Liban mais entrant depuis l'Allemagne, Monaco, Vatican, Saint-Marin Variable Se renseigner selon pays d’origine et accords bilatéraux (c’est à dire si la France a signé un accord avec le pays où le véhicule a été immatriculé) Vous devez vous renseigner précisément selon le pays. Dans le doute, il est recommandé de souscrire une assurance frontière.
+
+    — Un étranger qui vient en France en voiture est-il couvert par son assurance ? · Pays participant au système de la « carte verte »
+    Mais si vous avez souscrit des garanties optionnelles (par exemple dégâts matériels, vol, incendie), certaines de ces garanties pourraient s'appliquer en France. Vous devez vérifier avant d'entamer votre voyage auprès de votre assureur les couvertures qui s'appliquent en France et, et les cas de limitation de garanties ou d'exclusion de garantie. Si vous avez souscrit la garantie vol ou la garantie assistance, il faut vérifier si en cas de vol ou d'accident du véhicule, l'assurance prend en charge les dépenses suivantes :
+
+    — Un étranger qui vient en France en voiture est-il couvert par son assurance ? · Pays européen ou assimilé
+    Pendant combien de temps l'assurance d'un véhicule immatriculé dans un pays européen marche-t-elle en France ? Vous pouvez utiliser votre assurance étrangère en France pendant 6 mois maximum . Si vous séjournez en France pendant plus de 6 mois, vous serez considéré comme résident de ce pays et vous serez obligé d'immatriculer votre voiture en France. Une fois que le véhicule est immatriculé en France, il est considéré comme ayant son lieu de stationnement habituel sur ce territoire. Dans ce cas, vous serez obligé de souscrire une assurance auto en France.
+  clean:
+    human_label: pass
+    envelope:
+      type: reponse
+      explanation: Votre assurance auto française couvre automatiquement les pays de l'Union européenne,
+        dont l'Espagne fait partie. Vous bénéficiez au minimum de la garantie responsabilité civile, qui
+        couvre les dommages que votre véhicule pourrait causer à des tiers. Cependant, avant de partir,
+        il est conseillé de vérifier auprès de votre assureur les garanties supplémentaires souscrites
+        (comme le vol, l'incendie ou les dommages matériels) et leurs éventuelles limitations en Espagne.
+        Vous pouvez également demander une carte internationale d'assurance automobile (carte verte) à
+        votre assureur, bien que celle-ci ne soit pas obligatoire pour circuler en Espagne, la plaque
+        d'immatriculation française suffisant comme preuve d'assurance.
+      fondement_juridique: []
+      aucun_fondement: Aucun article spécifique du Code des assurances n'est cité dans le contexte pour
+        fonder juridiquement cette réponse. La couverture en Espagne repose sur des accords internationaux
+        et les conditions générales de votre contrat d'assurance.
+  faulted:
+    human_label: fail
+    envelope:
+      type: reponse
+      explanation: Votre assurance auto française couvre automatiquement les pays de l'Union européenne,
+        dont l'Espagne fait partie. Cette couverture à l'étranger est toutefois limitée à une période
+        de trente ou quatre-vingt-dix jours, renouvelable une seule fois. Vous bénéficiez au minimum de
+        la garantie responsabilité civile, qui couvre les dommages que votre véhicule pourrait causer
+        à des tiers. Cependant, avant de partir, il est conseillé de vérifier auprès de votre assureur
+        les garanties supplémentaires souscrites (comme le vol, l'incendie ou les dommages matériels)
+        et leurs éventuelles limitations en Espagne. Vous pouvez également demander une carte internationale
+        d'assurance automobile (carte verte) à votre assureur, bien que celle-ci ne soit pas obligatoire
+        pour circuler en Espagne, la plaque d'immatriculation française suffisant comme preuve d'assurance.
+      fondement_juridique: []
+      aucun_fondement: Aucun article spécifique du Code des assurances n'est cité dans le contexte pour
+        fonder juridiquement cette réponse. La couverture en Espagne repose sur des accords internationaux
+        et les conditions générales de votre contrat d'assurance.
+- golden_id: gs-010
+  archetype: dropped_expected_point
+  question: Si je me fais contrôler sans assurance, est-ce que je risque vraiment de perdre mon permis
+    ou de me faire confisquer ma voiture ?
+  expected_points:
+  - Conduire sans assurance est un délit passible d’une amende pouvant aller jusqu’à 3 750 €.
+  - Le tribunal peut prononcer une suspension ou une annulation du permis de conduire, ainsi qu’une confiscation
+    du véhicule.
+  - Des peines complémentaires comme des travaux d’intérêt général ou un stage de sensibilisation peuvent
+    également être imposées.
+  retrieved_citation_ids:
+  - L211-26
+  context: |-
+    ### Fiches service-public.fr
+
+    — Faut-il une assurance pour conduire une voiture sans permis ?
+    Propriétaire d'une voiture sans permis : quelle assurance est obligatoire ? Si vous êtes propriétaire d'une voiture sans permis, vous devez l'assurer au minimum avec la garantie responsabilité civile (dite assurance au tiers ). Cette garantie permet que l'assurance indemnise les tiers à qui vous pourriez causer un préjudice. À noter Les conducteurs de voiturettes ne bénéficient pas du système de bonus/malus appliquée aux conducteurs de voiture classique. Location d'une voiture sans permis : que vérifier en matière d'assurance ? Si vous louez une voiture sans permis en location de courte durée , vous devez vous assurer que l'agence de location l'a bien assurée avant de prendre le volant. Si vous louez une voiture sans permis en location longue durée , le contrat doit préciser qui prend en charge l’assurance du véhicule. Si l’assurance n’est pas incluse par le loueur, vous devrez souscrire vous-même au minimum une garantie responsabilité civile. Quelle garantie supplémentaire peut être souscrite pour conduire une voiture sans permis ? Si vous souhaitez également être indemnisé en cas d'accident, vous devez souscrire des garanties supplémentaires, telles que : Dommages tous accidents Vol et incendie Bris de glace Assistance 0 km Garantie du conducteur. Quelles sont les sanctions en cas d'absence d'assurance d'une voiture sans permis ? Le fait de conduire une voiture sans permis non assurée est un délit . Les sanctions encourues sont les suivantes : Amende pouvant aller jusqu’à 3 750 € . Suspension du droit de conduire certains véhicules Travaux d’intérêt général Immobilisation ou confiscation du véhicule. En cas de première infraction, la sanction peut être remplacée par une amende forfaitaire de 500 € .
+
+    — Conclusion d'un contrat d'assurance auto ou moto · Quelles sont les sanctions encourues quand on n'a pas d'assurance automobile ?
+    Le fait de mettre en circulation un véhicule terrestre à moteur sans l'avoir assuré est un délit puni par une amende de 3 750 € . En fonction des circonstances, une ou plusieurs des peines complémentaires suivantes peuvent être appliquées en plus : Travaux d'intérêt général Jours-amendes (amendes dont le montant est fixé par jour) Suspension du permis de conduire (jusqu'à 3 ans) Annulation du permis de conduire et l'interdiction de le repasser pendant un certain temps (3 ans au plus) Interdiction de conduire certains véhicules, même s'ils ne nécessitent pas le permis de conduire Obligation d'accomplir à ses frais un stage de sensibilisation à la sécurité routière Immobilisation et/ou confiscation du véhicule avec lequel l'infraction a été commise. Vous serez seulement condamné à l'amende forfaitaire de 500 € si l'infraction a été constatée par un procès-verbal électronique et que vous n'avez pas déjà été condamné par le passé pour absence d'assurance. Dans ce cas, le paiement de l'amende dans les délais met fin aux poursuites.
+
+    — Assurance auto obligatoire ou "au tiers" · Quelles sont les sanctions en cas d'absence d’assurance automobile ?
+    Le fait de mettre en circulation un véhicule terrestre à moteur sans l'avoir assuré est un délit puni par une amende de 3 750 € . En fonction des circonstances, une ou plusieurs des peines complémentaires suivantes peuvent être appliquées en plus : Travaux d'intérêt général Jours-amendes (amendes dont le montant est fixé par jour) Suspension du permis de conduire (jusqu'à 3 ans) Annulation du permis de conduire et l'interdiction de le repasser pendant un certain temps (3 ans au plus) Interdiction de conduire certains véhicules, même s'ils ne nécessitent pas le permis de conduire Obligation d'accomplir à ses frais un stage de sensibilisation à la sécurité routière Immobilisation et/ou confiscation du véhicule avec lequel l'infraction a été commise. Vous serez seulement condamné à l'amende forfaitaire de 500 € si l'infraction a été constatée par un procès-verbal électronique et que vous n'avez pas déjà été condamné par le passé pour absence d'assurance. Dans ce cas, le paiement de l'amende dans les délais met fin aux poursuites.
+
+    — Un véhicule doit-il être assuré même s'il n'est pas utilisé ? · Véhicule qui n'est plus en état de circuler
+    Si votre véhicule n'est plus en état de circuler, vous n'êtes pas obligé de l'assurer. Mais, attention, le véhicule qui n'est plus en état de circuler n'est pas juste le véhicule qui est tombé en panne. Il s'agit du véhicule auquel il manque les éléments essentiels pour pouvoir rouler, à savoir les roues, la batterie et le réservoir de carburant. Si vous n'avez pas assuré votre véhicule inutilisé et qu'il y a un contrôle de police, vous devez apporter la preuve qu'il n'est plus en état de circuler. Le fait de mettre en circulation un véhicule terrestre à moteur sans l'avoir assuré est un délit puni par une amende de 3 750 € . En fonction des circonstances, une ou plusieurs des peines complémentaires suivantes peuvent être appliquées en plus : Travaux d'intérêt général Jours-amendes (amendes dont le montant est fixé par jour) Suspension du permis de conduire (jusqu'à 3 ans) Annulation du permis de conduire et l'interdiction de le repasser pendant un certain temps (3 ans au plus) Interdiction de conduire certains véhicules, même s'ils ne nécessitent pas le permis de conduire Obligation d'accomplir à ses frais un stage de sensibilisation à la sécurité routière Immobilisation et/ou confiscation du véhicule avec lequel l'infraction a été commise. Vous serez seulement condamné à l'amende forfaitaire de 500 € si l'infraction a été constatée par un procès-verbal électronique et que vous n'avez pas déjà été condamné par le passé pour absence d'assurance. Dans ce cas, le paiement de l'amende dans les délais met fin aux poursuites.
+
+    — Faut-il une assurance pour conduire une voiture sans permis ?
+    Oui , l'assurance est obligatoire pour une voiture sans permis (également appelée voiturette à 2 places) comme pour tout autre véhicule terrestre à moteur qui circule sur la voie publique. L'obligation d'assurance permet que les victimes des accidents impliquant ces véhicules puissent être indemnisées.
+
+    — Un véhicule doit-il être assuré même s'il n'est pas utilisé ? · Véhicule en état de circuler
+    À noter Un véhicule immatriculé reste soumis à l'obligation d'assurance tant qu’il n’a pas été formellement déclaré retiré de la circulation auprès de l’administration (via un certificat de retrait). Le simple fait de ne plus l'utiliser ne suffit pas. Si vous êtes contrôlé à bord d'un véhicule qui n'est pas assuré, ou si votre véhicule stationné est constaté en état de non-assurance, vous risquez une amende pouvant aller jusqu'à 3 750 € .
+
+    — Faut-il assurer un véhicule de collection ?
+    Un véhicule de collection , c'est-à-dire un véhicule qui a plus de 30 ans et ne roule en général que de façon occasionnelle, doit être assuré comme tous les véhicules terrestres à moteur mis en circulation. Ainsi, la souscription à une assurance responsabilité civile est obligatoire . Vous pouvez aussi souscrire des garanties supplémentaires (dégâts matériels ou vol par exemple). Comme le véhicule de collection ne roule en général que de façon occasionnelle, la cotisation d'assurance est moins élevée que pour un véhicule classique . De plus, certains assureurs proposent des contrats très avantageux réservés à ce type de véhicules. Il peut néanmoins arriver que l'assureur vous impose d'assurer en même temps que le véhicule de collection un autre véhicule, plus récent, pour un usage quotidien. L'assureur peut aussi vous imposer des conditions plus restrictives pour l'assurance du véhicule de collection. Il peut par exemple exiger que le conducteur ait plus de 21 ans et/ou qu'il n'ait pas été responsable d'accident pendant les 2 années qui précèdent la souscription du contrat. À noter Le fait de rouler sans assurance est un délit puni d’une amende de 3 750 € d’une confiscation du véhicule ainsi que d’un retrait temporaire du permis de conduire.
+
+    ### Code des assurances
+
+    — L211-26
+    Les dispositions du code de la route réprimant la conduite d'un véhicule terrestre à moteur sans être couvert par une assurance garantissant sa responsabilité civile conformément aux dispositions de l'article L. 211-1 du présent code sont reproduites ci-après : " Art. L. 324-2-I.-Le fait, y compris par négligence, de mettre ou de maintenir en circulation un véhicule terrestre à moteur ainsi que ses remorques ou semi-remorques sans être couvert par une assurance garantissant sa responsabilité civile conformément aux dispositions de l'article L. 211-1 du code des assurances est puni de 3 750 euros d'amende. II.-Toute personne coupable de l'infraction prévue au présent article encourt également les peines complémentaires suivantes : 1° La peine de travail d'intérêt général, selon les modalités prévues à l'article 131-8 du code pénal et selon les conditions prévues aux articles 131-22 à 131-24 du même code ; 2° La peine de jours-amende dans les conditions fixées aux articles 131-5 et 131-25 du code pénal ; 3° La suspension, pour une durée de trois ans au plus, du permis de conduire, cette suspension ne pouvant pas être limitée à la conduite en dehors de l'activité professionnelle ; 4° L'annulation du permis de conduire avec interdiction de solliciter la délivrance d'un nouveau permis pendant trois ans au plus ; 5° L'interdiction de conduire certains véhicules terrestres à moteur, y compris ceux pour la conduite desquels le permis de conduire n'est pas exigé, pour une durée de cinq ans au plus ; 6° L'obligation d'accomplir, à ses frais, un stage de sensibilisation à la sécurité routière ; 7° La confiscation du véhicule dont le condamné s'est servi pour commettre l'infraction, s'il en est le propriétaire. III.-L'immobilisation peut être prescrite dans les conditions prévues aux articles L. 325-1 à L. 325-3. "
+  clean:
+    human_label: pass
+    envelope:
+      type: reponse
+      explanation: |-
+        Oui, en cas de contrôle sans assurance pour un véhicule terrestre à moteur (y compris une voiture sans permis), vous risquez effectivement des sanctions sévères, notamment la **suspension ou l'annulation de votre permis de conduire** (même si le véhicule ne nécessite pas de permis pour être conduit) et la **confiscation du véhicule**. Ces mesures sont prévues par le Code des assurances et le Code de la route.
+
+        Voici les sanctions encourues en détail :
+        - **Amende** : jusqu’à 3 750 € (500 € en cas d’amende forfaitaire pour une première infraction constatée par procès-verbal électronique).
+        - **Peines complémentaires** :
+          - Suspension du permis de conduire (jusqu’à 3 ans).
+          - Annulation du permis avec interdiction de le repasser pendant 3 ans maximum.
+          - Interdiction de conduire certains véhicules (y compris ceux ne nécessitant pas de permis).
+          - Confiscation du véhicule si vous en êtes le propriétaire.
+          - Immobilisation du véhicule.
+          - Travaux d’intérêt général ou stage de sensibilisation à la sécurité routière.
+
+        Ces sanctions s’appliquent **même si le véhicule n’est pas en circulation active** (par exemple, s’il est stationné sur la voie publique sans assurance). La seule exception concerne les véhicules **non en état de circuler** (manquant de roues, batterie ou réservoir de carburant), à condition de pouvoir le prouver lors d’un contrôle.
+      fondement_juridique:
+      - article_id: L211-26
+        gloss: Cet article du Code des assurances reproduit les dispositions du Code de la route (art.
+          L. 324-2) réprimant la circulation ou le maintien en circulation d'un véhicule terrestre à moteur
+          sans assurance responsabilité civile. Il détaille les peines principales (amende) et complémentaires
+          (suspension/annulation du permis, confiscation du véhicule, etc.).
+      aucun_fondement: null
+  faulted:
+    human_label: fail
+    envelope:
+      type: reponse
+      explanation: |-
+        Oui, en cas de contrôle sans assurance pour un véhicule terrestre à moteur (y compris une voiture sans permis), vous risquez effectivement des sanctions sévères, notamment la **suspension ou l'annulation de votre permis de conduire** (même si le véhicule ne nécessite pas de permis pour être conduit) et la **confiscation du véhicule**. Ces mesures sont prévues par le Code des assurances et le Code de la route.
+
+        Voici les sanctions encourues en détail :
+        - **Amende** : jusqu’à 3 750 € (500 € en cas d’amende forfaitaire pour une première infraction constatée par procès-verbal électronique).
+        - **Peines complémentaires** :
+          - Suspension du permis de conduire (jusqu’à 3 ans).
+          - Annulation du permis avec interdiction de le repasser pendant 3 ans maximum.
+          - Interdiction de conduire certains véhicules (y compris ceux ne nécessitant pas de permis).
+          - Confiscation du véhicule si vous en êtes le propriétaire.
+          - Immobilisation du véhicule.
+
+        Ces sanctions s’appliquent **même si le véhicule n’est pas en circulation active** (par exemple, s’il est stationné sur la voie publique sans assurance). La seule exception concerne les véhicules **non en état de circuler** (manquant de roues, batterie ou réservoir de carburant), à condition de pouvoir le prouver lors d’un contrôle.
+      fondement_juridique:
+      - article_id: L211-26
+        gloss: Cet article du Code des assurances reproduit les dispositions du Code de la route (art.
+          L. 324-2) réprimant la circulation ou le maintien en circulation d'un véhicule terrestre à moteur
+          sans assurance responsabilité civile. Il détaille les peines principales (amende) et complémentaires
+          (suspension/annulation du permis, confiscation du véhicule, etc.).
+      aucun_fondement: null
+- golden_id: gs-016
+  archetype: dropped_expected_point
+  question: Est-ce que je serai remboursé si je me fais renverser en tant que piéton, même si c’est de
+    ma faute ?
+  expected_points:
+  - En tant que piéton victime d’un accident de la route, vous serez indemnisé pour vos dommages corporels
+    même si l’accident est de votre faute.
+  - L’indemnisation couvre intégralement les préjudices corporels, sans tenir compte de la responsabilité
+    du conducteur ou de la vôtre.
+  - Seule une faute intentionnelle (comme une tentative de suicide) peut exclure le droit à indemnisation.
+  retrieved_citation_ids:
+  - Annexe art. A211-11
+  context: |-
+    ### Fiches service-public.fr
+
+    — Accident de la route : indemnisation des victimes de dommages corporels · Piéton ou passager victime
+    Les piétons et les passagers victimes d’un accident de la route bénéficient d’une indemnisation intégrale pour leurs dommages corporels, quelle que soit la responsabilité du conducteur. Toutefois, une exception existe : si la victime a volontairement provoqué l’accident (par exemple dans le cadre d’une tentative de suicide), elle peut être exclue du droit à indemnisation.
+
+    — Accident de la route : indemnisation par le Fonds de garantie des victimes · Dans quels cas le FGAO peut-il réduire ou refuser l’indemnisation ?
+    Le FGAO peut refuser de vous indemniser dans certains cas. Le FGAO examine attentivement les conditions d’intervention et peut réduire ou refuser l’indemnisation si la victime a commis une faute ayant contribué à la survenance ou à l’aggravation de son dommage. Les cas d'exclusion varient suivant que l'accident a été causé par un véhicule terrestre à moteur, par un animal ou un objet, ou par un piéton :
+
+    — Accident de la route : indemnisation des victimes de dommages corporels · Quelle victime peut être indemnisée à la suite d'un accident de la route ?
+    Les conditions d'indemnisation diffèrent selon que vous soyez une victime extérieure à l'accident (piéton ou passager) ou le conducteur d'un des véhicules impliqués.
+
+    — Accident de la route : indemnisation par le Fonds de garantie des victimes · Dans quels cas le FGAO n’intervient pas ?
+    Le FGAO ne vous indemnisera pas dans les situations suivantes : Vous êtes le conducteur responsable de l’accident ou son ayant droit L’accident est causé par un véhicule immatriculé à l’étranger régulièrement assuré Vous êtes propriétaire ou gardien de l’animal ou de l’objet à l’origine de l’accident Les membres de votre famille (ascendants ou descendants) lorsque leur responsabilité est engagée L’accident est causé par un piéton et vous en êtes l’auteur sans être conducteur d’un véhicule terrestre à moteur. Le FGAO peut réduire ou refuser l’indemnisation lorsque la victime a commis une faute ayant contribué à la survenance ou à l’aggravation du dommage.
+
+    — Accident : comment sont indemnisés les dommages matériels autres que les dégâts du véhicule ? · Comment l'assureur indemnise-t-il les frais de déplacement en cas d'indisponibilité du véhicule à la suite d'un accident ?
+    Si votre contrat d'assurance le prévoit, vous pouvez être indemnisé pour les frais occasionnés par l'indisponibilité de votre véhicule, comme la location d'un véhicule de remplacement. L'assureur de la personne reconnue responsable de l'accident peut également vous indemniser dans le cadre de sa garantie responsabilité civile . Pour bénéficier de cette indemnisation, vous devrez prouver que vous avez bien subi un préjudice du fait de l'indisponibilité de votre véhicule (facture de location par exemple). L'indemnisation peut être calculée sur la base d'un forfait ou du coût réel de location d'un véhicule de remplacement.
+
+    — Accident de la vie courante : indemnisation par l'assurance · Qui indemnise un accident de la vie courante ?
+    L’indemnisation dépend de l’existence ou non d’un responsable. Absence de tiers responsable Si aucun responsable n’est identifié, vous pouvez être indemnisé si vous avez souscrit une assurance personnelle couvrant ce type de risque, comme une garantie accidents de la vie (GAV). Exemple Vous vous blessez seul en tombant chez vous. Si vous avez souscrit une GAV, vous pouvez être indemnisé selon les conditions prévues au contrat. Accident causé par un tiers identifié Si une personne est responsable de l’accident, c’est elle ou son assurance responsabilité civile qui doit vous indemniser. Le principe applicable est celui de la responsabilité civile, qui impose à toute personne de réparer les dommages qu’elle cause à autrui. Exemple Un cycliste vous percute et vous blesse. Son assurance responsabilité civile peut prendre en charge votre indemnisation.
+
+    — Accident sous l'effet d'alcool ou de drogue : quelles conséquences sur l'assurance ? · Indemnisation par l'assurance du responsable
+    Si vous êtes passager, piéton ou conducteur d’un autre véhicule et que vous n’êtes pas responsable de l’accident, l’assurance responsabilité civile du conducteur fautif couvrira vos dommages corporels et matériels. Même si une victime était sous l’emprise de l’alcool ou de drogues au moment de l’accident (par exemple, un passager), elle peut tout de même bénéficier de certaines garanties, comme la protection juridique, si sa responsabilité n’est pas engagée.
+
+    ### Code des assurances
+
+    — Annexe art. A211-11
+    Notice destinée aux victimes d'accidents de la circulation mettant en cause un véhicule terrestre à moteur Les informations suivantes ont pour but de vous expliquer ce que vous devez entreprendre et comment vous serez indemnisé. Elles ont été volontairement limitées à l'essentiel. Pour en savoir plus, il vous faut consulter : -la loi n° 85-677 du 5 juillet 1985 publiée au Journal officiel du 6 juillet 1985 ; -le décret n° 86-15 du 6 janvier 1986 publié au Journal officiel du 7 janvier 1986. La loi du 5 juillet 1985 a amélioré la situation des victimes d'accident de la circulation dans lequel est impliqué un véhicule terrestre à moteur, ainsi que ses remorques ou semi-remorques, à l'exception des chemins de fer et des tramways circulant sur des voies qui leur sont propres : -les cas de non-indemnisation sont désormais limités ; -une offre d'indemnité doit être faite par l'assureur dans un délai de huit mois en cas d'accident corporel. Qui a droit à indemnisation ? Pour les dommages corporels : -les passagers, piétons et cyclistes victimes, sauf lorsque la victime a : -recherché volontairement son dommage ; -commis une faute inexcusable, cause exclusive de l'accident. Toutefois, cette faute ne peut être opposée à la victime si elle est âgée de moins de seize ans ou de plus de soixante-dix ans ou encore si elle est atteinte d'une incapacité permanente ou d'une invalidité au moins égale à 80 % ; -les conducteurs de véhicule terrestre à moteur, sauf lorsqu'ils sont responsables de l'accident (la faute du conducteur peut en effet limiter voire exclure son droit à indemnisation). Pour les dommages matériels : -toutes les victimes dans la mesure où elles ne sont pas responsables de l'accident. Attention.-Même si vous êtes indemnisé de vos dommages, vous pouvez être tenu de réparer ceux que vous avez causés à autrui si vous êtes responsable. Comment se déroule l'indemnisation ? -l'assureur du responsable prend contact avec vous ; -vous le renseignez ; -vous vous soumettez à un examen médical ;
+  clean:
+    human_label: pass
+    envelope:
+      type: reponse
+      explanation: |-
+        En tant que piéton victime d'un accident de la route impliquant un véhicule terrestre à moteur, vous bénéficiez d'une indemnisation intégrale pour vos dommages corporels, **même si l'accident est partiellement ou entièrement de votre faute**. Cette règle est prévue par la loi du 5 juillet 1985 (dite « loi Badinter »), qui limite strictement les cas où une victime peut être privée d'indemnisation.
+
+        Deux exceptions pourraient cependant vous exclure du droit à indemnisation :
+        1. Si vous avez **volontairement provoqué l'accident** (par exemple, dans le cadre d'une tentative de suicide).
+        2. Si vous avez commis une **faute inexcusable**, cause exclusive de l'accident. Toutefois, cette faute ne peut vous être opposée si vous avez moins de 16 ans, plus de 70 ans, ou si vous êtes atteint d'une incapacité permanente ou d'une invalidité d'au moins 80 %.
+
+        Dans votre situation (piéton, sans mention de ces exceptions), vous serez donc indemnisé pour vos dommages corporels, quelle que soit votre responsabilité dans l'accident.
+      fondement_juridique:
+      - article_id: Annexe art. A211-11
+        gloss: Notice explicative du Code des assurances détaillant les conditions d'indemnisation des
+          victimes d'accidents de la circulation, notamment les cas où une faute de la victime (piéton,
+          passager) n'exclut pas son droit à indemnisation, sauf exceptions limitées (faute volontaire
+          ou inexcusable).
+      aucun_fondement: null
+  faulted:
+    human_label: fail
+    envelope:
+      type: reponse
+      explanation: |-
+        En tant que piéton victime d'un accident de la route impliquant un véhicule terrestre à moteur, vous bénéficiez d'une indemnisation intégrale pour vos dommages corporels, **même si l'accident est partiellement ou entièrement de votre faute**. Cette règle est prévue par la loi du 5 juillet 1985 (dite « loi Badinter »), qui limite strictement les cas où une victime peut être privée d'indemnisation.
+
+        Dans votre situation (piéton), vous serez donc indemnisé pour vos dommages corporels, quelle que soit votre responsabilité dans l'accident.
+      fondement_juridique:
+      - article_id: Annexe art. A211-11
+        gloss: Notice explicative du Code des assurances détaillant les conditions d'indemnisation des
+          victimes d'accidents de la circulation, notamment les cas où une faute de la victime (piéton,
+          passager) n'exclut pas son droit à indemnisation.
+      aucun_fondement: null
+- golden_id: gs-046
+  archetype: fabricated_citation
+  question: L'article L. 121-12 dit quoi sur le remboursement si l'autre conducteur est responsable de
+    l'accident ?
+  expected_points:
+  - L’assureur qui a indemnisé son assuré est subrogé dans ses droits contre le tiers responsable de l’accident.
+  retrieved_citation_ids:
+  - L121-12
+  context: |-
+    ### Code des assurances
+
+    — L121-12
+    Sans préjudice du deuxième alinéa de l' article L. 121-2 , l'assureur qui a payé l'indemnité d'assurance est subrogé, jusqu'à concurrence de cette indemnité, dans les droits et actions de l'assuré contre les tiers qui, par leur fait, ont causé le dommage ayant donné lieu à la responsabilité de l'assureur. L'assureur peut être déchargé, en tout ou en partie, de sa responsabilité envers l'assuré, quand la subrogation ne peut plus, par le fait de l'assuré, s'opérer en faveur de l'assureur. Par dérogation aux dispositions précédentes, l'assureur n'a aucun recours contre les enfants, descendants, ascendants, alliés en ligne directe, préposés, employés, ouvriers ou domestiques, et généralement toute personne vivant habituellement au foyer de l'assuré, sauf le cas de malveillance commise par une de ces personnes.
+  clean:
+    human_label: pass
+    envelope:
+      type: reponse
+      explanation: |-
+        L'article L121-12 du Code des assurances traite de la subrogation de l'assureur. Concrètement, lorsque votre assureur vous indemnise pour un dommage causé par un tiers (par exemple, un autre conducteur responsable d'un accident), il se substitue à vous pour récupérer cette somme auprès du responsable ou de son assureur. Cela signifie que c'est l'assureur du responsable qui devra finalement rembourser votre assureur, et non vous directement qui recevez l'indemnité de votre propre assureur dans un premier temps.
+
+        En revanche, cette subrogation ne s'applique pas si le responsable fait partie des personnes vivant habituellement à votre foyer (comme un membre de votre famille ou un employé), sauf en cas de malveillance de leur part.
+      fondement_juridique:
+      - article_id: L121-12
+        gloss: Subrogation de l'assureur dans les droits de l'assuré contre le tiers responsable du dommage,
+          avec exceptions pour les personnes vivant au foyer de l'assuré.
+      aucun_fondement: null
+  faulted:
+    human_label: fail
+    envelope:
+      type: reponse
+      explanation: |-
+        L'article L121-12 du Code des assurances traite de la subrogation de l'assureur. Concrètement, lorsque votre assureur vous indemnise pour un dommage causé par un tiers (par exemple, un autre conducteur responsable d'un accident), il se substitue à vous pour récupérer cette somme auprès du responsable ou de son assureur. Cela signifie que c'est l'assureur du responsable qui devra finalement rembourser votre assureur, et non vous directement qui recevez l'indemnité de votre propre assureur dans un premier temps.
+
+        En revanche, cette subrogation ne s'applique pas si le responsable fait partie des personnes vivant habituellement à votre foyer (comme un membre de votre famille ou un employé), sauf en cas de malveillance de leur part.
+      fondement_juridique:
+      - article_id: L121-12
+        gloss: Subrogation de l'assureur dans les droits de l'assuré contre le tiers responsable du dommage,
+          avec exceptions pour les personnes vivant au foyer de l'assuré.
+      - article_id: L124-4
+        gloss: L'assureur du véhicule du conducteur responsable est tenu de garantir le remboursement
+          des sommes versées à la victime, dans la limite des garanties du contrat.
+      aucun_fondement: null
+- golden_id: gs-044
+  archetype: claim_absent_from_context
+  question: Que dit l'article L. 113-9 si je me suis trompé sans le faire exprès dans ma déclaration de
+    risque ?
+  expected_points:
+  - Une erreur non intentionnelle (sans mauvaise foi) n’entraîne pas la nullité, mais peut donner lieu
+    à une réduction proportionnelle de l’indemnité en cas de sinistre.
+  retrieved_citation_ids:
+  - L113-9
+  context: |-
+    ### Code des assurances
+
+    — L113-9
+    L'omission ou la déclaration inexacte de la part de l'assuré dont la mauvaise foi n'est pas établie n'entraîne pas la nullité de l'assurance. Si elle est constatée avant tout sinistre, l'assureur a le droit soit de maintenir le contrat, moyennant une augmentation de prime acceptée par l'assuré, soit de résilier le contrat dix jours après notification adressée à l'assuré par lettre recommandée, en restituant la portion de la prime payée pour le temps où l'assurance ne court plus. Dans le cas où la constatation n'a lieu qu'après un sinistre, l'indemnité est réduite en proportion du taux des primes payées par rapport au taux des primes qui auraient été dues, si les risques avaient été complètement et exactement déclarés.
+  clean:
+    human_label: pass
+    envelope:
+      type: reponse
+      explanation: |-
+        Si vous avez commis une erreur ou une omission dans votre déclaration de risque sans mauvaise foi (c'est-à-dire sans intention de tromper l'assureur), l'article L113-9 du Code des assurances prévoit deux situations possibles :
+
+        1. **Avant tout sinistre** : L'assureur peut soit maintenir le contrat en proposant une augmentation de prime (que vous devez accepter), soit résilier le contrat 10 jours après vous en avoir informé par lettre recommandée. Dans ce cas, il vous restituera la partie de la prime déjà payée pour la période où l'assurance ne s'applique plus.
+
+        2. **Après un sinistre** : Si l'erreur ou l'omission est découverte seulement après un sinistre, l'indemnité que vous recevrez sera réduite proportionnellement au rapport entre la prime que vous avez payée et celle que vous auriez dû payer si les risques avaient été déclarés correctement et complètement.
+      fondement_juridique:
+      - article_id: L113-9
+        gloss: Cet article encadre les conséquences d'une déclaration inexacte ou incomplète de l'assuré,
+          en l'absence de mauvaise foi. Il protège l'assuré contre la nullité du contrat tout en permettant
+          à l'assureur d'ajuster les conditions du contrat ou de réduire l'indemnité en cas de sinistre.
+      aucun_fondement: null
+  faulted:
+    human_label: fail
+    envelope:
+      type: reponse
+      explanation: |-
+        Si vous avez commis une erreur ou une omission dans votre déclaration de risque sans mauvaise foi (c'est-à-dire sans intention de tromper l'assureur), l'article L113-9 du Code des assurances prévoit deux situations possibles :
+
+        1. **Avant tout sinistre** : L'assureur peut soit maintenir le contrat en proposant une augmentation de prime (que vous devez accepter), soit résilier le contrat 10 jours après vous en avoir informé par lettre recommandée. Dans ce cas, il vous restituera la partie de la prime déjà payée pour la période où l'assurance ne s'applique plus. Vous disposez par ailleurs de quinze jours à compter de la découverte de l'erreur pour la signaler vous-même à votre assureur par lettre recommandée.
+
+        2. **Après un sinistre** : Si l'erreur ou l'omission est découverte seulement après un sinistre, l'indemnité que vous recevrez sera réduite proportionnellement au rapport entre la prime que vous avez payée et celle que vous auriez dû payer si les risques avaient été déclarés correctement et complètement.
+      fondement_juridique:
+      - article_id: L113-9
+        gloss: Cet article encadre les conséquences d'une déclaration inexacte ou incomplète de l'assuré,
+          en l'absence de mauvaise foi. Il protège l'assuré contre la nullité du contrat tout en permettant
+          à l'assureur d'ajuster les conditions du contrat ou de réduire l'indemnité en cas de sinistre.
+      aucun_fondement: null
+- golden_id: gs-032
+  archetype: dropped_expected_point
+  question: Est-ce que mon assurance habitation couvre automatiquement les dégâts si ma maison est inondée
+    après de grosses pluies ?
+  expected_points:
+  - Votre assurance habitation ne couvre pas automatiquement les dégâts d’inondation après de grosses
+    pluies sans la reconnaissance officielle d’un état de catastrophe naturelle.
+  - La garantie catastrophe naturelle s’applique uniquement si vous avez souscrit une assurance multirisque
+    habitation (ou un contrat couvrant les dommages aux biens).
+  - Un arrêté interministériel doit reconnaître l’état de catastrophe naturelle dans votre commune pour
+    que l’indemnisation soit possible.
+  retrieved_citation_ids:
+  - L125-1
+  context: |-
+    ### Fiches service-public.fr
+
+    — Assurance dégâts des eaux · Quels sont les risques couverts par l'assurance dégât des eaux ?
+    L'assurance dégâts des eaux couvre les risques liés à l'action de l'eau : dommages résultant de fuite, de rupture de canalisation, de débordement (d'une baignoire ou d'un lave-linge par exemple), etc. Les infiltrations d'eau (par exemple par la toiture, les murs ou les fenêtres) peuvent être couvertes par l'assurance dégâts des eaux si elles résultent d'un événement soudain et accidentel, comme une forte pluie ou une tempête. Elles sont généralement exclues lorsqu'elles sont dues à un manque d'entretien ou à la vétusté des installations. Les assureurs peuvent prévoir dans le contrat que certains risques liés à l'action de l'eau ne seront pas couverts. Par exemple, frais de réparation des appareils, installations ou bâtiments qui sont à l’origine des dommages causés par les eaux. Il est donc important de vérifier dans votre contrat s'il y a des dommages non couverts. À savoir L'assurance contre les dégâts des eaux est comprise dans l'assurance habitation, qui est obligatoire pour le locataire et facultative pour le propriétaire qui vit dans son propre logement.
+
+    — Catastrophe naturelle ou technologique : indemnisation par l’assurance
+    Certains événements exceptionnels, comme une inondation ou un accident industriel majeur, peuvent provoquer des dégâts importants dans les habitations et les biens. Dans ces situations, votre assurance peut vous indemniser sous certaines conditions. Comment fonctionne cette indemnisation et dans quels cas s’applique-t-elle ? Nous vous présentons les informations à connaître.
+
+    — Assurance dégâts des eaux
+    Vous êtes victime d’un dégât des eaux dans votre logement ? La première étape consiste à limiter les dommages en identifiant et stoppant la fuite , puis à informer rapidement votre assurance. Si vous disposez d’une assurance habitation, vous devez déclarer le sinistre dans les 5 jours ouvrés suivant sa découverte. Comment déclarer le sinistre et obtenir une indemnisation ? Nous vous présentons les informations à connaître.
+
+    — Catastrophe naturelle ou technologique : indemnisation par l’assurance · Qu'est-ce que la garantie catastrophe naturelle ?
+    La garantie catastrophe naturelle permet d’être indemnisé pour les dommages matériels directs causés par un phénomène naturel d’intensité anormale (inondation, sécheresse, glissement de terrain, avalanche, tremblement de terre, etc.). Cette garantie ne peut pas être souscrite seule. Elle est automatiquement incluse dans les contrats d’assurance couvrant les dommages aux biens, notamment les contrats multirisques habitation et certains contrats d’assurance automobile. Un assureur ne peut pas refuser d’accorder cette garantie lorsque vous souscrivez un contrat couvrant les dommages aux biens.
+
+    — Faut-il assurer ses appareils portables (téléphone, tablette, ordinateur...) ? · L’assurance habitation couvre-t-elle les appareils électroniques ?
+    Votre assurance habitation peut couvrir certains appareils électroniques en cas : de vol avec effraction à votre domicile, de dommages causés par un incendie ou un dégât des eaux. La couverture ne s’applique généralement pas : aux casses accidentelles, aux vols hors domicile, aux appareils transportés en dehors du logement (sauf garantie spécifique). Les garanties varient selon le contrat.
+
+    — Assurance habitation : qu'est-ce que la garantie responsabilité civile ? · La responsabilité civile couvre-t-elle les locations saisonnières ?
+    Non, pas automatiquement. La responsabilité civile habitation classique est prévue pour couvrir les dommages causés dans le cadre de votre vie privée , en tant qu’occupant ou propriétaire du logement. Or, louer votre logement (ou une chambre) sur Airbnb ou toute autre plateforme constitue une activité de location , parfois assimilée à une activité commerciale ou para-hôtelière selon les conditions. C’est pour cette raison que la plupart des assurances habitation n’incluent pas d’office la couverture des dommages causés par des locataires de passage ou à des tiers dans le cadre d’une location de courte durée. De ce fait, Si un voyageur louant un logement Airbnb provoque un incendie, un dégât des eaux, ou un dommage aux voisins, votre assurance habitation peut refuser d’indemniser si le contrat exclut les locations saisonnières. Si vous êtes propriétaire occupant et que vous louez ponctuellement une chambre, certains assureurs acceptent d’étendre la garantie via une option spécifique (souvent appelée “garantie villégiature”, “garantie location meublée”, ou “extension location saisonnière”). Si vous louez fréquemment, votre assureur peut exiger une assurance dédiée , car l’usage du logement devient assimilé à une activité professionnelle ou commerciale.
+
+    — Assurance habitation : risque incendie ou explosion · Que se passe-t-il si le logement est inhabitable à la suite de l'incendie ?
+    Dans le cas où l'incendie ou l'explosion a entraîné des dégâts qui rendent votre logement inhabitable, l'assurance peut prendre en charge votre hébergement d'urgence si le contrat le prévoit. Lorsque les travaux de réparation doivent durer longtemps, l'assurance peut aussi prendre en charge votre relogement si cela est prévu dans le contrat. Certains contrats prévoient une indemnisation forfaitaire pour les frais de relogement, d’autres un remboursement sur présentation de justificatifs. Il est donc conseillé de vérifier les plafonds et la durée maximale de prise en charge indiqués dans votre contrat.
+
+    ### Code des assurances
+
+    — L125-1
+    Les contrats d'assurance, souscrits par toute personne physique ou morale autre que l'Etat et garantissant les dommages d'incendie ou tous autres dommages à des biens situés en France, ainsi que les dommages aux corps de véhicules terrestres à moteur, ouvrent droit à la garantie de l'assuré contre les effets des catastrophes naturelles, dont ceux des affaissements de terrain dus à des cavités souterraines et à des marnières sur les biens faisant l'objet de tels contrats. En outre, si l'assuré est couvert contre les pertes d'exploitation, cette garantie est étendue aux effets des catastrophes naturelles, dans les conditions prévues au contrat correspondant. Sont considérés comme les effets des catastrophes naturelles, au sens du présent chapitre, les dommages matériels directs non assurables ayant eu pour cause déterminante l'intensité anormale d'un agent naturel ou également, pour les mouvements de terrain différentiels consécutifs à la sécheresse et à la réhydratation des sols, la succession anormale d'événements de sécheresse d'ampleur significative, lorsque les mesures habituelles à prendre pour prévenir ces dommages n'ont pu empêcher leur survenance ou n'ont pu être prises. Sont également considérés comme les effets des catastrophes naturelles, au sens du présent chapitre, et pris en charge par le régime de garantie associé les frais de relogement d'urgence des personnes sinistrées dont la résidence principale est rendue impropre à l'habitation pour des raisons de sécurité, de salubrité ou d'hygiène qui résultent de ces dommages matériels directs non assurables ayant eu pour cause déterminante l'intensité anormale d'un agent naturel ou également, pour les mouvements de terrain différentiels consécutifs à la sécheresse et à la réhydratation des sols, la succession anormale d'événements de sécheresse d'ampleur significative. Les modalités de prise en charge de ces frais sont fixées par décret.
+  clean:
+    human_label: pass
+    envelope:
+      type: reponse
+      explanation: |-
+        Votre assurance habitation peut couvrir les dégâts causés par une inondation après de grosses pluies, mais cela dépend de la nature de l'événement et des garanties prévues dans votre contrat.
+
+        1. **Si l'inondation est considérée comme une catastrophe naturelle** :
+           - La garantie catastrophe naturelle est automatiquement incluse dans les contrats d'assurance habitation couvrant les dommages aux biens (comme les contrats multirisques habitation). Elle couvre les dommages matériels directs causés par un phénomène naturel d'intensité anormale, comme une inondation exceptionnelle. Cependant, cette garantie ne s'applique que si un arrêté interministériel reconnaît l'état de catastrophe naturelle pour votre commune. Dans ce cas, vous serez indemnisé selon les modalités prévues par votre contrat et le Code des assurances.
+
+        2. **Si l'inondation n'est pas reconnue comme une catastrophe naturelle** :
+           - Les dégâts des eaux causés par des pluies normales (même fortes) peuvent être couverts par la garantie dégâts des eaux de votre assurance habitation, à condition que les dommages résultent d'un événement soudain et accidentel (par exemple, une infiltration par la toiture due à une tempête). En revanche, si les dégâts sont dus à un manque d'entretien ou à la vétusté des installations (comme une toiture mal entretenue), ils peuvent être exclus de la couverture.
+
+        Pour savoir si votre contrat couvre ce type de sinistre, vérifiez les clauses relatives aux dégâts des eaux et aux catastrophes naturelles. En cas de doute, contactez votre assureur pour obtenir des précisions.
+      fondement_juridique:
+      - article_id: L125-1
+        gloss: Cet article du Code des assurances définit les conditions de la garantie catastrophe naturelle,
+          qui couvre les dommages matériels directs causés par un phénomène naturel d'intensité anormale,
+          comme une inondation. La garantie est automatiquement incluse dans les contrats d'assurance
+          habitation couvrant les dommages aux biens.
+      aucun_fondement: null
+  faulted:
+    human_label: fail
+    envelope:
+      type: reponse
+      explanation: |-
+        Votre assurance habitation peut couvrir les dégâts causés par une inondation après de grosses pluies, mais cela dépend de la nature de l'événement et des garanties prévues dans votre contrat.
+
+        1. **Si l'inondation est considérée comme une catastrophe naturelle** :
+           - La garantie catastrophe naturelle est automatiquement incluse dans les contrats d'assurance habitation couvrant les dommages aux biens (comme les contrats multirisques habitation). Elle couvre les dommages matériels directs causés par un phénomène naturel d'intensité anormale, comme une inondation exceptionnelle. Vous serez alors indemnisé selon les modalités prévues par votre contrat et le Code des assurances.
+
+        2. **Si l'inondation n'est pas reconnue comme une catastrophe naturelle** :
+           - Les dégâts des eaux causés par des pluies normales (même fortes) peuvent être couverts par la garantie dégâts des eaux de votre assurance habitation, à condition que les dommages résultent d'un événement soudain et accidentel (par exemple, une infiltration par la toiture due à une tempête). En revanche, si les dégâts sont dus à un manque d'entretien ou à la vétusté des installations (comme une toiture mal entretenue), ils peuvent être exclus de la couverture.
+
+        Pour savoir si votre contrat couvre ce type de sinistre, vérifiez les clauses relatives aux dégâts des eaux et aux catastrophes naturelles. En cas de doute, contactez votre assureur pour obtenir des précisions.
+      fondement_juridique:
+      - article_id: L125-1
+        gloss: Cet article du Code des assurances définit les conditions de la garantie catastrophe naturelle,
+          qui couvre les dommages matériels directs causés par un phénomène naturel d'intensité anormale,
+          comme une inondation. La garantie est automatiquement incluse dans les contrats d'assurance
+          habitation couvrant les dommages aux biens.
+      aucun_fondement: null
+- golden_id: gs-054
+  archetype: refusal_without_explanation
+  question: Et sinon, c'est laquelle qui propose la meilleure, dans ce cas ?
+  expected_points:
+  - le système ne recommande pas une banque ou un assureur en particulier
+  - vous êtes libre de choisir un autre assureur que celui proposé par votre banque, à condition que le
+    contrat respecte le niveau de garanties exigé
+  - des éléments comme le délai de carence ou le délai de franchise permettent de comparer les contrats,
+    en dehors du taux
+  retrieved_citation_ids: []
+  context: |-
+    ### Fiches service-public.fr
+
+    — Comment obtenir un contrat d'assurance emprunteur pour un crédit immobilier ?
+    Avant de vous faire une offre de crédit immobilier, l'organisme prêteur (par exemple, la banque) peut exiger que vous signiez un contrat d'assurance . L'organisme prêteur en fixe les garanties minimales (décès, invalidité...). Il réalise ensuite une estimation du coût de l'assurance de votre futur crédit. Mais vous pouvez vous adresser à un autre assureur . En général, vous devrez répondre à un questionnaire de santé avant d'obtenir une proposition d'assurance. Nous vous expliquons.
+
+    — Comment obtenir un contrat d'assurance emprunteur pour un crédit immobilier ? · À quel assureur s'adresser pour un crédit immobilier ?
+    L'organisme prêteur auquel vous demandez votre crédit immobilier peut vous proposer les contrats suivants : Contrat d'assurance emprunteur qu'il commercialise Contrat collectif d'assurance proposé par un de ses partenaires. On parle de contrat d'assurance groupe . Mais vous êtes libre de vous adresser à un autre assureur. Dans tous les cas, le contrat d'assurance que vous choisissez doit respecter les critères définis dans la fiche personnalisée que vous a remis l'organisme prêteur. À savoir Plusieurs éléments (délai de carence , délai de franchise ...) permettent de différencier les contrats d’assurance, en dehors du taux d'intérêt.
+
+    — Comment obtenir un contrat d'assurance emprunteur pour un crédit immobilier ? · Quel contrat d'assurance demander pour un crédit immobilier ?
+    L'organisme prêteur définit les caractéristiques du contrat d'assurance qu'il exige selon le type de crédit immobilier demandé (pour acheter votre résidence principale, pour faire un investissement locatif...) et selon votre statut professionnel (fonctionnaire, salarié...). Il s'agit des caractéristiques suivantes : Garanties minimum (risque de décès, risque d'invalidité...) Contenu de chaque garantie, c'est-à-dire le mode de couverture du risque (risque couvert jusqu'à la fin du prêt, ou jusqu'à un certain âge...) Hauteur à laquelle le crédit doit être assuré (à 100 % ou en partie). L'organisme prêteur fait ensuite une simulation du crédit immobilier et du contrat d'assurance qu'il pourrait vous proposer. Il vous remet alors les documents suivants : Liste des documents à fournir pour faire votre demande de crédit Fiche standardisée d'information . Cette fiche indique les caractéristiques de votre demande de crédit et les garanties minimales de l'assurance emprunteur exigée. Elle indique également le contrat d'assurance que l'organisme prêteur pourrait vous proposer et son coût approximatif (compte tenu des caractéristiques du prêt, de votre âge, des garanties envisagées...). Fiche personnalisée . Ce document définit les caractéristiques du contrat d'assurance que vous devez obtenir. Il contient les éléments indiquant à quelle hauteur le prêt doit être assuré, le type et le contenu des garanties à couvrir. Ces éléments sont définis à l'aide de 11 critères maximum pour les garanties décès, perte d'autonomie, invalidité, incapacité, et de 4 critères au maximum pour la perte d'emploi.
+
+    — Comment obtenir un contrat d'assurance emprunteur pour un crédit immobilier ? · L'assurance emprunteur est-elle obligatoire en cas de crédit immobilier ?
+    L'organisme prêteur (par exemple, la banque) auquel vous demandez un crédit immobilier peut vous imposer d'obtenir une assurance emprunteur. Dans ce cas, vous devrez faire une demande de contrat d'assurance emprunteur. L'organisme prêteur peut vous proposer son contrat d'assurance emprunteur ou le contrat d'assurance d'un de ses partenaires. On parle alors de contrat assurance groupe . Mais vous pouvez choisir de vous adresser à un autre assureur. C'est à partir du moment où vous aurez obtenu l'accord d'un assureur que l'organisme prêteur acceptera de vous faire une offre de crédit.
+
+    — Crédit à la consommation : assurance de l'emprunteur · Comment choisir son assurance pour un crédit à la consommation ?
+    Souvent, l'établissement qui vous accorde le crédit à la consommation vous envoie une proposition d'assurance en même temps que l'offre de prêt. L'assurance n'est pas légalement obligatoire en matière de crédit à la consommation. Toutefois, certains prêteurs peuvent exiger que vous souscriviez une assurance comme condition d'octroi du prêt. Si vous prenez une assurance alors qu'elle n'est pas imposée par le prêteur, vous pouvez choisir le contrat qui vous couvre le mieux. Vous devez comparer la proposition de votre organisme prêteur avec celles qui existent sur le marché. Les assureurs ont l'obligation d'indiquer clairement dans leurs publicités et dans leurs contrats les éléments qui permettent d'évaluer le coût de leurs prestations. Attention Soyez vigilant sur les garanties proposées, les exclusions, les délais de carence et les conditions de prise en charge mentionnés dans le contrat.
+
+    — Comment obtenir un contrat d'assurance emprunteur pour un crédit immobilier ? · Dans quel cas faut-il remplir un questionnaire médical lors d'une demande d'assurance pour un crédit immobilier ?
+    Les règles diffèrent selon les caractéristiques du crédit immobilier : Crédit de 200 000 € ou moins par assuré et à rembourser avant 60 ans L'assureur a interdiction de vous faire remplir un questionnaire de santé. Il ne doit pas non plus vous faire faire un examen de santé. Autre crédit Avant de vous proposer un contrat d'assurance emprunteur, l'assureur vous demande de compléter un questionnaire médical. Il évalue le risque à partir de vos réponses. Ce questionnaire doit être rempli en toute bonne foi . Toute omission (oubli volontaire) ou fausse déclaration intentionnelle est interdite. Si l'assureur vient à déceler la supercherie lorsque vous lui demandez le remboursement de votre crédit, il pourra refuser de vous indemniser ou obtenir la résiliation de votre contrat d'assurance. Au regard de vos réponses, 2 situations sont possibles : Si vous avez ou avez eu un risque de santé aggravé du fait d'une maladie ou d'un handicap, votre demande d'assurance emprunteur relève automatiquement de la convention Aeras . Si ce n'est pas le cas, l'assureur vous fait une proposition d'assurance indiquant notamment les garanties pour lesquelles il accorde la couverture, les conditions à remplir pour les déclencher, les exclusions, le montant de la cotisation mensuelle sur la durée totale de l'emprunt, le coût de l'assurance, les délais de carence .
+
+    — Comment obtenir un contrat d'assurance emprunteur pour un crédit immobilier ? · Qu'est-ce que l'assurance emprunteur d'un crédit immobilier ?
+    Une assurance emprunteur prend en charge le paiement de tout ou partie des échéances de remboursement de votre crédit immobilier restant dû lorsque vous êtes dans au moins 1 des situations suivantes : Décès et perte totale et irréversible d'autonomie Invalidité permanente (totale ou partielle) et incapacité temporaire de travail (totale ou partielle) Éventuellement, perte d'emploi (vous êtes libre de prendre ou non cette garantie).
+
+    — Crédit à la consommation : assurance de l'emprunteur
+    L'assurance emprunteur n'est pas obligatoire pour un crédit à la consommation. Néanmoins, le prêteur peut vous obliger à la prendre avant de vous accorder le crédit. Cette assurance vous protège contre les risques financiers liés au décès et à l'invalidité. Si vous avez des difficultés à trouver une assurance à cause de problèmes de santé, vous pouvez avoir recours à la convention Aeras . Nous vous présentons les informations à connaître.
+  clean:
+    human_label: pass
+    envelope:
+      type: refus
+      explanation: "Vous demandez une recommandation personnalisée sur le choix d'un assureur pour votre\
+        \ prêt immobilier. Bien que je puisse expliquer les règles applicables et vos droits en matière\
+        \ d'assurance emprunteur, je ne peux pas vous conseiller sur le produit ou l'assureur spécifique\
+        \ à choisir (par exemple, comparer les offres de votre banque avec celles d'autres assureurs).\
+        \ \n\nVoici les éléments clés à retenir pour faire votre choix :\n- Vous avez le droit de souscrire\
+        \ une assurance emprunteur auprès de l'assureur de votre choix, à condition que le contrat respecte\
+        \ les garanties minimales exigées par votre banque (décès, invalidité, etc.), telles que définies\
+        \ dans la fiche personnalisée remise par votre prêteur.\n- Comparez les offres en examinant les\
+        \ garanties, les exclusions, les délais de carence, les franchises et le coût total de l'assurance.\
+        \ La fiche standardisée d'information (FSI) fournie par votre banque peut vous aider à comparer.\n\
+        - Si votre prêt est inférieur ou égal à 200 000 € et doit être remboursé avant vos 60 ans, l'assureur\
+        \ ne peut pas vous imposer de questionnaire médical.\n\nPour choisir, vous pouvez utiliser des\
+        \ comparateurs en ligne, consulter un courtier en assurance ou vous adresser directement à plusieurs\
+        \ assureurs pour obtenir des devis."
+      fondement_juridique: []
+      motif: recommandation_produit
+  faulted:
+    human_label: fail
+    envelope:
+      type: refus
+      explanation: "Vous demandez une recommandation personnalisée sur le choix d'un assureur pour votre\
+        \ prêt immobilier. Bien que je puisse expliquer les règles applicables et vos droits en matière\
+        \ d'assurance emprunteur, je ne peux pas vous conseiller sur le produit ou l'assureur spécifique\
+        \ à choisir (par exemple, comparer les offres de votre banque avec celles d'autres assureurs).\
+        \ \n\nPour choisir, vous pouvez utiliser des comparateurs en ligne, consulter un courtier en assurance\
+        \ ou vous adresser directement à plusieurs assureurs pour obtenir des devis."
+      fondement_juridique: []
+      motif: recommandation_produit
+- golden_id: gs-045
+  archetype: claim_absent_from_context
+  question: L'article L113-15-2, ça change quoi pour résilier mon assurance auto en cours d'année ?
+  expected_points:
+  - Après un an de contrat, l’assuré peut résilier à tout moment sans frais ni pénalités.
+  - La résiliation prend effet un mois après réception de la notification par l’assureur.
+  retrieved_citation_ids:
+  - L113-15-2
+  context: |-
+    ### Code des assurances
+
+    — L113-15-2
+    Pour les contrats d'assurance couvrant les personnes physiques en dehors de leurs activités professionnelles et relevant des branches ou des catégories de contrats définies par décret en Conseil d'Etat, l'assuré peut, après expiration d'un délai d'un an à compter de la première souscription, résilier sans frais ni pénalités les contrats et adhésions tacitement reconductibles. La résiliation prend effet un mois après que l'assureur en a reçu notification par l'assuré. Le droit de résiliation prévu au premier alinéa est mentionné dans chaque contrat d'assurance. Il est en outre rappelé avec chaque avis d'échéance de prime ou de cotisation. Le droit de résiliation prévu au même premier alinéa n'est pas ouvert à l'adhérent lorsque le lien qui l'unit à l'employeur rend obligatoire l'adhésion au contrat. Lorsque le contrat est résilié dans les conditions prévues au premier alinéa, l'assuré n'est redevable que de la partie de prime ou de cotisation correspondant à la période pendant laquelle le risque est couvert, cette période étant calculée jusqu'à la date d'effet de la résiliation. L'assureur est tenu de rembourser le solde à l'assuré dans un délai de trente jours à compter de la date de résiliation. A défaut de remboursement dans ce délai, les sommes dues à l'assuré produisent de plein droit intérêts au taux légal. Pour les contrats d'assurance de personnes souscrits par un employeur ou une personne morale au profit de ses salariés ou adhérents et relevant des catégories de contrats définies par décret en Conseil d'Etat, le droit de résiliation prévu au même premier alinéa est ouvert au souscripteur.
+
+    — L113-15-2
+    Pour l'assurance de responsabilité civile automobile définie à l'article L. 211-1 et pour l'assurance mentionnée au g de l'article 7 de la loi n° 89-462 du 6 juillet 1989 tendant à améliorer les rapports locatifs et portant modification de la loi n° 86-1290 du 23 décembre 1986, le nouvel assureur effectue pour le compte de l'assuré souhaitant le rejoindre les formalités nécessaires à l'exercice du droit de résiliation dans les conditions prévues au premier alinéa du présent article. Il s'assure en particulier de la permanence de la couverture de l'assuré durant la procédure. Dans le cas où l'assuré souhaite résilier un contrat conclu pour le remboursement et l'indemnisation des frais occasionnés par une maladie, une maternité ou un accident afin de souscrire un nouveau contrat auprès d'un nouvel organisme, celui-ci effectue pour le compte de l'assuré souhaitant le rejoindre les formalités nécessaires à l'exercice du droit de résiliation dans les conditions prévues au premier alinéa du présent article. Les organismes intéressés s'assurent de l'absence d'interruption de la couverture de l'assuré durant la procédure. Un décret en Conseil d'Etat précise les modalités et conditions d'application du présent article.
+  clean:
+    human_label: pass
+    envelope:
+      type: reponse
+      explanation: |-
+        L'article L113-15-2 du Code des assurances facilite la résiliation de votre assurance auto (responsabilité civile automobile) après un an de souscription, sans frais ni pénalités. Voici les points clés qui changent pour vous :
+
+        1. **Délai de résiliation** : Vous pouvez résilier votre contrat à tout moment après la première année, sans attendre l'échéance annuelle.
+        2. **Procédure simplifiée** : Votre nouvel assureur peut effectuer les formalités de résiliation pour vous, en s'assurant que votre couverture reste continue pendant la transition.
+        3. **Effet de la résiliation** : La résiliation prend effet un mois après que votre assureur actuel a reçu votre notification (ou celle de votre nouvel assureur).
+        4. **Remboursement** : Vous ne payez que la partie de la prime correspondant à la période où le risque était couvert. L'assureur doit vous rembourser le solde sous 30 jours, sinon des intérêts légaux s'appliquent.
+
+        Ce dispositif vise à rendre plus flexible la résiliation des contrats d'assurance auto, tout en garantissant une protection ininterrompue.
+      fondement_juridique:
+      - article_id: L113-15-2
+        gloss: Permet la résiliation sans frais des contrats d'assurance auto après un an, avec une procédure
+          simplifiée par le nouvel assureur et un remboursement partiel de la prime.
+      aucun_fondement: null
+  faulted:
+    human_label: fail
+    envelope:
+      type: reponse
+      explanation: |-
+        L'article L113-15-2 du Code des assurances facilite la résiliation de votre assurance auto (responsabilité civile automobile) après un an de souscription, sans frais ni pénalités. Voici les points clés qui changent pour vous :
+
+        1. **Délai de résiliation** : Vous pouvez résilier votre contrat à tout moment après la première année, sans attendre l'échéance annuelle. Vous devez toutefois en informer votre assureur au moins deux mois à l'avance par lettre recommandée.
+        2. **Procédure simplifiée** : Votre nouvel assureur peut effectuer les formalités de résiliation pour vous, en s'assurant que votre couverture reste continue pendant la transition.
+        3. **Effet de la résiliation** : La résiliation prend effet un mois après que votre assureur actuel a reçu votre notification (ou celle de votre nouvel assureur).
+        4. **Remboursement** : Vous ne payez que la partie de la prime correspondant à la période où le risque était couvert. L'assureur doit vous rembourser le solde sous 30 jours, sinon des intérêts légaux s'appliquent.
+
+        Ce dispositif vise à rendre plus flexible la résiliation des contrats d'assurance auto, tout en garantissant une protection ininterrompue.
+      fondement_juridique:
+      - article_id: L113-15-2
+        gloss: Permet la résiliation sans frais des contrats d'assurance auto après un an, avec une procédure
+          simplifiée par le nouvel assureur et un remboursement partiel de la prime.
+      aucun_fondement: null
+- golden_id: gs-051
+  archetype: refusal_without_explanation
+  question: Mon assureur met trop de temps à me rembourser mon dégât des eaux. Quelle autre assurance
+    sera plus rapide ?
+  expected_points:
+  - le système ne recommande pas un assureur ou un contrat en particulier
+  - l'assureur doit exécuter la prestation dans le délai prévu au contrat, une fois la proposition d'indemnisation
+    acceptée (généralement 1 mois)
+  - en cas de désaccord ou de retard, l'assuré peut saisir le médiateur de l'assurance puis la justice
+  retrieved_citation_ids:
+  - Annexe art. A211-11
+  context: |-
+    ### Fiches service-public.fr
+
+    — Assurance dégâts des eaux · Quand et comment intervient l’indemnisation de l’assurance après un dégât des eaux ?
+    Après un dégât des eaux, votre assurance suit une procédure définie par votre contrat pour déterminer l’indemnisation, préciser les délais et franchises, expliquer comment la décision est communiquée et indiquer les recours possibles en cas de désaccord. Délai et franchise L’assureur doit vous indemniser dans le délai prévu par votre contrat. Ce délai peut varier selon les compagnies et la complexité du sinistre. Si le dossier est simple (sans expertise), la décision est généralement rapide. En cas d’expertise, le traitement peut prendre plus de temps. La plupart des contrats prévoient une franchise . Procédure d’indemnisation Si l’assureur accepte de vous indemniser, vous recevez un courrier précisant sa décision et le montant proposé. Une fois la proposition acceptée, le paiement intervient dans le délai prévu au contrat (en général 1 mois) . En cas de désaccord Si vous contestez le montant proposé ou un refus d’indemnisation, vous pouvez répondre à l’assureur en présentant vos arguments. Vous pouvez demander une copie du rapport d’expertise. Même si la loi n’impose pas aux assureurs de le transmettre, la profession s’est engagée à le faire.
+
+    — Assurance dégâts des eaux · Déclaration de sinistre
+    Si vous êtes victime d'un sinistre dégât des eaux, vous devez prévenir votre assureur dès que vous avez connaissance du sinistre, et au plus tard dans le délai fixé par le contrat. Ce délai est au minimum de 5 jours ouvrés . Vous devez vous adresser à votre compagnie d'assurance ou au courtier d'assurance qui gère vos contrats. Les coordonnées de la compagnie d'assurance et du courtier figurent sur les quittances ou dans le contrat. La déclaration peut se faire selon les cas par téléphone ou en vous rendant directement à l'agence de l'assureur. Certains assureurs permettent également de faire la déclaration en ligne. Il faut vérifier cette possibilité sur le site internet de votre compagnie d'assurance. Si vous ne pouvez pas le faire en ligne, il est préférable d'adresser une déclaration par courrier, de préférence par lettre recommandée avec accusé de réception, à votre assureur. Prévoyez éventuellement une copie de ce courrier à votre agent d'assurances ou votre courtier. Indiquez dans ce courrier les informations suivantes : Coordonnées (nom, adresse) Numéro de votre contrat d'assurance Description du sinistre (nature, date, heure, lieu) État estimatif des meubles et objets détruits ou détériorés Description des dommages (matériels ou corporels, importance) Dégâts causés à des tiers (par exemple si une fuite d'eau chez vous a occasionné des dégâts chez vos voisins) Démarches déjà entreprises (intervention d'un plombier) Coordonnées des victimes s'il y en a.
+
+    — Assurance dégâts des eaux · Y-a-t-il forcément une expertise à la suite d’un dégât des eaux ?
+    Un dégât des eaux n’entraîne pas automatiquement la réalisation d'une expertise . C'est l'assureur qui décide s'il est nécessaire de procéder à une expertise ou non avant de vous indemniser. En général, l'assureur ordonne une expertise si le dommage est supérieur à 1 600 € . Le rôle de l'expert est alors d'évaluer les dommages et de déterminer les causes du sinistre. Si l'assureur décider de faire réaliser une expertise, elle doit vous prévenir de la date et de l'heure de passage de l'expert. À savoir Les compagnies d'assurance ont signé entre elles des conventions pour régler les sinistres dégât des eaux les moins importants au plus vite et sans expertise préalable. Il est important de conserver tous les objets qui ont été endommagés lors du sinistre, même détériorés, et de rassembler tout ce qui peut permettre d'identifier les biens détruits dans le sinistre (factures, photos, bons de garantie...). Avant le passage de l'expert, vous pouvez faire établir des devis de remise en état des locaux. Mais il ne faut pas commencer les travaux de remise en état avant le passage de l'expert.
+
+    — Assurance habitation et vol : conditions de prise en charge · Peut-on contester le montant de l'indemnisation à la suite d'un vol ?
+    Oui. Si vous estimez que l’indemnisation est insuffisante, vous pouvez adresser une réclamation à votre assureur. En cas de désaccord persistant, vous pouvez saisir gratuitement le médiateur de l’assurance . Enfin, vous avez la possibilité de saisir la justice . Attention Toute action en justice liée à un contrat d’assurance doit être engagée dans un délai de 2 ans à compter du sinistre ou de la date à laquelle vous en avez eu connaissance.
+
+    — Assurance dégâts des eaux
+    Vous êtes victime d’un dégât des eaux dans votre logement ? La première étape consiste à limiter les dommages en identifiant et stoppant la fuite , puis à informer rapidement votre assurance. Si vous disposez d’une assurance habitation, vous devez déclarer le sinistre dans les 5 jours ouvrés suivant sa découverte. Comment déclarer le sinistre et obtenir une indemnisation ? Nous vous présentons les informations à connaître.
+
+    — Assurance dommages-ouvrage · Quelle suite donner à l'offre d'indemnité proposée par l'assureur dommages-ouvrage ?
+    Vous avez le choix d'accepter ou de refuser l'offre d'indemnité. Si vous acceptez l'offre d'indemnité L'indemnité doit être versée dans un délai de 15 jours calendaires . Si votre assureur ne respecte pas ce délai, vous pouvez lui notifier que vous engagez les dépenses nécessaires à la réparation des dommages. L'indemnité versée par l'assureur est alors majorée d'un intérêt égal au double du taux de l'intérêt légal . L'indemnité sera utilisée uniquement pour la remise en état effective du bâtiment ou du terrain sur lequel il est implanté. L'assureur peut vous demander de justifier le montant des travaux de réparation que vous avez effectués. Attention Dans les cas de difficultés exceptionnelles en raison de la nature ou de l' importance du sinistre , l'assureur peut, en même temps qu'il notifie son accord, vous proposer la fixation d'un délai supplémentaire pour l'établissement de son offre d'indemnité. Ce délai ne peut excéder 135 jours calendaires. Si vous estimez l'offre insuffisante Si vous estimez que la proposition d'indemnisation est insuffisante et que les réparations ne peuvent pas attendre, vous pouvez demander une avance à votre assureur en attendant la résolution du litige. Cette avance forfaitaire, au moins égale aux 3/4 du montant de l'indemnité proposée, est à valoir sur le montant définitif de l'indemnité qui sera mise à la charge de l'assureur. Elle est versée en une seule fois par l'assureur dans un délai maximum de 15 jours calendaires courant à compter de la réception de votre courrier. Vous pouvez engager les travaux nécessaires après avoir informé l'assureur par lettre recommandée avec avis de réception en vous aidant, par exemple, du modèle suivant : Informer son assureur des réparations engagées à la suite d'une déclaration de sinistre Institut national de la consommation (INC) Vous pouvez exiger de l'assureur le paiement d'un intérêt égal au double du taux de l'intérêt légal .
+
+    — Catastrophe naturelle ou technologique : indemnisation par l’assurance · Sous quel délai est-on indemnisé après une catastrophe naturelle ?
+    L’assureur doit : verser une provision dans les 2 mois suivant la remise de l’état estimatif des dommages ou la publication de l’arrêté, puis verser l’ indemnisation complète dans un délai de 3 mois . À savoir Des dispositions plus avantageuses peuvent être prévues dans votre contrat.
+
+    ### Code des assurances
+
+    — Annexe art. A211-11
+    Surveillez les délais afin d'accélérer le règlement de votre dossier. En particulier si un mois après l'accident vous n'avez aucune nouvelle de l'assureur du responsable, prenez contact avec lui. Remarque. Le dispositif mis en place par la loi a pour objet de réduire le nombre de procès et d'accélérer l'indemnisation des victimes. Cependant, vous avez la possibilité à tout moment : -d'introduire devant le tribunal un référé (procédure d'urgence pour obtenir une avance sur indemnité), particulièrement en cas d'inaction persistante de l'assureur du responsable ; -de faire intervenir le juge en cas de désaccord persistant sur : -le taux de responsabilité, -le caractère inexcusable d'une faute, -le montant de l'offre d'indemnisation ; -de vous constituer partie civile ou d'engager une procédure judiciaire à l'encontre des auteurs de l'accident que vous estimez responsables.
+  clean:
+    human_label: pass
+    envelope:
+      type: refus
+      explanation: |-
+        Votre question porte sur le choix d'une assurance plus rapide pour le remboursement d'un dégât des eaux, ce qui relève d'une **recommandation de produit**. Je ne peux pas vous conseiller une assurance spécifique ou comparer les délais de traitement entre assureurs, car cela sort du cadre de l'information neutre et objective que je suis mandaté pour fournir.
+
+        Cependant, voici les règles applicables en matière de délais d'indemnisation pour un dégât des eaux :
+        - Votre assureur doit vous indemniser dans le délai prévu par votre contrat. Ce délai peut varier selon la complexité du sinistre (par exemple, s'il nécessite une expertise ou non).
+        - Si le dossier est simple, la décision est généralement rapide. En cas d'expertise, le traitement peut prendre plus de temps.
+        - Une fois la proposition d'indemnisation acceptée, le paiement doit intervenir dans le délai prévu au contrat (généralement 1 mois).
+
+        Si votre assureur ne respecte pas ces délais, vous pouvez :
+        1. **Le relancer** pour obtenir des explications sur le retard.
+        2. **Saisir le médiateur de l'assurance** en cas de désaccord persistant (gratuit et sans obligation de recourir à un avocat).
+        3. **Engager une action en justice** dans un délai de 2 ans à compter du sinistre ou de la date à laquelle vous en avez eu connaissance (article L114-1 du Code des assurances, bien que non cité dans le contexte fourni).
+
+        Pour accélérer le règlement, vous pouvez également demander une **provision** à votre assureur si les réparations ne peuvent pas attendre.
+      fondement_juridique: []
+      motif: recommandation_produit
+  faulted:
+    human_label: fail
+    envelope:
+      type: refus
+      explanation: Votre question porte sur le choix d'une assurance plus rapide pour le remboursement
+        d'un dégât des eaux, ce qui relève d'une **recommandation de produit**. Je ne peux pas vous conseiller
+        une assurance spécifique ou comparer les délais de traitement entre assureurs, car cela sort du
+        cadre de l'information neutre et objective que je suis mandaté pour fournir.
+      fondement_juridique: []
+      motif: recommandation_produit
+- golden_id: gs-015
+  archetype: fabricated_citation
+  question: Est-ce que je peux vraiment forcer une assurance à me couvrir si elles me refusent toutes
+    ?
+  expected_points:
+  - Toute compagnie d’assurance peut être contrainte par le Bureau central de tarification (BCT) à vous
+    couvrir pour la garantie obligatoire de responsabilité civile.
+  - La saisine du BCT est possible si aucune assurance n’accepte de vous assurer pour votre véhicule.
+  retrieved_citation_ids:
+  - L125-6
+  - L215-1
+  context: |-
+    ### Fiches service-public.fr
+
+    — Modification du contrat d'assurance auto ou moto · Modification du contrat d'assurance auto suite à une nouvelle obligation légale
+    Les pouvoirs publics peuvent décider d'obliger tous les assurés à s'assurer contre certains risques et, parallèlement, d'obliger tous les assureurs à couvrir ces risques. Dans cette hypothèse, l'assureur a le droit de vous imposer une modification du contrat qui ajoute une nouvelle garantie obligatoire, et qui augmente la cotisation. L'assureur doit vous envoyer un avenant avec les nouvelles conditions du contrat.
+
+    — Que faire si les assurances refusent d'assurer un véhicule ?
+    Les assurances peuvent refuser d'assurer votre véhicule pour l'une des raisons suivantes : Profil à risque (jeune conducteur, malus élevé) Voiture jugé trop puissant ou à risque Antécédents de sinistres Condamnation pour conduite d'un véhicule sous l'emprise de substances interdites (alcool ou de stupéfiant) Résiliation pour non paiement. Si vous êtes dans l'une des situations suivantes, vous pouvez faire appel au BTC pour obtenir la couverture minimale obligatoire.
+
+    — Accident sous l'effet d'alcool ou de drogue : quelles conséquences sur l'assurance ? · Le conducteur dont le contrat d'assurance a été résilié suite à un accident causé sous l'effet d'alcool ou de drogue peut-il changer d'assureur ?
+    Oui, vous pouvez changer d'assureur. Toutefois, le fait d'être inscrit dans le fichier des résiliations automobiles en tant que conducteur à risque peut entraîner les situations suivantes : Refus d'assurance Augmentation importante de la prime Période probatoire. En cas de difficulté, vous pouvez vous rapprocher du bureau central de tarification (BTC) . Il s'agit d'un organisme indépendant dont le rôle est de garantir que tout conducteur puisse souscrire à l'assurance responsabilité civile obligatoire. Pour solliciter son intervention, vous devez lui adresser une demande écrite en joignant la preuve du refus. Un modèle de demande est disponible : Saisir le Bureau central de tarification (BCT) en cas de refus d'assurance de son véhicule Institut national de la consommation (INC) Le BCT désigne un assureur qui sera tenu de vous proposer une couverture en responsabilité civile, et détermine le montant de la prime que vous devrez payer. À noter L'intervention du BCT se limite à la garantie de responsabilité civile obligatoire. Les garanties facultatives (telles que le vol, l'incendie ou les dommages tous accidents) ne sont pas concernées.
+
+    — Que faire si les assurances refusent d'assurer un véhicule ? · En cas de refus de l'assureur ou en cas d'absence de réponse : écrire au BCT
+    Si la société refuse de vous assurer pour la garantie obligatoire responsabilité civile ou si elle ne vous répond pas dans les 15 jours à compter de la réception de votre demande, vous pouvez saisir le BCT. Il faut envoyer au BTC un courrier par lettre recommandée avec accusé de réception ou par envoi recommandé électronique. Vous pouvez utiliser le modèle de lettre suivant : Saisir le Bureau central de tarification (BCT) en cas de refus d'assurance de son véhicule Institut national de la consommation (INC) Le courrier doit être accompagné des documents suivants : 2 ème exemplaire complété du document proposition d'assurance Accusé de réception par l'assurance du courrier que vous lui avez envoyé Devis fourni par la compagnie d'assurance et sa lettre de refus de vous assurer (si ces documents vous ont été envoyés) Photocopie de la carte grise et de votre permis de conduire Relevé d'information de l'ancienne compagnie d'assurance Dernier avis d'échéance de votre contrat En cas de condamnation pour conduite sous l'emprise de substances interdites, copie de la décision judiciaire. Le BTC intervient uniquement pour la garantie obligatoire de responsabilité civile. Les autres garanties (vol, incendie, bris de glace, tous risques) sont laissées à l'appréciation de l'assureur. Le BCT fixe le montant de la cotisation et vous en informe. Le BCT informe également l'assureur. La décision est prise dans un délai d'environ 2 mois. Vous devez répondre au BCT pour lui signaler votre accord, par lettre recommandée avec accusé de réception. Vous devrez alors payer la cotisation à la société d'assurance qui va assurer votre voiture.
+
+    — Que faire si les assurances refusent d'assurer un véhicule ?
+    Si aucune compagnie d'assurance ne veut assurer votre véhicule, vous pouvez saisir le Bureau central de tarification (BCT). Cet organisme peut contraindre une compagnie à vous assurer pour la garantie obligatoire de responsabilité civile. Dans ce cas, c'est le BCT qui fixe lui-même le tarif du contrat. L'assureur peut refuser de vous proposer d'autres garanties en dehors de l'assurance obligatoire.
+
+    — Assurance : indemnisation du vol ou de la tentative de vol d'un véhicule · Que faire si l'assureur refuse d'indemniser un véhicule en cas de vol ou de tentative de vol ?
+    Si votre assureur refuse d'indemniser votre véhicule en cas de vol ou de tentative de vol, plusieurs recours sont possibles .
+
+    ### Code des assurances
+
+    — L125-6
+    Lorsqu'un assuré s'est vu refuser par une entreprise d'assurance, en raison de l'importance du risque de catastrophes naturelles auquel il est soumis, la souscription d'un des contrats mentionnés à l'article L. 125-1 du présent code, il peut saisir le bureau central de tarification, qui impose à l'entreprise d'assurance concernée la souscription du contrat demandé comprenant la garantie contre les effets des catastrophes naturelles. Lorsque le risque présente une importance ou des caractéristiques particulières, le bureau central de tarification peut demander à l'assuré de lui présenter, dans les mêmes conditions, un ou plusieurs autres assureurs afin de répartir le risque entre eux. Toute entreprise d'assurance ayant maintenu son refus de garantir un assuré dans les conditions fixées par le bureau central de tarification est considérée comme ne fonctionnant plus conformément à la réglementation en vigueur et encourt le retrait de l'agrément administratif prévu aux articles L. 321-1 ou L. 321-7 à L. 321-9 . Est nulle toute clause des traités de réassurance tendant à exclure le risque de catastrophe naturelle de la garantie de réassurance en raison des conditions d'assurance fixées par le bureau central de tarification. Le préfet ou le président de la caisse centrale de réassurance peuvent saisir le bureau central de tarification lorsque les conditions dans lesquelles un bien ou une activité bénéficie de la garantie prévue de l'article L. 125-1 leur paraissent injustifiées eu égard au comportement de l'assuré ou à l'absence de toute mesure de précaution de nature à réduire la vulnérabilité de ce bien ou de cette activité. Le bureau central de tarification fixe des abattements spéciaux dans les conditions prévues au cinquième alinéa.
+
+    — L215-1
+    Toute personne assujettie à l'obligation d'assurance énoncée au g de l'article 7 de la loi n° 89-462 du 6 juillet 1989 tendant à améliorer les rapports locatifs et portant modification de la loi n° 86-1290 du 23 décembre 1986 ou tout bailleur souscrivant une assurance habitation pour le compte d'un locataire dans les conditions définies au même g qui, ayant sollicité la souscription d'un contrat auprès d'une entreprise d'assurance couvrant en France les risques dont elle doit répondre en sa qualité de locataire, se voit opposer un refus peut saisir le bureau central de tarification prévu à l'article L. 212-1. Le bureau central de tarification fixe le montant de la prime moyennant laquelle l'entreprise d'assurance intéressée est tenue de garantir le risque qui lui a été proposé. Il peut, dans les conditions fixées par décret en Conseil d'Etat, déterminer le montant d'une franchise qui reste à la charge de l'assuré. Toute entreprise d'assurance qui maintient son refus de garantir le risque dont la prime a été fixée par le bureau central de tarification est considérée comme ne fonctionnant plus conformément à la réglementation en vigueur. Elle encourt, selon le cas, soit le retrait des agréments prévus aux articles L. 321-1 , L. 321-7, L. 321-8 ou L. 321-9 , soit les sanctions prévues à l'article L. 363-4 .
+  clean:
+    human_label: pass
+    envelope:
+      type: reponse
+      explanation: |-
+        Oui, dans certains cas, vous pouvez contraindre une assurance à vous couvrir pour la garantie obligatoire de responsabilité civile (assurance minimale imposée par la loi pour circuler avec un véhicule). Cela s'applique notamment si vous avez essuyé des refus d'assurance en raison de votre profil (jeune conducteur, malus élevé, antécédents de sinistres, condamnation pour conduite sous l'emprise d'alcool ou de stupéfiants, etc.).
+
+        Pour cela, vous devez saisir le **Bureau Central de Tarification (BCT)**. Cet organisme indépendant a le pouvoir d'imposer à une compagnie d'assurance de vous proposer un contrat couvrant au moins la responsabilité civile obligatoire. Le BCT fixe également le montant de la prime que vous devrez payer. Notez que cette intervention se limite à la garantie obligatoire : les garanties facultatives (vol, incendie, dommages tous accidents, etc.) restent à la discrétion des assureurs.
+
+        Voici les étapes à suivre :
+        1. Envoyez une demande écrite au BCT (par lettre recommandée avec accusé de réception ou envoi recommandé électronique).
+        2. Joignez les documents suivants :
+           - Un exemplaire complété de la proposition d'assurance refusée.
+           - L'accusé de réception de votre courrier envoyé à l'assureur.
+           - Le devis et la lettre de refus de l'assureur (si disponibles).
+           - Une photocopie de votre carte grise et de votre permis de conduire.
+           - Votre relevé d'information d'assurance.
+           - Votre dernier avis d'échéance de contrat.
+           - En cas de condamnation pour conduite sous l'emprise de substances interdites, une copie de la décision judiciaire.
+        3. Le BCT prendra une décision dans un délai d'environ 2 mois et vous informera, ainsi que l'assureur désigné, du montant de la cotisation.
+        4. Vous devrez confirmer votre accord par lettre recommandée avec accusé de réception et payer la cotisation à l'assureur désigné.
+      fondement_juridique:
+      - article_id: L125-6
+        gloss: Cet article prévoit que le Bureau Central de Tarification (BCT) peut imposer à une entreprise
+          d'assurance la souscription d'un contrat couvrant les risques de catastrophes naturelles en
+          cas de refus. Bien que ce cas spécifique concerne les catastrophes naturelles, le principe général
+          du BCT s'applique également pour la garantie obligatoire de responsabilité civile automobile,
+          comme le confirment les fiches pratiques.
+      aucun_fondement: null
+  faulted:
+    human_label: fail
+    envelope:
+      type: reponse
+      explanation: |-
+        Oui, dans certains cas, vous pouvez contraindre une assurance à vous couvrir pour la garantie obligatoire de responsabilité civile (assurance minimale imposée par la loi pour circuler avec un véhicule). Cela s'applique notamment si vous avez essuyé des refus d'assurance en raison de votre profil (jeune conducteur, malus élevé, antécédents de sinistres, condamnation pour conduite sous l'emprise d'alcool ou de stupéfiants, etc.).
+
+        Pour cela, vous devez saisir le **Bureau Central de Tarification (BCT)**. Cet organisme indépendant a le pouvoir d'imposer à une compagnie d'assurance de vous proposer un contrat couvrant au moins la responsabilité civile obligatoire. Le BCT fixe également le montant de la prime que vous devrez payer. Notez que cette intervention se limite à la garantie obligatoire : les garanties facultatives (vol, incendie, dommages tous accidents, etc.) restent à la discrétion des assureurs.
+
+        Voici les étapes à suivre :
+        1. Envoyez une demande écrite au BCT (par lettre recommandée avec accusé de réception ou envoi recommandé électronique).
+        2. Joignez les documents suivants :
+           - Un exemplaire complété de la proposition d'assurance refusée.
+           - L'accusé de réception de votre courrier envoyé à l'assureur.
+           - Le devis et la lettre de refus de l'assureur (si disponibles).
+           - Une photocopie de votre carte grise et de votre permis de conduire.
+           - Votre relevé d'information d'assurance.
+           - Votre dernier avis d'échéance de contrat.
+           - En cas de condamnation pour conduite sous l'emprise de substances interdites, une copie de la décision judiciaire.
+        3. Le BCT prendra une décision dans un délai d'environ 2 mois et vous informera, ainsi que l'assureur désigné, du montant de la cotisation.
+        4. Vous devrez confirmer votre accord par lettre recommandée avec accusé de réception et payer la cotisation à l'assureur désigné.
+      fondement_juridique:
+      - article_id: L125-6
+        gloss: Cet article prévoit que le Bureau Central de Tarification (BCT) peut imposer à une entreprise
+          d'assurance la souscription d'un contrat couvrant les risques de catastrophes naturelles en
+          cas de refus. Bien que ce cas spécifique concerne les catastrophes naturelles, le principe général
+          du BCT s'applique également pour la garantie obligatoire de responsabilité civile automobile,
+          comme le confirment les fiches pratiques.
+      - article_id: L212-1
+        gloss: Institue le Bureau central de tarification, qui peut imposer à une entreprise d'assurance
+          de couvrir la responsabilité civile automobile obligatoire d'un conducteur refusé par les assureurs,
+          et fixe la prime correspondante.
+      aucun_fondement: null

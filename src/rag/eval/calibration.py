@@ -450,7 +450,12 @@ def run_calibration(
 ) -> CalibrationRun:
     """Score every pair and persist the per-pair rows to `<runs_dir>/<run_id>.json` —
     per-pair, not just the verdict, the same reasoning SPEC §12.11 gives for per-item
-    scores: "which pairs did it miss, and which way?" must stay answerable."""
+    scores: "which pairs did it miss, and which way?" must stay answerable.
+
+    The shas are resolved before the first judge call: an uncommitted set raises
+    `ValueError` up front instead of after every call has been billed."""
+    calibration_set_git_sha = resolve_git_sha(repo_root, path=calibration_set_path)
+    code_git_sha = resolve_git_sha(repo_root)
     results = tuple(score_pair(judge, pair, pass_threshold=pass_threshold) for pair in pairs)
     header = CalibrationHeader(
         run_id=run_id,
@@ -458,8 +463,8 @@ def run_calibration(
         judge_providers=tuple(sorted({p for result in results for p in result.providers})),
         judge_prompt_languages=judge.languages(),
         pass_threshold=pass_threshold,
-        calibration_set_git_sha=resolve_git_sha(repo_root, path=calibration_set_path),
-        code_git_sha=resolve_git_sha(repo_root),
+        calibration_set_git_sha=calibration_set_git_sha,
+        code_git_sha=code_git_sha,
         timestamp=datetime.now(UTC).isoformat(),
     )
     run = CalibrationRun(header=header, pairs=results, summary=summarize(results))
