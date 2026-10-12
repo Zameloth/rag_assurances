@@ -1,13 +1,15 @@
-# Entry points, with the four pipeline target names fixed by SPEC §16.1.
+# Entry points, with the three pipeline target names fixed by SPEC §16.1.
 #
 # The ones still stubbed wait for their ticket, but they are named now and on purpose:
-# the runbooks in SPEC §15.3 and §15.7 already spell them, so a later ticket that
-# invented its own name would leave the spec describing commands that do not exist.
-# A stub exits non-zero rather than succeeding quietly — a no-op `make deploy` that
-# prints nothing is indistinguishable from a deploy that worked.
+# the runbook in SPEC §15.3 already spells them, so a later ticket that invented its own
+# name would leave the spec describing commands that do not exist. A stub exits non-zero
+# rather than succeeding quietly — a no-op that prints nothing is indistinguishable from a
+# run that worked.
+#
+# There is no `deploy`: the host clones this repo and runs the sequence itself (SPEC §15.7).
 
 .DEFAULT_GOAL := help
-.PHONY: help install test typecheck lint check up down logs clean ingest ladder publish-index deploy
+.PHONY: help install test typecheck lint check up down logs clean ingest ladder publish-index
 
 # $(call todo,<build-order step>,<what it will run>)
 define todo
@@ -21,6 +23,9 @@ help: ## Show this help
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 # --- development -------------------------------------------------------------
+
+# The dev store's own file: plain `docker compose` would pick up `compose.yml`, the prod one.
+DEV_COMPOSE := docker compose -f compose.dev.yml
 
 install: ## Create the venv and install the package with its dev group
 	uv sync
@@ -37,16 +42,16 @@ lint: ## Lint src/, tests/ and scripts/ with ruff
 check: typecheck lint test ## Everything CI would run
 
 up: ## Start the dev Qdrant (reachable at QDRANT_URL)
-	docker compose up -d --wait
+	$(DEV_COMPOSE) up -d --wait
 
 down: ## Stop the dev Qdrant, keeping its volume
-	docker compose down
+	$(DEV_COMPOSE) down
 
 logs: ## Follow the dev Qdrant logs
-	docker compose logs -f
+	$(DEV_COMPOSE) logs -f
 
 clean: ## Stop the dev Qdrant and delete its volume
-	docker compose down -v
+	$(DEV_COMPOSE) down -v
 
 # --- pipeline ----------------------------------------------------------------
 
@@ -62,6 +67,3 @@ publish-index: ## Dump the scored index -> GitHub Release -> index_lock.json (RU
 	@test -n "$(RUN)" || { echo "usage: make publish-index RUN=eval/runs/<run-id>.json [TAG=index-YYYY-MM-DD]"; exit 1; }
 	uv run python -m rag.publish --run $(RUN) $(if $(TAG),--tag $(TAG))
 
-deploy: ## Pull, restore, up, verify (SPEC §15.7)
-	$(call todo,12,compose pull -> compose run --rm rag-assurances python -m rag.restore \
-	-> compose up -d -> curl -f https://rag.theo-eloy.fr/health)

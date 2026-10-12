@@ -1,7 +1,9 @@
 """`python -m rag.restore`: the released points dump -> Qdrant, made live by an alias flip
 (SPEC §15.5-§15.6, ADR-0014, #53).
 
-    docker compose run --rm rag-assurances python -m rag.restore
+    docker compose --profile restore run --rm restore
+
+(the `restore` service of `compose.yml`, on the app image without its Traefik/Sablier labels)
 
 **The app image is the tool** — no repo checkout, no Python and no qdrant-client on the
 host. It reads the `index_lock.json` baked into the image, so the index installed is

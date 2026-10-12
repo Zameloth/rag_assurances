@@ -4,6 +4,11 @@
 // and the question and history belong in a request body, not a URL.
 const UNAVAILABLE = "Le service est momentanément indisponible. Réessayez dans un instant.";
 
+// How long a submit waits for a sleeping demo to wake, and how often it asks. A cold start is
+// the BGE-M3 load plus Qdrant's — tens of seconds; past this the wake has failed, not lagged.
+const WAKE_TIMEOUT_MS = 180_000;
+const WAKE_POLL_MS = 3_000;
+
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.querySelector("form.ask");
   const question = form.querySelector("textarea");
@@ -43,7 +48,9 @@ document.addEventListener("DOMContentLoaded", () => {
     button.disabled = reset.disabled = true;
 
     try {
-      const { event: outcome, html } = await ask(body, pending.querySelector(".stages"));
+      const stages = pending.querySelector(".stages");
+      await untilAwake(stages);
+      const { event: outcome, html } = await ask(body, stages);
       htmx.swap(pending, html, { swapStyle: "outerHTML" });
       // Clear the question only once an answer came back, so a failed send keeps the text.
       if (outcome === "result") form.reset();
@@ -63,6 +70,37 @@ function scrollToLatest() {
   window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
 }
 
+// SPEC §17.4 — once the session has lapsed, Sablier answers any request with its waiting page:
+// HTML, 200. A question POSTed into that would come back as the page rather than an answer,
+// so the page asks /health first — itself a request that wakes the group — and, for as long
+// as what comes back is not the app's own JSON, waits under a « Réveil » stage, then sends.
+// The question and the history never leave the page while it waits.
+async function untilAwake(stages) {
+  const deadline = Date.now() + WAKE_TIMEOUT_MS;
+  let announced = false;
+  while (!(await appAnswers())) {
+    if (!announced) {
+      showStage(stages, { stage: "reveil", label: "Réveil" });
+      announced = true;
+    }
+    if (Date.now() > deadline) throw new Error(UNAVAILABLE);
+    await new Promise((resolve) => setTimeout(resolve, WAKE_POLL_MS));
+  }
+}
+
+// Whether /health came from the app — its JSON, whatever the status. A 503 still means the
+// container is awake and the request is worth sending: dev's /health reports the index clause
+// false by design, and a real failure is the answer route's to report, in its own words.
+// Anything else is the waiting page, or no answer while the tunnel or container comes up.
+async function appAnswers() {
+  try {
+    const response = await fetch("/health", { cache: "no-store" });
+    return response.headers.get("content-type")?.startsWith("application/json") ?? false;
+  } catch {
+    return false;
+  }
+}
+
 // Reads the stream until the `result` or `error` event, marking each `stage` as it arrives.
 async function ask(body, stages) {
   const response = await fetch("/ask/stream", {
@@ -70,7 +108,8 @@ async function ask(body, stages) {
     body,
     headers: { Accept: "text/event-stream" },
   });
-  // A sleeping container is answered by Sablier's waiting page — HTML, not a stream.
+  // `untilAwake` makes this rare — only a session lapsing between the probe and the POST —
+  // but a sleeping container is answered by Sablier's waiting page, HTML, not a stream.
   if (!response.headers.get("content-type")?.startsWith("text/event-stream")) {
     throw new Error(response.ok ? "Le service démarre. Réessayez dans un instant." : UNAVAILABLE);
   }

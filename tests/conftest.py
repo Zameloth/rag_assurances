@@ -82,7 +82,7 @@ def qdrant() -> Iterator[QdrantClient]:
 
 @pytest.fixture
 def qdrant_server() -> Iterator[QdrantClient]:
-    """The real engine from docker-compose.yml, skipped when it is not up.
+    """The real engine from compose.dev.yml, skipped when it is not up.
 
     Skipping rather than failing is deliberate: the suite must stay green without a live
     store, so anything that needs the Rust engine — the ranking and recall numbers local

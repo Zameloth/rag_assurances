@@ -1,0 +1,155 @@
+# The deploy topology (SPEC §14, ADR-0026): what the host clones, writes a `.env` beside, and
+# runs. The dev store is `compose.dev.yml` — nothing here publishes a port.
+#
+# The host is aspire, a self-hosted laptop. Its Traefik (v3.7) is reached only through a
+# Cloudflare Tunnel, which terminates TLS — so there is no TLS, no certresolver and no
+# HTTPS redirect below, and every client address Traefik sees is the tunnel's own. Traefik,
+# Sablier and the tunnel live in the host's infra repo; this file carries labels only.
+#
+# Deploy order, run by the host rather than by this repo (SPEC §15.7):
+#
+#   docker compose build
+#   docker compose --profile restore run --rm restore     # no-op when tag and count match
+#   docker compose up -d --wait --remove-orphans          # non-zero unless /health is 200
+#
+# Traefik router, middleware and service names are global across every project on the host,
+# hence the `rag-` prefix on all of them, as on the Sablier group.
+
+# Only the secrets come from `.env`; everything else the app reads is in this file, so which
+# arm prod runs is in git rather than in a file nobody reviews. `:?` makes `docker compose`
+# refuse to start without one, instead of starting an app that fails on the first question.
+x-secrets: &secrets
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?absent from .env}
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:?absent from .env}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:?absent from .env}
+
+services:
+  rag-assurances:
+    build: .
+    image: rag-assurances
+    container_name: rag-assurances
+    # No restart policy: a container the OOM killer took stays down until the next visit,
+    # when Sablier starts it — Docker restarting it at once would only repeat the kill.
+    mem_limit: 6g
+    environment:
+      <<: *secrets
+      QDRANT_URL: http://qdrant:6333
+      # The arm the generation eval measured (eval/runs/generation-mistral-large-2512-*).
+      GENERATION_MODEL: mistralai/mistral-large-2512
+      GENERATION_PROVIDER: mistral/eu
+      CONDENSER_MODEL: mistralai/mistral-small-3.2-24b-instruct
+      CONDENSER_PROVIDER: mistral/eu
+      # SPEC §14.7 — on in prod. If the free tier tightens, eval wins and this goes false.
+      LANGFUSE_TRACING: "true"
+      LANGFUSE_BASE_URL: https://cloud.langfuse.com
+    depends_on:
+      - qdrant
+    networks:
+      - web
+      - rag-internal
+    labels:
+      # --- sleep (SPEC §14.2) --------------------------------------------------------
+      - "sablier.enable=true"
+      - "sablier.group=rag"
+      # Without it Traefik drops the route once the container stops and answers 404, so
+      # the wake middleware is never reached and sleep becomes a permanent outage.
+      - "traefik.docker.allownonrunning=true"
+      # Defined once, here, for the whole group. `keepAliveInterval`: an answer streams
+      # over SSE, and a long one would otherwise outlive the session it started in.
+      - "traefik.http.middlewares.rag-sablier.plugin.sablier.sablierUrl=http://sablier:10000"
+      - "traefik.http.middlewares.rag-sablier.plugin.sablier.group=rag"
+      - "traefik.http.middlewares.rag-sablier.plugin.sablier.sessionDuration=10m"
+      - "traefik.http.middlewares.rag-sablier.plugin.sablier.keepAliveInterval=1m"
+      - "traefik.http.middlewares.rag-sablier.plugin.sablier.dynamic.displayName=rag-assurances"
+      - "traefik.http.middlewares.rag-sablier.plugin.sablier.dynamic.theme=ghost"
+      - "traefik.http.middlewares.rag-sablier.plugin.sablier.dynamic.refreshFrequency=10s"
+
+      # --- routing -------------------------------------------------------------------
+      - "traefik.enable=true"
+      # Two networks, so Traefik must be told which one it can reach the container on.
+      - "traefik.docker.network=web"
+      - "traefik.http.services.rag-assurances.loadbalancer.server.port=8000"
+      # Rate limits before `rag-sablier`, so a refused request neither wakes the group nor
+      # extends its session. Keyed on CF-Connecting-IP: behind the tunnel the remote
+      # address is cloudflared's, and keying on it would make every visitor share one bucket.
+      - "traefik.http.routers.rag-assurances.rule=Host(`rag.theo-eloy.fr`)"
+      - "traefik.http.routers.rag-assurances.service=rag-assurances"
+      - "traefik.http.routers.rag-assurances.middlewares=rag-ratelimit,rag-sablier"
+      - "traefik.http.middlewares.rag-ratelimit.ratelimit.average=20"
+      - "traefik.http.middlewares.rag-ratelimit.ratelimit.burst=60"
+      - "traefik.http.middlewares.rag-ratelimit.ratelimit.sourcecriterion.requestheadername=CF-Connecting-IP"
+      # SPEC §14.5 — the routes that spend: each request is one priced generation call
+      # (plus a condenser one on a follow-up). Six questions a minute per visitor is more
+      # than anyone reads; the OpenRouter key's credit limit is the backstop behind it.
+      - "traefik.http.routers.rag-assurances-ask.rule=Host(`rag.theo-eloy.fr`) && (Path(`/ask`) || Path(`/ask/stream`) || Path(`/api/ask`))"
+      - "traefik.http.routers.rag-assurances-ask.service=rag-assurances"
+      - "traefik.http.routers.rag-assurances-ask.middlewares=rag-ask-ratelimit,rag-sablier"
+      - "traefik.http.middlewares.rag-ask-ratelimit.ratelimit.average=6"
+      - "traefik.http.middlewares.rag-ask-ratelimit.ratelimit.period=1m"
+      - "traefik.http.middlewares.rag-ask-ratelimit.ratelimit.burst=3"
+      - "traefik.http.middlewares.rag-ask-ratelimit.ratelimit.sourcecriterion.requestheadername=CF-Connecting-IP"
+
+      # --- bots (SPEC §14.5) ---------------------------------------------------------
+      # Crawlers and link-preview fetchers get a 403 from Traefik itself: this router has
+      # no `rag-sablier` and points at no container, so the group never wakes for them.
+      # A denylist, not an allowlist of browsers — curl stays welcome, since inspecting the
+      # typed contract with it is the point of /api/ask (SPEC §13.3). Traefik has no
+      # static-response middleware; an allowlist no client address can match is the 403.
+      - "traefik.http.routers.rag-assurances-bots.rule=Host(`rag.theo-eloy.fr`) && HeaderRegexp(`User-Agent`, `(?i)(bot|crawl|spider|slurp|scrapy|facebookexternalhit|whatsapp|embedly|preview|headless)`)"
+      - "traefik.http.routers.rag-assurances-bots.priority=1000"
+      - "traefik.http.routers.rag-assurances-bots.service=noop@internal"
+      - "traefik.http.routers.rag-assurances-bots.middlewares=rag-deny"
+      - "traefik.http.middlewares.rag-deny.ipallowlist.sourcerange=127.0.0.1/32"
+
+  qdrant:
+    # Kept identical to the dev store's pin (compose.dev.yml): one engine, measured and served.
+    image: qdrant/qdrant:v1.18.3
+    container_name: rag-assurances-qdrant
+    # ~150–200 MB at this index size (SPEC §14.2); a limit, not an estimate.
+    mem_limit: 1g
+    volumes:
+      - qdrant-storage:/qdrant/storage
+    # The internal network only: no route from Traefik, the tunnel or the internet.
+    networks:
+      - rag-internal
+    labels:
+      # Sleeps with the app (SPEC §14.2) — left out of the group, it would stay awake for
+      # good. Sablier acts through the Docker API, so it needs no network path to it.
+      - "sablier.enable=true"
+      - "sablier.group=rag"
+    healthcheck:
+      # The image ships neither curl nor wget, so the probe is bash's /dev/tcp (see
+      # compose.dev.yml).
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # `python -m rag.restore` (SPEC §15.5): the app image is the tool. Its own service rather
+  # than `run rag-assurances`, so the one-off container carries no Traefik or Sablier label
+  # — Traefik would route visitors to it, and Sablier would count it in the group.
+  restore:
+    image: rag-assurances # built by `rag-assurances` above
+    profiles: [restore]
+    command: ["python", "-m", "rag.restore"]
+    environment:
+      QDRANT_URL: http://qdrant:6333
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    # `default` for the download from GitHub Releases; `rag-internal` has no way out.
+    networks:
+      - default
+      - rag-internal
+
+volumes:
+  qdrant-storage:
+
+networks:
+  # Created once on the host; Traefik and the tunnel are on it.
+  web:
+    external: true
+  # `internal`: no egress, no ingress — Qdrant needs neither.
+  rag-internal:
+    internal: true
