@@ -224,10 +224,7 @@ def create_app(
     def api_propose_gold_articles(payload: FicheQuestionRequest) -> JSONResponse:
         if payload.fiche_id not in corpus_fiche_ids(fiches_dir):
             raise HTTPException(status_code=404, detail=f"unknown fiche {payload.fiche_id}")
-        sections = fiche_sections(payload.fiche_id, fiches_dir, articles)
-        section_cids = {row["cid"] for section in sections for row in section.articles}
-        body_text = "\n\n".join(fiche_chunk_texts(payload.fiche_id, fiches_dir))
-        lexical_cids = set(lexical_shortlist(payload.question, body_text, articles, top_n=_SHORTLIST_TOP_N))
+        section_cids, lexical_cids = _article_shortlist(payload.fiche_id, payload.question, fiches_dir, articles)
         shortlist_cids = section_cids | lexical_cids
         if not shortlist_cids:
             return JSONResponse({"ok": True, "candidates": []})
@@ -369,6 +366,20 @@ def create_app(
         return JSONResponse({"ok": True, "id": new_id})
 
     return app
+
+
+def _article_shortlist(
+    fiche_id: str, question: str, fiches_dir: Path, articles: Sequence[ArticleRow]
+) -> tuple[set[str], set[str]]:
+    """ADR-0020's `gold_articles` shortlist, as its two provenance halves: the fiche's
+    `<dc:source>` section articles, and the lexical top-N against question + fiche body.
+    Shared by the propose route and the floor-calibration drafter so both consider exactly
+    the same candidates."""
+    sections = fiche_sections(fiche_id, fiches_dir, articles)
+    section_cids = {row["cid"] for section in sections for row in section.articles}
+    body_text = "\n\n".join(fiche_chunk_texts(fiche_id, fiches_dir))
+    lexical_cids = set(lexical_shortlist(question, body_text, articles, top_n=_SHORTLIST_TOP_N))
+    return section_cids, lexical_cids
 
 
 class _DraftError(Exception):
