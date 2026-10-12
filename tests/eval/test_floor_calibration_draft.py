@@ -8,17 +8,28 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 import rag.eval.annotate_app as annotate_app_module
 from rag.config import Settings
 from rag.eval.annotate_app import _article_shortlist
 from rag.eval.corpus import fiche_chunk_texts, load_articles
-from rag.eval.floor_calibration_draft import Draft, draft_fiche, sample_unused_fiches
-from rag.eval.schema import GoldenItem
+from rag.eval.disagree import Disagreement
+from rag.eval.floor_calibration_draft import (
+    Draft,
+    DraftRun,
+    draft_fiche,
+    draft_floor_calibration,
+    sample_unused_fiches,
+    write_drafts,
+)
+from rag.eval.paths import GOLDEN_SET_PATH
+from rag.eval.schema import GoldenItem, load_golden_set
 
 # Modules whose presence in `sys.modules` after importing the drafter would mean an import
 # path reaches the pipeline under test (the retrieval package, its Qdrant client).
@@ -205,3 +216,95 @@ def test_draft_keeps_the_whole_shortlist_with_a_justification_per_candidate(
     assert considered[rejected_cid].verdict == "reject"
     assert considered[rejected_cid].justification == "parle d'autre chose"
     assert all(c.verdict == "reject" for cid, c in considered.items() if cid != IN_SECTION_CID)
+
+
+# --- draft_floor_calibration / write_drafts ----------------------------------
+
+
+def _fake_pass(items: Sequence[GoldenItem], *_: Any) -> list[Disagreement]:
+    """Stands in for `rag.eval.disagree.run_disagreement_pass`: disagrees on the first item."""
+    first = items[0]
+    return [
+        Disagreement(
+            item_id=first.id,
+            gold_articles=frozenset(first.gold_articles),
+            model_picks=frozenset({"LEGIARTI-model"}),
+            section_cids=frozenset(),
+        )
+    ]
+
+
+def _run(articles: list[dict[str, Any]], *, n: int = 3, seed: int = 1) -> DraftRun:
+    return draft_floor_calibration(
+        fiches_dir=FICHES_DIR,
+        articles=articles,
+        golden_items=load_golden_set(GOLDEN_SET_PATH),
+        settings=_settings(),
+        n=n,
+        seed=seed,
+        disagreement_pass=_fake_pass,
+    )
+
+
+def _canned(llm: dict[str, str]) -> None:
+    llm["Génère 2 à 3 questions"] = "Une question ?"
+    llm["Articles candidats"] = "aucun"
+    llm["Recopie 2 à 4 extraits"] = ""
+    llm["affirmations"] = "Un point"
+
+
+def test_run_drafts_the_seeded_sample_outside_the_golden_set_with_sequential_ids(
+    llm: dict[str, str], articles: list[dict[str, Any]]
+) -> None:
+    _canned(llm)
+    golden = load_golden_set(GOLDEN_SET_PATH)
+    golden_fiches = {f for item in golden for f in item.gold_fiches}
+
+    run = _run(articles)
+
+    items = [d.item for d in run.drafts]
+    assert run.seed == 1
+    assert [i.id for i in items] == ["gs-901", "gs-902", "gs-903"]
+    assert not golden_fiches & {f for i in items for f in i.gold_fiches}
+    assert [i.gold_fiches[0] for i in items] == sample_unused_fiches(FICHES_DIR, golden, n=3, seed=1)
+    assert all(i.tags == ("ai_assisted",) for i in items)
+
+
+def test_run_reports_disagreements_per_item(llm: dict[str, str], articles: list[dict[str, Any]]) -> None:
+    _canned(llm)
+    run = _run(articles)
+    assert set(run.disagreements) == {"gs-901"}
+    assert run.disagreements["gs-901"].model_picks == frozenset({"LEGIARTI-model"})
+
+
+def test_run_records_a_fiche_whose_draft_fails_and_carries_on(
+    llm: dict[str, str], articles: list[dict[str, Any]]
+) -> None:
+    _canned(llm)
+    llm["Génère 2 à 3 questions"] = ""  # the model drafted no question at all
+
+    run = _run(articles, n=2)
+
+    assert run.drafts == []
+    assert len(run.failures) == 2
+
+
+def test_write_drafts_emits_a_golden_schema_file_and_a_review_sidecar(
+    llm: dict[str, str], articles: list[dict[str, Any]], tmp_path: Path
+) -> None:
+    _canned(llm)
+    run = _run(articles)
+    golden_path = tmp_path / "floor-calibration.yaml"
+    review_path = tmp_path / "floor-calibration.review.yaml"
+
+    write_drafts(run, golden_path, review_path)
+
+    assert "seed: 1" in golden_path.read_text(encoding="utf-8").splitlines()[0]
+    assert [i.id for i in load_golden_set(golden_path)] == ["gs-901", "gs-902", "gs-903"]
+    review = yaml.safe_load(review_path.read_text(encoding="utf-8"))
+    assert review["seed"] == 1
+    first = review["items"][0]
+    assert first["id"] == "gs-901"
+    assert first["disagreement"]["model_picks"] == ["LEGIARTI-model"]
+    assert review["items"][1]["disagreement"] is None
+    assert "considered" in first

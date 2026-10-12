@@ -12,16 +12,19 @@ the reranker would calibrate the reranker against itself.
 from __future__ import annotations
 
 import random
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from rag.config import Settings
 from rag.eval.annotate_app import (
     _article_row_json,
     _article_shortlist,
     _draft_questions,
+    _DraftError,
     _invoke,
     _propose_expected_points,
     _propose_gold_articles,
@@ -29,12 +32,30 @@ from rag.eval.annotate_app import (
     _require_generation_settings,
 )
 from rag.eval.corpus import fiche_chunk_texts, fiche_ids
+from rag.eval.disagree import Disagreement, run_disagreement_pass
 from rag.eval.propose import filter_verbatim_spans
-from rag.eval.schema import GoldenItem
+from rag.eval.schema import GoldenItem, dump_golden_set
 
-__all__ = ["Consideration", "Draft", "draft_fiche", "sample_unused_fiches"]
+__all__ = [
+    "Consideration",
+    "Draft",
+    "DraftRun",
+    "FicheDraftError",
+    "draft_fiche",
+    "draft_floor_calibration",
+    "sample_unused_fiches",
+    "write_drafts",
+]
 
 AI_ASSISTED_TAG = "ai_assisted"
+# `gs-<digits>` is the id shape the golden-set validator enforces; the calibration drafts
+# start well above the golden set's own range so the two never read as the same item.
+FIRST_ITEM_NUMBER = 901
+
+
+class FicheDraftError(Exception):
+    """One fiche could not be drafted (dead LLM call, no question drafted). The run records
+    it and carries on rather than losing the other fiches' spend."""
 
 
 @dataclass(frozen=True)
@@ -81,7 +102,13 @@ def draft_fiche(
     from whether the article proposal came back empty (ADR-0020), exactly as the helper does.
     """
     chunks = fiche_chunk_texts(fiche_id, fiches_dir)
-    question = _draft_questions("\n\n".join(chunks), settings)[0]
+    try:
+        questions = _draft_questions("\n\n".join(chunks), settings)
+    except _DraftError as exc:
+        raise FicheDraftError(f"{fiche_id}: {exc}") from exc
+    if not questions:
+        raise FicheDraftError(f"{fiche_id}: the model drafted no question")
+    question = questions[0]
     section_cids, lexical_cids = _article_shortlist(fiche_id, question, fiches_dir, articles)
     shortlist = section_cids | lexical_cids
     articles_by_cid = {row["cid"]: _article_row_json(row) for row in articles}
@@ -157,3 +184,96 @@ def _justify_rejections(
         if match is not None and match not in reasons:
             reasons[match] = line[line.index(match) + len(match) :].strip(" []:-–—\t")
     return reasons
+
+
+@dataclass(frozen=True)
+class DraftRun:
+    """Everything one drafter run produced: the seed it is reproducible from, the drafts,
+    the independent disagreement pass's findings keyed by item id (items that agree are
+    absent), and the fiches that failed to draft."""
+
+    seed: int
+    drafts: list[Draft]
+    disagreements: dict[str, Disagreement]
+    failures: dict[str, str]
+
+
+DisagreementPass = Callable[[Sequence[GoldenItem], Path, Sequence[Any], Settings], list[Disagreement]]
+
+
+def draft_floor_calibration(
+    *,
+    fiches_dir: Path,
+    articles: Sequence[dict[str, Any]],
+    golden_items: Sequence[GoldenItem],
+    settings: Settings,
+    n: int,
+    seed: int,
+    disagreement_pass: DisagreementPass = run_disagreement_pass,
+) -> DraftRun:
+    """Draft a candidate per fiche of a seeded sample of fiches the golden set never uses,
+    then run `rag.eval.disagree` over every draft as the second opinion (ADR-0010)."""
+    drafts: list[Draft] = []
+    failures: dict[str, str] = {}
+    for fiche_id in sample_unused_fiches(fiches_dir, golden_items, n=n, seed=seed):
+        item_id = f"gs-{FIRST_ITEM_NUMBER + len(drafts)}"
+        try:
+            drafts.append(draft_fiche(fiche_id, item_id, fiches_dir=fiches_dir, articles=articles, settings=settings))
+        except FicheDraftError as exc:
+            failures[fiche_id] = str(exc)
+    found = disagreement_pass([d.item for d in drafts], fiches_dir, articles, settings) if drafts else []
+    return DraftRun(
+        seed=seed,
+        drafts=drafts,
+        disagreements={d.item_id: d for d in found},
+        failures=failures,
+    )
+
+
+def write_drafts(run: DraftRun, golden_path: Path, review_path: Path) -> None:
+    """Write the candidates as a golden-schema file (`history: []`, the seed in a leading
+    comment — a YAML list has no room for a metadata key and still loads as the schema) and
+    a review sidecar carrying what the schema has no field for: per item, the considered
+    shortlist with verdicts and the disagreement-pass finding."""
+    dump_golden_set([d.item for d in run.drafts], golden_path)
+    body = golden_path.read_text(encoding="utf-8")
+    golden_path.write_text(f"# seed: {run.seed} (rag.eval.floor_calibration_draft)\n{body}", encoding="utf-8")
+
+    review = {
+        "seed": run.seed,
+        "failures": run.failures,
+        "items": [
+            {
+                "id": d.item.id,
+                "fiche": d.item.gold_fiches[0],
+                "expected_state": d.item.expected_state,
+                "considered": [
+                    {
+                        "cid": c.cid,
+                        "provenance": list(c.provenance),
+                        "verdict": c.verdict,
+                        "justification": c.justification,
+                    }
+                    for c in d.considered
+                ],
+                "disagreement": _disagreement_entry(run.disagreements.get(d.item.id)),
+            }
+            for d in run.drafts
+        ],
+    }
+    review_path.write_text(
+        yaml.safe_dump(review, allow_unicode=True, sort_keys=False, default_flow_style=False, width=100),
+        encoding="utf-8",
+    )
+
+
+def _disagreement_entry(disagreement: Disagreement | None) -> dict[str, Any] | None:
+    if disagreement is None:
+        return None
+    return {
+        "gold_articles": sorted(disagreement.gold_articles),
+        "model_picks": sorted(disagreement.model_picks),
+        "only_in_gold": sorted(disagreement.only_in_gold),
+        "only_in_model": sorted(disagreement.only_in_model),
+        "needs_review": disagreement.needs_review,
+    }
