@@ -18,10 +18,13 @@ Only the article side is pooled: fiche slots are filled independently of article
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
+from rag.eval.schema import GoldenItem
 from rag.retrieval.candidates import Candidate, Provenance, Register
 from rag.retrieval.quota import EXPANSION_PREFERENCE_MARGIN, NO_ARTICLE_MARKER_ID, assemble_quota
 
@@ -31,9 +34,11 @@ __all__ = [
     "PoolArticle",
     "SweepResult",
     "item_is_correct",
+    "pool_from_reranked",
     "recompute_chosen_floor",
     "run_sweep",
     "select_floor",
+    "write_sweep_run",
 ]
 
 # ADR-0027 §2: 0.00-0.50 inclusive, step 0.025. Rounded so every value is the literal a
@@ -158,6 +163,35 @@ def run_sweep(
         chosen_floor=select_floor(scores),
         skipped_items=tuple(pool.item_id for pool in pools if pool.short_circuit),
     )
+
+
+def pool_from_reranked(item: GoldenItem, reranked: Sequence[Candidate], *, short_circuit: bool) -> ItemPool:
+    """Cache one item's scored article pool from the reranker's output: ids, scores and
+    provenance only — never the text."""
+    return ItemPool(
+        item_id=item.id,
+        expected_state=item.expected_state,
+        gold_articles=item.gold_articles,
+        articles=tuple(
+            PoolArticle(
+                id=candidate.id,
+                legiarti_cid=str(candidate.payload["legiarti_cid"]),
+                score=candidate.score,
+                expansion=Provenance.EXPANSION in candidate.provenance,
+            )
+            for candidate in reranked
+            if candidate.register is Register.ARTICLE
+        ),
+        short_circuit=short_circuit,
+    )
+
+
+def write_sweep_run(result: SweepResult, runs_dir: Path, *, stamp: str) -> Path:
+    """`eval/runs/floor-sweep-<ts>.json` (SPEC §12.11's per-item-scores-to-git posture)."""
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    path = runs_dir / f"floor-sweep-{stamp}.json"
+    path.write_text(json.dumps(result.to_json(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return path
 
 
 def recompute_chosen_floor(payload: Mapping[str, Any]) -> float:

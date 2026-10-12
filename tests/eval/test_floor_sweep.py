@@ -2,15 +2,22 @@
 Qdrant. Expected values are worked by hand from ADR-0027's rule, not recomputed through the
 code under test."""
 
+import json
+from pathlib import Path
+
 from rag.eval.floor_sweep import (
     FLOOR_GRID,
     ItemPool,
     PoolArticle,
     item_is_correct,
+    pool_from_reranked,
     recompute_chosen_floor,
     run_sweep,
     select_floor,
+    write_sweep_run,
 )
+from rag.eval.schema import GoldenItem
+from rag.retrieval.candidates import Candidate, Provenance, Register
 
 
 def _article(cid: str, score: float, *, expansion: bool = False, chunk: int = 0) -> PoolArticle:
@@ -150,3 +157,40 @@ def test_recompute_follows_the_cached_pools_not_the_stored_pick() -> None:
     payload["chosen_floor"] = 0.0  # tampered
 
     assert recompute_chosen_floor(payload) == 0.45
+
+
+# --- pool capture and output file ------------------------------------------------------
+
+
+def _candidate(point_id: str, cid: str, score: float, register: Register, *, expansion: bool = False) -> Candidate:
+    key = "legiarti_cid" if register is Register.ARTICLE else "fiche_id"
+    provenance = Provenance.EXPANSION if expansion else Provenance.SEARCH
+    return Candidate(
+        id=point_id, score=score, register=register, payload={key: cid, "text": "texte"}, provenance=frozenset({provenance})
+    )
+
+
+def test_pool_from_reranked_keeps_articles_only_and_drops_text() -> None:
+    item = GoldenItem(
+        id="gs-001", question="q", history=(), expected_state="reponse", gold_fiches=("F1",),
+        gold_spans=(), gold_articles=("G",), expected_points=("p",), tags=(),
+    )
+    reranked = [
+        _candidate("f#0", "F1", 0.9, Register.FICHE),
+        _candidate("a#0", "G", 0.6, Register.ARTICLE, expansion=True),
+    ]
+
+    pool = pool_from_reranked(item, reranked, short_circuit=False)
+
+    assert pool.item_id == "gs-001"
+    assert pool.gold_articles == ("G",)
+    assert pool.articles == (PoolArticle(id="a#0", legiarti_cid="G", score=0.6, expansion=True),)
+
+
+def test_write_sweep_run_writes_a_json_file_named_by_timestamp(tmp_path: Path) -> None:
+    result = run_sweep([_sans_article_item("s1", [_article("Y", 0.2)])])
+
+    path = write_sweep_run(result, tmp_path / "runs", stamp="20261012T100000Z")
+
+    assert path.name == "floor-sweep-20261012T100000Z.json"
+    assert recompute_chosen_floor(json.loads(path.read_text(encoding="utf-8"))) == result.chosen_floor
