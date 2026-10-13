@@ -58,7 +58,7 @@ from rag.eval.schema import (
 )
 from rag.eval.validate import GoldenSetValidationError, validate_golden_set_against_corpus
 
-__all__ = ["create_app"]
+__all__ = ["create_app", "default_id_counter_path"]
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -163,12 +163,22 @@ class SaveRequest(BaseModel):
     ai_assisted: bool = False
 
 
+def default_id_counter_path(golden_set_path: Path) -> Path:
+    """The id counter that goes with an annotated file — a sibling of it, so annotating
+    the floor-calibration set (#96) never draws ids from, nor advances, the golden set's.
+    `golden-set.yaml` keeps its historical `.next_id`; any other file gets `.<stem>.next_id`.
+    """
+    if golden_set_path.name == "golden-set.yaml":
+        return golden_set_path.with_name(".next_id")
+    return golden_set_path.with_name(f".{golden_set_path.stem}.next_id")
+
+
 def create_app(
     *,
     fiches_dir: Path = REPO_ROOT / "data" / "corpus" / "fiches",
     articles_path: Path = REPO_ROOT / "data" / "corpus" / "articles.jsonl",
     golden_set_path: Path = REPO_ROOT / "eval" / "golden" / "golden-set.yaml",
-    id_counter_path: Path = REPO_ROOT / "eval" / "golden" / ".next_id",
+    id_counter_path: Path | None = None,
 ) -> FastAPI:
     """Build the app against a given corpus/golden-set location.
 
@@ -176,6 +186,8 @@ def create_app(
     `uvicorn rag.eval.annotate_app:app` work with zero configuration; tests pass tmp_path
     fixtures instead so a test run never touches the real committed corpus or golden set.
     """
+    if id_counter_path is None:
+        id_counter_path = default_id_counter_path(golden_set_path)
     app = FastAPI(title="Golden-set annotation helper")
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
     # Articles never change during a session — read once rather than on every request.
