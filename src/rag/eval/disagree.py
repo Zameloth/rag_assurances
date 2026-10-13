@@ -23,10 +23,9 @@ from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
-from rag.config import Settings
+from rag.config import OPENROUTER_BASE_URL, Settings
 from rag.eval.corpus import ArticleRow, fiche_sections
 from rag.eval.schema import GoldenItem
-from rag.generation.chain import OPENROUTER_BASE_URL
 
 __all__ = [
     "Disagreement",

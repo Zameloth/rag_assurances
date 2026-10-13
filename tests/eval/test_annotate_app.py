@@ -490,3 +490,26 @@ def test_save_does_not_duplicate_an_already_present_ai_assisted_tag(client: Test
     assert response.status_code == 200
     items = load_golden_set(tmp_path / "golden-set.yaml")
     assert items[0].tags.count("ai_assisted") == 1
+
+
+def test_an_alternate_file_gets_its_own_id_counter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """#96 — annotating the floor-calibration set must not draw ids from, nor advance,
+    the golden set's `.next_id`: the counter defaults to a sibling of the annotated file."""
+    monkeypatch.setattr(annotate_app_module, "load_settings", lambda: _settings())
+    golden_counter = tmp_path / ".next_id"
+    golden_counter.write_text("73", encoding="utf-8")
+    client = TestClient(
+        create_app(fiches_dir=FICHES_DIR, articles_path=ARTICLES_PATH, golden_set_path=tmp_path / "floor-calibration.yaml")
+    )
+
+    response = client.post("/save", json=_payload())
+
+    assert response.json() == {"ok": True, "id": "gs-001"}
+    assert golden_counter.read_text(encoding="utf-8") == "73"
+    assert (tmp_path / ".floor-calibration.next_id").read_text(encoding="utf-8") == "1"
+
+
+def test_the_golden_set_keeps_its_historical_counter() -> None:
+    assert annotate_app_module.default_id_counter_path(REPO_ROOT / "eval" / "golden" / "golden-set.yaml") == (
+        REPO_ROOT / "eval" / "golden" / ".next_id"
+    )

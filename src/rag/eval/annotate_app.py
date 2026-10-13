@@ -37,7 +37,7 @@ from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, SecretStr
 
-from rag.config import Settings, load_settings
+from rag.config import OPENROUTER_BASE_URL, Settings, load_settings
 from rag.eval.corpus import (
     ArticleRow,
     fiche_chunk_texts,
@@ -57,9 +57,8 @@ from rag.eval.schema import (
     load_golden_set,
 )
 from rag.eval.validate import GoldenSetValidationError, validate_golden_set_against_corpus
-from rag.generation.chain import OPENROUTER_BASE_URL
 
-__all__ = ["create_app"]
+__all__ = ["create_app", "default_id_counter_path"]
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -164,12 +163,22 @@ class SaveRequest(BaseModel):
     ai_assisted: bool = False
 
 
+def default_id_counter_path(golden_set_path: Path) -> Path:
+    """The id counter that goes with an annotated file — a sibling of it, so annotating
+    the floor-calibration set (#96) never draws ids from, nor advances, the golden set's.
+    `golden-set.yaml` keeps its historical `.next_id`; any other file gets `.<stem>.next_id`.
+    """
+    if golden_set_path.name == "golden-set.yaml":
+        return golden_set_path.with_name(".next_id")
+    return golden_set_path.with_name(f".{golden_set_path.stem}.next_id")
+
+
 def create_app(
     *,
     fiches_dir: Path = REPO_ROOT / "data" / "corpus" / "fiches",
     articles_path: Path = REPO_ROOT / "data" / "corpus" / "articles.jsonl",
     golden_set_path: Path = REPO_ROOT / "eval" / "golden" / "golden-set.yaml",
-    id_counter_path: Path = REPO_ROOT / "eval" / "golden" / ".next_id",
+    id_counter_path: Path | None = None,
 ) -> FastAPI:
     """Build the app against a given corpus/golden-set location.
 
@@ -177,6 +186,8 @@ def create_app(
     `uvicorn rag.eval.annotate_app:app` work with zero configuration; tests pass tmp_path
     fixtures instead so a test run never touches the real committed corpus or golden set.
     """
+    if id_counter_path is None:
+        id_counter_path = default_id_counter_path(golden_set_path)
     app = FastAPI(title="Golden-set annotation helper")
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
     # Articles never change during a session — read once rather than on every request.
@@ -225,10 +236,7 @@ def create_app(
     def api_propose_gold_articles(payload: FicheQuestionRequest) -> JSONResponse:
         if payload.fiche_id not in corpus_fiche_ids(fiches_dir):
             raise HTTPException(status_code=404, detail=f"unknown fiche {payload.fiche_id}")
-        sections = fiche_sections(payload.fiche_id, fiches_dir, articles)
-        section_cids = {row["cid"] for section in sections for row in section.articles}
-        body_text = "\n\n".join(fiche_chunk_texts(payload.fiche_id, fiches_dir))
-        lexical_cids = set(lexical_shortlist(payload.question, body_text, articles, top_n=_SHORTLIST_TOP_N))
+        section_cids, lexical_cids = _article_shortlist(payload.fiche_id, payload.question, fiches_dir, articles)
         shortlist_cids = section_cids | lexical_cids
         if not shortlist_cids:
             return JSONResponse({"ok": True, "candidates": []})
@@ -370,6 +378,20 @@ def create_app(
         return JSONResponse({"ok": True, "id": new_id})
 
     return app
+
+
+def _article_shortlist(
+    fiche_id: str, question: str, fiches_dir: Path, articles: Sequence[ArticleRow]
+) -> tuple[set[str], set[str]]:
+    """ADR-0020's `gold_articles` shortlist, as its two provenance halves: the fiche's
+    `<dc:source>` section articles, and the lexical top-N against question + fiche body.
+    Shared by the propose route and the floor-calibration drafter so both consider exactly
+    the same candidates."""
+    sections = fiche_sections(fiche_id, fiches_dir, articles)
+    section_cids = {row["cid"] for section in sections for row in section.articles}
+    body_text = "\n\n".join(fiche_chunk_texts(fiche_id, fiches_dir))
+    lexical_cids = set(lexical_shortlist(question, body_text, articles, top_n=_SHORTLIST_TOP_N))
+    return section_cids, lexical_cids
 
 
 class _DraftError(Exception):

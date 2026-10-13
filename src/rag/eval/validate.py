@@ -25,7 +25,13 @@ from rag.eval.corpus import fiche_ids as corpus_fiche_ids
 from rag.eval.corpus import load_articles
 from rag.eval.schema import EXPECTED_STATES, MULTI_TURN_TAG, GoldenItem
 
-__all__ = ["GoldenSetValidationError", "validate_golden_set", "validate_golden_set_against_corpus"]
+__all__ = [
+    "GoldenSetValidationError",
+    "validate_floor_calibration_set",
+    "validate_floor_calibration_set_against_corpus",
+    "validate_golden_set",
+    "validate_golden_set_against_corpus",
+]
 
 _ID_PATTERN = r"^gs-\d+$"
 _MIN_EXPECTED_POINTS = 1
@@ -68,6 +74,50 @@ def validate_golden_set(
         raise GoldenSetValidationError(f"{len(violations)} golden-set violation(s):\n" + "\n".join(violations))
 
 
+def validate_floor_calibration_set(
+    items: Iterable[GoldenItem],
+    *,
+    golden_items: Iterable[GoldenItem],
+    fiche_ids: set[str],
+    article_cids: set[str],
+    fiche_chunk_texts: Mapping[str, list[str]],
+) -> None:
+    """`eval/golden/floor-calibration.yaml` (ADR-0027, #96): every golden-set check, plus
+    two rules of its own — single-turn only, and no `gold_fiches` shared with the golden
+    set, which has to stay an untouched held-out test. Violations from all checks are
+    raised together, like `validate_golden_set`."""
+    materialized = list(items)
+    golden = list(golden_items)
+    violations: list[str] = []
+    try:
+        validate_golden_set(
+            materialized, fiche_ids=fiche_ids, article_cids=article_cids, fiche_chunk_texts=fiche_chunk_texts
+        )
+    except GoldenSetValidationError as exc:
+        violations.append(str(exc))
+    violations.extend(_assert_single_turn(materialized))
+    violations.extend(_assert_no_fiche_overlap(materialized, golden))
+    if violations:
+        raise GoldenSetValidationError("\n".join(violations))
+
+
+def _assert_single_turn(items: list[GoldenItem]) -> list[str]:
+    offenders = sorted(item.id for item in items if item.history)
+    if not offenders:
+        return []
+    return [f"{len(offenders)} item(s) not single-turn (the floor sweep runs single-turn only): {offenders}"]
+
+
+def _assert_no_fiche_overlap(items: list[GoldenItem], golden_items: list[GoldenItem]) -> list[str]:
+    golden_fiches = {fiche_id for item in golden_items for fiche_id in item.gold_fiches}
+    offenders = sorted(
+        {f"{item.id}:{fiche_id}" for item in items for fiche_id in item.gold_fiches if fiche_id in golden_fiches}
+    )
+    if not offenders:
+        return []
+    return [f"{len(offenders)} gold_fiches entrie(s) shared with the golden set (it must stay held-out): {offenders}"]
+
+
 def validate_golden_set_against_corpus(
     items: Iterable[GoldenItem],
     *,
@@ -90,6 +140,29 @@ def validate_golden_set_against_corpus(
         materialized,
         fiche_ids=corpus_fiche_ids(fiches_dir),
         article_cids=corpus_article_cids(articles),
+        fiche_chunk_texts=chunk_texts,
+    )
+
+
+def validate_floor_calibration_set_against_corpus(
+    items: Iterable[GoldenItem],
+    *,
+    golden_items: Iterable[GoldenItem],
+    fiches_dir: Path,
+    articles_path: Path,
+) -> None:
+    """`validate_floor_calibration_set` with the committed corpus resolved, mirroring
+    `validate_golden_set_against_corpus`."""
+    materialized = list(items)
+    referenced_fiches = {fid for item in materialized for fid in item.gold_fiches}
+    chunk_texts = {
+        fid: corpus_fiche_chunk_texts(fid, fiches_dir) for fid in referenced_fiches if (fiches_dir / f"{fid}.xml").exists()
+    }
+    validate_floor_calibration_set(
+        materialized,
+        golden_items=golden_items,
+        fiche_ids=corpus_fiche_ids(fiches_dir),
+        article_cids=corpus_article_cids(load_articles(articles_path)),
         fiche_chunk_texts=chunk_texts,
     )
 
